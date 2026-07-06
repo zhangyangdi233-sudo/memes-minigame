@@ -1,0 +1,274 @@
+extends SceneTree
+
+var _failures: Array[String] = []
+var _state_script: Script = null
+
+
+func _init() -> void:
+	_run()
+	if _failures.is_empty():
+		print("meme_game_state tests passed")
+		quit(0)
+	else:
+		for failure in _failures:
+			push_error(failure)
+		quit(1)
+
+
+func _run() -> void:
+	_state_script = load("res://scripts/meme_game_state.gd") as Script
+	_assert_true(_state_script != null, "meme game state script should exist")
+	if _state_script == null:
+		return
+	test_navigation_is_free_and_five_actions_mark_day_end()
+	test_pick_token_costs_action_and_adds_notebook_token()
+	test_buy_emotion_slot_costs_action_and_editing_is_free()
+	test_craft_uses_two_core_slots_and_optional_emotion_text()
+	test_published_memes_make_legacy_rules_on_ascent()
+	test_fallback_legacy_rule_is_used_without_published_memes()
+	test_reality_dialogue_requires_all_legacy_tiles()
+	test_high_pollution_locks_legacy_tiles_and_pollutes_sentence()
+	test_reality_phase_moves_from_npc_to_player_to_result()
+	test_first_crossing_sixty_triggers_flashback_and_forces_day_end()
+	test_flashback_trigger_is_once_per_run()
+	test_day_settlement_can_raise_tower_and_unlock_ending()
+
+
+func test_navigation_is_free_and_five_actions_mark_day_end() -> void:
+	var game: RefCounted = _state_script.new()
+	game.new_run()
+	game.set_phone_open(true)
+	game.set_active_app("social")
+	_assert_eq(game.actions_remaining, 5, "navigation should not spend actions")
+	for index in 5:
+		game.spend_action("test")
+	_assert_eq(game.actions_remaining, 0, "five actions should deplete the day")
+	_assert_true(game.needs_day_settlement, "depleted actions should request day settlement")
+	game.settle_day_if_needed()
+	_assert_eq(game.day, 2, "settlement should advance to day 2")
+	_assert_eq(game.actions_remaining, 5, "settlement should reset daily actions")
+
+
+func test_pick_token_costs_action_and_adds_notebook_token() -> void:
+	var game: RefCounted = _state_script.new()
+	game.new_run()
+	var result: bool = game.pick_token("p1", {"id": "t1", "text": "哈吉米", "tags": ["哈吉米"], "rarity": 1})
+	_assert_true(result, "pick_token should return true for a new token")
+	_assert_eq(game.actions_remaining, 4, "picking a token should cost one action")
+	_assert_eq(game.notebook_tokens.size(), 1, "picked token should enter notebook")
+	_assert_eq(game.notebook_tokens[0]["text"], "哈吉米", "notebook token text should match")
+
+
+func test_buy_emotion_slot_costs_action_and_editing_is_free() -> void:
+	var game: RefCounted = _state_script.new()
+	game.new_run()
+	_assert_true(game.has_method("buy_daily_emotion_slot"), "state should expose buy_daily_emotion_slot")
+	if not game.has_method("buy_daily_emotion_slot"):
+		return
+	var slot_id := str(game.get("daily_emotion_slot_id"))
+	var bought: bool = game.buy_daily_emotion_slot()
+	_assert_true(bought, "buy_daily_emotion_slot should buy today's emotion")
+	_assert_eq(game.actions_remaining, 4, "buying an emotion slot should cost one action")
+	_assert_true(slot_id in game.owned_emotion_slots, "bought emotion slot should be owned")
+	game.set_emotion_slot_text(slot_id, "我不是那个意思")
+	_assert_eq(game.actions_remaining, 4, "editing emotion text should be free")
+	_assert_eq(game.emotion_slot_texts.get(slot_id, ""), "我不是那个意思", "emotion slot text should save player wording")
+
+
+func test_craft_uses_two_core_slots_and_optional_emotion_text() -> void:
+	var game: RefCounted = _state_script.new()
+	game.new_run()
+	game.notebook_tokens = [
+		{"id": "n1", "text": "哈吉米", "tags": ["哈吉米"], "rarity": 1},
+		{"id": "n2", "text": "到底是什么意思", "tags": ["追问"], "rarity": 1},
+	]
+	game.owned_emotion_slots = ["anxiety"]
+	game.set_emotion_slot_text("anxiety", "我不是那个意思")
+	game.place_token_in_slot("object", "n1")
+	game.place_token_in_slot("saying", "n2")
+	_assert_eq(game.actions_remaining, 5, "placing tokens should be free")
+	var crafted: bool = game.confirm_craft_with_emotions()
+	_assert_true(crafted, "confirm_craft_with_emotions should create a meme when core slots are filled")
+	_assert_eq(game.actions_remaining, 4, "confirm craft should cost one action")
+	_assert_eq(game.completed_memes.size(), 1, "crafted meme should enter meme bank")
+	_assert_true(game.completed_memes[0]["text"].contains("哈吉米"), "crafted meme should include slot text")
+	_assert_true(game.completed_memes[0]["text"].contains("我不是那个意思"), "crafted meme should include edited emotion text")
+	_assert_true("焦虑" in game.completed_memes[0]["tags"], "emotion hidden tag should enter crafted meme")
+
+
+func test_published_memes_make_legacy_rules_on_ascent() -> void:
+	var game: RefCounted = _state_script.new()
+	game.new_run()
+	game.published_memes = [
+		{"id": "low", "text": "普通追问", "tags": ["追问"], "floor": 1, "score": 12},
+		{"id": "hot", "text": "哈吉米，必须补票", "tags": ["哈吉米", "追问"], "floor": 1, "score": 44},
+	]
+	game.register_legacy_rule_for_ascent(1)
+	_assert_eq(game.legacy_rules.size(), 1, "ascent should create one legacy rule for previous floor")
+	_assert_eq(game.legacy_rules[0]["source_meme_id"], "hot", "legacy rule should use hottest meme on that floor")
+	_assert_eq(game.legacy_rules[0]["required_text"], "哈吉米，必须补票", "legacy rule should require hottest meme text")
+
+
+func test_fallback_legacy_rule_is_used_without_published_memes() -> void:
+	var game: RefCounted = _state_script.new()
+	game.new_run()
+	game.register_legacy_rule_for_ascent(2)
+	_assert_eq(game.legacy_rules.size(), 1, "ascent without published meme should still create a legacy rule")
+	_assert_eq(game.legacy_rules[0]["source_meme_id"], "", "fallback legacy should not point to a player meme")
+	_assert_true(str(game.legacy_rules[0]["required_text"]).length() > 0, "fallback legacy should have required text")
+
+
+func test_reality_dialogue_requires_all_legacy_tiles() -> void:
+	var game: RefCounted = _state_script.new()
+	game.new_run()
+	game.legacy_rules = [{
+		"id": "legacy-1",
+		"floor": 1,
+		"source_meme_id": "m1",
+		"required_text": "哈吉米，必须补票",
+		"tags": ["哈吉米"],
+		"created_day": 2,
+		"strength": 1,
+	}]
+	game.place_reality_tile("clean_1", "clean:我想正常说话")
+	_assert_eq(game.actions_remaining, 5, "placing clean reality tiles should be free")
+	_assert_true(not game.confirm_reality_dialogue(), "reality dialogue should fail until legacy tile is included")
+	_assert_eq(game.actions_remaining, 5, "failed reality dialogue should not spend an action")
+	game.place_reality_tile("legacy_1", "legacy:legacy-1")
+	var confirmed: bool = game.confirm_reality_dialogue()
+	_assert_true(confirmed, "reality dialogue should confirm when all legacy tiles are included")
+	_assert_eq(game.actions_remaining, 4, "confirmed reality dialogue should cost one action")
+	_assert_true(game.last_clean_sentence.contains("哈吉米，必须补票"), "clean sentence should include required legacy text")
+	_assert_true(game.npc_understanding < 100, "legacy burden should reduce NPC understanding")
+
+
+func test_high_pollution_locks_legacy_tiles_and_pollutes_sentence() -> void:
+	var game: RefCounted = _state_script.new()
+	game.new_run()
+	game.pollution = 82
+	game.legacy_rules = [{
+		"id": "legacy-1",
+		"floor": 1,
+		"source_meme_id": "m1",
+		"required_text": "哈吉米，必须补票",
+		"tags": ["哈吉米"],
+		"created_day": 2,
+		"strength": 2,
+	}]
+	var tiles: Array = game.get_required_legacy_tiles()
+	_assert_eq(tiles.size(), 1, "required legacy tiles should expose one tile")
+	_assert_true(bool(tiles[0].get("locked", false)), "high pollution should lock legacy tile placement")
+	game.place_reality_tile("clean_1", "clean:我想正常说话")
+	var confirmed: bool = game.confirm_reality_dialogue()
+	_assert_true(confirmed, "locked legacy tiles should be auto included in reality dialogue")
+	_assert_true(game.last_polluted_sentence != game.last_clean_sentence, "high pollution should alter the clean sentence")
+	_assert_true(game.last_polluted_sentence.contains("哈吉米") or game.last_polluted_sentence.contains("□"), "polluted sentence should contain pollution markers")
+
+
+func test_reality_phase_moves_from_npc_to_player_to_result() -> void:
+	var game: RefCounted = _state_script.new()
+	game.new_run()
+	_assert_true(game.has_method("begin_reality_player_turn"), "state should expose begin_reality_player_turn")
+	_assert_true(game.has_method("reset_reality_phase_for_day"), "state should expose reset_reality_phase_for_day")
+	if not game.has_method("begin_reality_player_turn") or not game.has_method("reset_reality_phase_for_day"):
+		return
+	_assert_eq(game.get("reality_phase"), "npc_speaking", "new runs should start reality dialogue in NPC speaking phase")
+	game.begin_reality_player_turn()
+	_assert_eq(game.get("reality_phase"), "player_composing", "clicking NPC bubble should enter player composing phase")
+	game.place_reality_tile("slot_0", "clean:我")
+	_assert_true(game.confirm_reality_dialogue(), "reality dialogue should confirm with a clean tile when no legacy rules exist")
+	_assert_eq(game.get("reality_phase"), "reality_result", "confirmed reality dialogue should enter result phase")
+	game.reset_reality_phase_for_day()
+	_assert_eq(game.get("reality_phase"), "npc_speaking", "reset should return to NPC speaking phase")
+	game.begin_reality_player_turn()
+	game.set_view_state("npc_up")
+	_assert_eq(game.get("reality_phase"), "npc_speaking", "entering NPC view should restart at NPC speaking phase")
+
+
+func test_first_crossing_sixty_triggers_flashback_and_forces_day_end() -> void:
+	var game: RefCounted = _state_script.new()
+	game.new_run()
+	_assert_true(game.has_method("check_pollution_flashback"), "state should expose check_pollution_flashback")
+	_assert_true(game.has_method("consume_pollution_flashback"), "state should expose consume_pollution_flashback")
+	if not game.has_method("check_pollution_flashback") or not game.has_method("consume_pollution_flashback"):
+		return
+	game.pollution = 60
+	var triggered: bool = game.check_pollution_flashback(59)
+	_assert_true(triggered, "first crossing from 59 to 60 should trigger the pollution flashback")
+	_assert_true(bool(game.get("pollution_flashback_pending")), "trigger should mark flashback pending")
+	_assert_true(bool(game.get("pollution_flashback_seen")), "trigger should mark flashback seen")
+	_assert_eq(game.actions_remaining, 0, "flashback trigger should consume the rest of the day")
+	_assert_true(game.needs_day_settlement, "flashback trigger should request day settlement")
+	_assert_eq(game.day_ended_reason, "pollution-flashback", "flashback trigger should explain why the day ended")
+	_assert_true(game.consume_pollution_flashback(), "pending flashback should be consumable once")
+	_assert_true(not bool(game.get("pollution_flashback_pending")), "consuming flashback should clear pending state")
+	_assert_true(game.settle_day_if_needed(), "settlement should run after the flashback is consumed")
+	_assert_eq(game.day, 2, "flashback settlement should advance to the next day")
+	_assert_eq(game.actions_remaining, 5, "new day should restore all five actions")
+
+
+func test_flashback_trigger_is_once_per_run() -> void:
+	var game: RefCounted = _state_script.new()
+	game.new_run()
+	if not game.has_method("check_pollution_flashback") or not game.has_method("consume_pollution_flashback"):
+		_assert_true(false, "state should expose flashback methods before once-per-run behavior can be tested")
+		return
+	game.pollution = 61
+	_assert_true(game.check_pollution_flashback(59), "first threshold crossing should trigger")
+	_assert_true(game.consume_pollution_flashback(), "first threshold crossing should be consumed")
+	game.needs_day_settlement = false
+	game.actions_remaining = 4
+	game.day_ended_reason = ""
+	game.pollution = 72
+	_assert_true(not game.check_pollution_flashback(61), "later pollution growth above 60 should not retrigger")
+	_assert_true(not bool(game.get("pollution_flashback_pending")), "later growth should not leave a pending flashback")
+	_assert_eq(game.actions_remaining, 4, "later growth should not consume remaining actions")
+	_assert_true(not game.needs_day_settlement, "later growth should not force day settlement")
+
+
+func test_place_meme_is_free_and_confirm_dialogue_costs_action() -> void:
+	var game: RefCounted = _state_script.new()
+	game.new_run()
+	game.completed_memes = [{
+		"id": "m1",
+		"title": "普通追问 #1",
+		"text": "哈吉米，什么意思？",
+		"tags": ["哈吉米", "追问"],
+		"rarity": 1,
+		"pollution_bias": 0,
+	}]
+	game.place_meme_in_blank("blank_1", "m1")
+	_assert_eq(game.actions_remaining, 5, "placing meme in dialogue should be free")
+	var used: bool = game.confirm_dialogue()
+	_assert_true(used, "confirm_dialogue should use placed meme")
+	_assert_eq(game.actions_remaining, 4, "confirm dialogue should cost one action")
+	_assert_eq(game.dialogue_blanks.size(), 0, "dialogue blank should clear after use")
+	_assert_true(game.heat > 18, "successful dialogue should increase heat")
+
+
+func test_day_settlement_can_raise_tower_and_unlock_ending() -> void:
+	var game: RefCounted = _state_script.new()
+	game.new_run()
+	game.heat = 220
+	game.pollution = 90
+	game.tower_floor = 4
+	game.published_memes = [{"id": "m4", "text": "塔顶直播没有画面", "tags": ["空位"], "floor": 4, "score": 80}]
+	game.spend_action("one")
+	game.spend_action("two")
+	game.spend_action("three")
+	game.spend_action("four")
+	game.spend_action("five")
+	game.settle_day_if_needed()
+	_assert_eq(game.tower_floor, 5, "high progress should raise the tower floor")
+	_assert_true(game.get("ending_unlocked"), "floor 5 should unlock ending")
+	_assert_true(game.legacy_rules.size() >= 1, "raising tower should preserve previous floor as legacy")
+
+
+func _assert_true(value: bool, message: String) -> void:
+	if not value:
+		_failures.append(message)
+
+
+func _assert_eq(actual: Variant, expected: Variant, message: String) -> void:
+	if actual != expected:
+		_failures.append("%s. Expected %s, got %s" % [message, str(expected), str(actual)])

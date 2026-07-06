@@ -1,0 +1,19 @@
+.DS_Store
+
+# Godot local editor/import cache
+.godot/
+.import/
+*.translation
+
+# Local logs and crash dumps
+*.log
+*.tmp
+
+# Exported builds
+builds/
+exports/
+*.dmg
+*.exe
+*.pck
+*.zip
+
