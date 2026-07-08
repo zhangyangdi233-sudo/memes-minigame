@@ -27,6 +27,62 @@ const POLLUTION_PALETTE_5 := {
 	"flash_text": "39FF14",
 }
 
+const ROAD_TEXTURE_PATH := "res://assets/generated/world/road_loop_green.png"
+const HAND_PHONE_TEXTURE_PATH := "res://assets/generated/world/hand_phone_down.png"
+const PHONE_DOWN_BACKDROP_PATH := "res://assets/generated/world/phone_down_backdrop.png"
+const NPC_TEXTURE_PATH := "res://assets/generated/world/npc_front.png"
+const PLAYER_PORTRAIT_TEXTURE_PATH := "res://assets/generated/ui/player_portrait.png"
+const NO_SIGNAL_ICON_PATH := "res://assets/generated/ui/no_signal_icon.png"
+const HUD_DAY_ICON_PATH := "res://assets/generated/ui/hud_day_icon.png"
+const HUD_POLLUTION_ICON_PATH := "res://assets/generated/ui/hud_pollution_icon.png"
+const HUD_MONEY_ICON_PATH := "res://assets/generated/ui/hud_money_icon.png"
+const HUD_SETTINGS_ICON_PATH := "res://assets/generated/ui/hud_settings_icon.png"
+const SOCIAL_POSTER_COUNT := 12
+const SOCIAL_FEED_WHEEL_STEP := 4
+const SOCIAL_HOME_CAPTIONS := [
+	"夜路九张",
+	"塔下随手拍",
+	"无信号包里有什么",
+	"空房间存档",
+	"今日路线碎片",
+	"收藏夹漏了一格",
+	"旧词穿搭",
+	"错字路牌",
+	"草稿箱便当",
+	"黑屏留白",
+	"失焦散步",
+	"塔顶空号",
+]
+const SOCIAL_DETAIL_TEXTS := [
+	"夜路九张：路面、手、黑屏。最后一张只剩无信号。",
+	"塔下随手拍：水、便签、空收据。今天不写结论。",
+	"包里翻到旧词卡。带它出门，像带一格没用完的电。",
+	"空房间存档。墙面很干净，适合挂没说完的话。",
+	"今日路线碎片：沿绿色线走三站，又回到同一句。",
+	"收藏夹漏了一格。没标题，却每天排在最前面。",
+	"旧词穿搭：黑外套配米白纸条，懂太多会撞款。",
+	"错字路牌。角度从下往上，名字会自己变形。",
+	"草稿箱便当：早上沉默，中午复读，晚上留白。",
+	"黑屏留白。字越少，评论越爱替你补完。",
+	"失焦散步。照片都糊了，只有一句话特别清楚。",
+	"塔顶空号。头像空着，动态要求你放遗产。",
+]
+const SOCIAL_DETAIL_HANDLES := [
+	"夜路相册",
+	"塔下便利店",
+	"无信号通勤",
+	"空房间before",
+	"绿色路线图",
+	"收藏夹维护员",
+	"旧词穿搭",
+	"错字路牌",
+	"草稿箱便当",
+	"黑屏排版课",
+	"失焦散步",
+	"塔顶空号",
+]
+const REALITY_DIM_ALPHA := 0.24
+
 const DAY_PLANS := [
 	{
 		"title": "旧帖被顶上来",
@@ -131,7 +187,6 @@ var game = MemeGameStateScript.new()
 var selected_token_id := ""
 var selected_meme_id := ""
 var selected_reality_tile_id := ""
-var feed_shift := 0
 var log_text := ""
 var _road_scroll := 0.0
 var _input_locked := false
@@ -142,30 +197,59 @@ var _phone_rig: Node3D
 var _npc: Node3D
 var _canvas: CanvasLayer
 var _ui_root: Control
+var _texture_cache: Dictionary = {}
+var _phone_down_backdrop_image: TextureRect
+var _hand_phone_image: TextureRect
 var _stats_label: Label
 var _actions_label: Label
+var _hud_panel: PanelContainer
+var _hud_settings_icon: Button
+var _hud_day_value: Label
+var _hud_heat_value: Label
+var _hud_pollution_value: Label
+var _hud_clarity_value: Label
+var _hud_floor_value: Label
+var _hud_money_value: Label
+var _hud_actions_label: Label
+var _hud_tooltip: PanelContainer
+var _hud_tooltip_label: Label
 var _world_prompt: Label
 var _desk_log: Label
+var _main_menu_layer: Control
+var _settings_window: PanelContainer
+var _settings_content: VBoxContainer
+var _volume_slider: HSlider
+var _vhs_toggle: CheckButton
+var _view_toggle_button: Button
+var _vhs_overlay: Control
+var _vhs_scanlines: Array[ColorRect] = []
 var _phone_panel: PanelContainer
 var _phone_tab: Button
+var _phone_content: Control
 var _phone_title: Label
 var _app_window: PanelContainer
 var _app_title: Label
 var _app_body: VBoxContainer
+var _app_windows: Dictionary = {}
+var _app_titles: Dictionary = {}
+var _app_bodies: Dictionary = {}
 var _publish_panel: PanelContainer
 var _publish_blank: DropButton
 var _confirm_publish_button: Button
 var _meme_bank_tab: Button
+var _meme_bank_drag_handle: Label
 var _meme_bank_window: PanelContainer
+var _meme_bank_content: Control
 var _bank_list: HBoxContainer
 var _reality_panel: PanelContainer
-var _reality_tile_row: HBoxContainer
+var _reality_tile_row: Container
 var _reality_slot_box: HBoxContainer
 var _reality_result: Label
 var _confirm_reality_button: Button
 var _npc_chat_bubble: PanelContainer
 var _npc_chat_label: Label
 var _reality_dim_overlay: ColorRect
+var _npc_focus_image: TextureRect
 var _player_portrait: Control
 var _thought_word_layer: Control
 var _flashback_overlay: Control
@@ -173,14 +257,31 @@ var _flashback_noise: ColorRect
 var _flashback_blackout: ColorRect
 var _flashback_words: Array[Label] = []
 var _flashback_tween: Tween
+var _action_spend_overlay: Control
+var _action_spend_blackout: ColorRect
+var _action_spend_label: Label
+var _action_spend_tween: Tween
+var _action_spend_after_actions := -1
+var _action_spend_should_settle := false
 var _meme_bank_open := false
+var _phone_popup_expanded := true
+var _meme_bank_layout_open := false
+var _open_app_windows: Dictionary = {}
+var _social_screen := "home"
+var _social_channel := "发现"
+var _social_detail_post_index := 0
 var _draggable_windows: Dictionary = {}
 var _dragged_window: Control
 var _drag_offset := Vector2.ZERO
+var _game_started := false
+var _settings_open := false
+var _vhs_enabled := true
+var _master_volume := 80.0
+var _phone_art_alpha := 0.0
 
 
 func _ready() -> void:
-	new_game()
+	show_main_menu()
 
 
 func _process(delta: float) -> void:
@@ -202,13 +303,26 @@ func _input(event: InputEvent) -> void:
 
 
 func new_game() -> void:
+	_game_started = true
+	_settings_open = false
+	_phone_art_alpha = 1.0
 	game = MemeGameStateScript.new()
 	game.new_run()
 	selected_token_id = ""
 	selected_meme_id = ""
 	selected_reality_tile_id = ""
-	feed_shift = 0
 	_meme_bank_open = false
+	_phone_popup_expanded = true
+	_meme_bank_layout_open = false
+	_open_app_windows = {"social": true}
+	_social_screen = "home"
+	_social_channel = "发现"
+	_social_detail_post_index = 0
+	_app_windows = {}
+	_app_titles = {}
+	_app_bodies = {}
+	_action_spend_after_actions = -1
+	_action_spend_should_settle = false
 	_draggable_windows = {}
 	_dragged_window = null
 	_drag_offset = Vector2.ZERO
@@ -216,6 +330,15 @@ func new_game() -> void:
 	_build_world()
 	_build_ui()
 	_render()
+
+
+func show_main_menu() -> void:
+	_game_started = false
+	_settings_open = false
+	_input_locked = false
+	_phone_art_alpha = 0.0
+	_build_world()
+	_build_main_menu()
 
 
 func set_view_state(value: String) -> void:
@@ -227,7 +350,18 @@ func set_view_state(value: String) -> void:
 			_meme_bank_open = false
 		else:
 			log_text = "你又低头看向手机。"
+			if not game.active_app_window.is_empty():
+				_open_app_windows[game.active_app_window] = true
+			if _phone_panel != null:
+				_phone_panel.move_to_front()
 		_render()
+
+
+func _toggle_view_state() -> void:
+	if game.view_state == "phone_down":
+		set_view_state("npc_up")
+	else:
+		set_view_state("phone_down")
 
 
 func begin_reality_player_turn() -> void:
@@ -240,7 +374,8 @@ func begin_reality_player_turn() -> void:
 
 func _build_world() -> void:
 	for child in get_children():
-		child.queue_free()
+		remove_child(child)
+		child.free()
 
 	_camera = Camera3D.new()
 	_camera.name = "Camera3D"
@@ -257,6 +392,7 @@ func _build_world() -> void:
 	_road = Node3D.new()
 	_road.name = "Road"
 	add_child(_road)
+	var road_texture := _load_runtime_texture(ROAD_TEXTURE_PATH)
 	for index in 3:
 		var tile := MeshInstance3D.new()
 		tile.name = "RoadTile%d" % index
@@ -265,7 +401,8 @@ func _build_world() -> void:
 		tile.mesh = plane
 		tile.position = Vector3(0.0, -0.08, -2.0 - index * 3.8)
 		var mat := StandardMaterial3D.new()
-		mat.albedo_color = _theme_color("accent").darkened(0.50 - index * 0.08)
+		mat.albedo_color = Color.WHITE if road_texture != null else _theme_color("accent").darkened(0.50 - index * 0.08)
+		mat.albedo_texture = road_texture
 		mat.roughness = 0.8
 		tile.material_override = mat
 		_road.add_child(tile)
@@ -306,7 +443,11 @@ func _build_world() -> void:
 	npc_body.mesh = npc_quad
 	npc_body.position = Vector3(0.0, 1.25, -3.2)
 	var npc_mat := StandardMaterial3D.new()
-	npc_mat.albedo_color = _theme_color("surface")
+	var npc_texture := _load_runtime_texture(NPC_TEXTURE_PATH)
+	npc_mat.albedo_color = Color.WHITE if npc_texture != null else _theme_color("surface")
+	npc_mat.albedo_texture = npc_texture
+	npc_mat.transparency = BaseMaterial3D.TRANSPARENCY_ALPHA
+	npc_mat.cull_mode = BaseMaterial3D.CULL_DISABLED
 	npc_mat.emission_enabled = true
 	npc_mat.emission = _theme_color("muted")
 	npc_mat.emission_energy_multiplier = 0.12
@@ -316,6 +457,130 @@ func _build_world() -> void:
 	_canvas = CanvasLayer.new()
 	_canvas.name = "CanvasLayer"
 	add_child(_canvas)
+
+
+func _build_main_menu() -> void:
+	if _canvas == null:
+		return
+	for child in _canvas.get_children():
+		child.queue_free()
+
+	_ui_root = Control.new()
+	_ui_root.name = "UIRoot"
+	_ui_root.set_anchors_preset(Control.PRESET_FULL_RECT)
+	_canvas.add_child(_ui_root)
+
+	_main_menu_layer = Control.new()
+	_main_menu_layer.name = "MainMenuLayer"
+	_main_menu_layer.set_anchors_preset(Control.PRESET_FULL_RECT)
+	_ui_root.add_child(_main_menu_layer)
+
+	var bg := ColorRect.new()
+	bg.name = "MainMenuGreenBackground"
+	bg.color = Color("5DAE6B")
+	bg.set_anchors_preset(Control.PRESET_FULL_RECT)
+	_main_menu_layer.add_child(bg)
+
+	for index in 7:
+		var stripe := ColorRect.new()
+		stripe.name = "MainMenuPosterStripe%d" % index
+		stripe.color = Color(_theme_color("surface"), 0.96 if index % 2 == 0 else 0.0)
+		stripe.set_anchors_preset(Control.PRESET_TOP_LEFT)
+		stripe.offset_left = 74 + index * 144
+		stripe.offset_top = 322
+		stripe.offset_right = stripe.offset_left + 122
+		stripe.offset_bottom = 430
+		_main_menu_layer.add_child(stripe)
+		var cut := ColorRect.new()
+		cut.name = "MainMenuBlackCut%d" % index
+		cut.color = _theme_color("ink")
+		cut.set_anchors_preset(Control.PRESET_TOP_LEFT)
+		cut.offset_left = stripe.offset_left + 10
+		cut.offset_top = 322 + (index % 3) * 18
+		cut.offset_right = cut.offset_left + 118
+		cut.offset_bottom = cut.offset_top + 22
+		cut.rotation = deg_to_rad(-22 + index * 9)
+		_main_menu_layer.add_child(cut)
+
+	var title_stack := VBoxContainer.new()
+	title_stack.name = "MainMenuTextStack"
+	title_stack.set_anchors_preset(Control.PRESET_TOP_LEFT)
+	title_stack.offset_left = 70
+	title_stack.offset_top = 218
+	title_stack.offset_right = 1040
+	title_stack.offset_bottom = 560
+	title_stack.add_theme_constant_override("separation", 18)
+	_main_menu_layer.add_child(title_stack)
+
+	var chapter := _label("Cartridge 3", 52, Color(_theme_color("surface"), 0.82))
+	chapter.name = "MainMenuChapter"
+	title_stack.add_child(chapter)
+
+	var title := _label("HAJIMI", 94, _theme_color("surface"))
+	title.name = "MainMenuTitle"
+	title.add_theme_color_override("font_shadow_color", _theme_color("ink"))
+	title.add_theme_constant_override("shadow_offset_x", 4)
+	title.add_theme_constant_override("shadow_offset_y", 0)
+	title_stack.add_child(title)
+
+	var subtitle := _label("Die Grenzen meiner Sprache bedeuten die Grenzen meiner Welt.", 28, Color(_theme_color("surface"), 0.78))
+	subtitle.name = "MainMenuSubtitle"
+	title_stack.add_child(subtitle)
+
+	var buttons := HBoxContainer.new()
+	buttons.name = "MainMenuButtons"
+	buttons.add_theme_constant_override("separation", 18)
+	title_stack.add_child(buttons)
+
+	var start_button := Button.new()
+	start_button.name = "MainMenuStartButton"
+	start_button.text = "开始游戏"
+	start_button.custom_minimum_size = Vector2(168, 54)
+	start_button.pressed.connect(new_game)
+	buttons.add_child(start_button)
+
+	var exit_button := Button.new()
+	exit_button.name = "MainMenuExitButton"
+	exit_button.text = "退出游戏"
+	exit_button.custom_minimum_size = Vector2(168, 54)
+	exit_button.pressed.connect(_quit_game)
+	buttons.add_child(exit_button)
+
+	var mark := Control.new()
+	mark.name = "MainMenuCornerMark"
+	mark.set_anchors_preset(Control.PRESET_BOTTOM_RIGHT)
+	mark.offset_left = -150
+	mark.offset_top = -126
+	mark.offset_right = -56
+	mark.offset_bottom = -36
+	_main_menu_layer.add_child(mark)
+	var mark_circle := ColorRect.new()
+	mark_circle.color = _theme_color("surface")
+	mark_circle.set_anchors_preset(Control.PRESET_TOP_LEFT)
+	mark_circle.offset_left = 28
+	mark_circle.offset_top = 0
+	mark_circle.offset_right = 62
+	mark_circle.offset_bottom = 34
+	mark.add_child(mark_circle)
+	var mark_stem := ColorRect.new()
+	mark_stem.color = _theme_color("ink")
+	mark_stem.set_anchors_preset(Control.PRESET_TOP_LEFT)
+	mark_stem.offset_left = 46
+	mark_stem.offset_top = 0
+	mark_stem.offset_right = 62
+	mark_stem.offset_bottom = 34
+	mark.add_child(mark_stem)
+	for index in 3:
+		var base := ColorRect.new()
+		base.color = _theme_color("surface")
+		base.set_anchors_preset(Control.PRESET_TOP_LEFT)
+		base.offset_left = 20 - index * 2
+		base.offset_top = 54 + index * 10
+		base.offset_right = 76 + index * 2
+		base.offset_bottom = base.offset_top + 4
+		mark.add_child(base)
+
+	_apply_ui_theme()
 
 
 func _build_ui() -> void:
@@ -333,146 +598,143 @@ func _build_ui() -> void:
 	vignette.color = _theme_color("ink").darkened(0.15)
 	vignette.modulate.a = 0.16
 	vignette.set_anchors_preset(Control.PRESET_FULL_RECT)
+	vignette.z_index = 2
 	_ui_root.add_child(vignette)
 
-	var status := HBoxContainer.new()
-	status.name = "StatusBar"
-	status.set_anchors_preset(Control.PRESET_TOP_WIDE)
-	status.offset_left = 14
-	status.offset_top = 12
-	status.offset_right = -14
-	status.offset_bottom = 70
-	status.add_theme_constant_override("separation", 10)
-	_ui_root.add_child(status)
+	_build_vhs_overlay()
 
-	var brand := _panel()
-	brand.custom_minimum_size.x = 260
-	status.add_child(brand)
-	brand.add_child(_label("BABEL PHONE / 巴别塔", 20, _theme_color("ink")))
+	_phone_down_backdrop_image = TextureRect.new()
+	_phone_down_backdrop_image.name = "PhoneDownBackdropImage"
+	_phone_down_backdrop_image.texture = _load_runtime_texture(PHONE_DOWN_BACKDROP_PATH)
+	_phone_down_backdrop_image.set_meta("asset_path", PHONE_DOWN_BACKDROP_PATH)
+	_phone_down_backdrop_image.expand_mode = TextureRect.EXPAND_IGNORE_SIZE
+	_phone_down_backdrop_image.stretch_mode = TextureRect.STRETCH_KEEP_ASPECT_COVERED
+	_phone_down_backdrop_image.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	_phone_down_backdrop_image.set_anchors_preset(Control.PRESET_FULL_RECT)
+	_phone_down_backdrop_image.z_index = 1
+	_ui_root.add_child(_phone_down_backdrop_image)
 
-	var stats_panel := _panel()
-	stats_panel.size_flags_horizontal = Control.SIZE_EXPAND_FILL
-	status.add_child(stats_panel)
-	_stats_label = _label("", 16, _theme_color("ink"))
-	stats_panel.add_child(_stats_label)
+	_hand_phone_image = TextureRect.new()
+	_hand_phone_image.name = "HandPhoneDownImage"
+	_hand_phone_image.texture = _load_runtime_texture(HAND_PHONE_TEXTURE_PATH)
+	_hand_phone_image.set_meta("asset_path", HAND_PHONE_TEXTURE_PATH)
+	_hand_phone_image.expand_mode = TextureRect.EXPAND_IGNORE_SIZE
+	_hand_phone_image.stretch_mode = TextureRect.STRETCH_KEEP_ASPECT_CENTERED
+	_hand_phone_image.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	_hand_phone_image.set_anchors_preset(Control.PRESET_FULL_RECT)
+	_hand_phone_image.z_index = 3
+	_ui_root.add_child(_hand_phone_image)
 
-	var action_panel := _panel()
-	action_panel.custom_minimum_size.x = 260
-	status.add_child(action_panel)
-	_actions_label = _label("", 16, _theme_color("accent"))
-	action_panel.add_child(_actions_label)
+	_build_apple_hud()
 
 	_world_prompt = _label("", 20, _theme_color("ink"))
 	_world_prompt.name = "WorldPrompt"
 	_world_prompt.set_anchors_preset(Control.PRESET_TOP_LEFT)
-	_world_prompt.offset_left = 24
-	_world_prompt.offset_top = 86
-	_world_prompt.offset_right = 620
-	_world_prompt.offset_bottom = 164
+	_world_prompt.offset_left = 282
+	_world_prompt.offset_top = 28
+	_world_prompt.offset_right = 742
+	_world_prompt.offset_bottom = 128
 	_world_prompt.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
 	_ui_root.add_child(_world_prompt)
 
 	_phone_panel = _panel()
-	_phone_panel.name = "PhoneEdge"
-	_phone_panel.set_anchors_preset(Control.PRESET_BOTTOM_RIGHT)
-	_phone_panel.offset_left = -300
-	_phone_panel.offset_top = -250
-	_phone_panel.offset_right = -16
-	_phone_panel.offset_bottom = -150
+	_phone_panel.name = "PhonePopup"
+	_phone_panel.z_index = 20
 	_ui_root.add_child(_phone_panel)
-	var phone_box := VBoxContainer.new()
-	phone_box.add_theme_constant_override("separation", 8)
-	_phone_panel.add_child(phone_box)
-	_phone_title = _label("PHONE", 18, _theme_color("accent"))
-	phone_box.add_child(_phone_title)
-	var app_row := HBoxContainer.new()
-	app_row.add_theme_constant_override("separation", 5)
-	phone_box.add_child(app_row)
-	for app in [
-		{"id": "babel", "label": "塔"},
-		{"id": "social", "label": "帖"},
-		{"id": "shop", "label": "店"},
-		{"id": "notebook", "label": "本"},
-	]:
-		var button := Button.new()
-		button.text = app["label"]
-		button.custom_minimum_size = Vector2(58, 42)
-		button.pressed.connect(_on_app_pressed.bind(app["id"]))
-		app_row.add_child(button)
-	var raise_button := Button.new()
-	raise_button.text = "放下手机"
-	raise_button.custom_minimum_size.y = 42
-	raise_button.pressed.connect(set_view_state.bind("npc_up"))
-	phone_box.add_child(raise_button)
+	_apply_phone_popup_layout(true)
+
+	var phone_shell := VBoxContainer.new()
+	phone_shell.name = "PhoneShell"
+	phone_shell.add_theme_constant_override("separation", 10)
+	_phone_panel.add_child(phone_shell)
 
 	_phone_tab = Button.new()
 	_phone_tab.name = "PhoneTab"
-	_phone_tab.text = "PHONE"
-	_phone_tab.set_anchors_preset(Control.PRESET_RIGHT_WIDE)
-	_phone_tab.offset_left = -78
-	_phone_tab.offset_top = 180
-	_phone_tab.offset_right = -16
-	_phone_tab.offset_bottom = -180
+	_phone_tab.text = "PHONE\n打开"
+	_phone_tab.custom_minimum_size = Vector2(78, 168)
 	_phone_tab.pressed.connect(set_view_state.bind("phone_down"))
-	_ui_root.add_child(_phone_tab)
+	phone_shell.add_child(_phone_tab)
 
-	_app_window = _panel()
-	_app_window.name = "FloatingAppWindow"
-	_app_window.set_anchors_preset(Control.PRESET_TOP_RIGHT)
-	_app_window.offset_left = -820
-	_app_window.offset_top = 84
-	_app_window.offset_right = -320
-	_app_window.offset_bottom = 560
-	_ui_root.add_child(_app_window)
-	var app_box := VBoxContainer.new()
-	app_box.add_theme_constant_override("separation", 8)
-	_app_window.add_child(app_box)
-	_app_title = _label("", 21, _theme_color("accent"))
-	_app_title.name = "AppWindowHandle"
-	_app_title.mouse_filter = Control.MOUSE_FILTER_STOP
-	app_box.add_child(_app_title)
-	_make_draggable_window(_app_window, "app", _app_title)
-	var app_scroll := ScrollContainer.new()
-	app_scroll.size_flags_vertical = Control.SIZE_EXPAND_FILL
-	app_box.add_child(app_scroll)
-	_app_body = VBoxContainer.new()
-	_app_body.add_theme_constant_override("separation", 8)
-	app_scroll.add_child(_app_body)
+	_phone_content = VBoxContainer.new()
+	_phone_content.name = "PhoneContent"
+	_phone_content.size_flags_vertical = Control.SIZE_EXPAND_FILL
+	(_phone_content as VBoxContainer).add_theme_constant_override("separation", 12)
+	phone_shell.add_child(_phone_content)
 
-	_publish_panel = _panel()
-	_publish_panel.name = "PublishPanel"
-	_publish_panel.set_anchors_preset(Control.PRESET_BOTTOM_LEFT)
-	_publish_panel.offset_left = 16
-	_publish_panel.offset_top = -250
-	_publish_panel.offset_right = 520
-	_publish_panel.offset_bottom = -150
-	_ui_root.add_child(_publish_panel)
-	var publish_box := VBoxContainer.new()
-	publish_box.add_theme_constant_override("separation", 8)
-	_publish_panel.add_child(publish_box)
-	var publish_title := _label("手机发布空格", 18, _theme_color("accent"))
-	publish_title.mouse_filter = Control.MOUSE_FILTER_STOP
-	publish_box.add_child(publish_title)
-	_make_draggable_window(_publish_panel, "publish", publish_title)
-	_publish_blank = DropButtonScript.new()
-	_publish_blank.custom_minimum_size.y = 46
-	_publish_blank.configure_drop_target("meme", "blank_1")
-	_publish_blank.dropped.connect(_on_dialogue_meme_dropped)
-	_publish_blank.pressed.connect(_on_dialogue_blank_pressed)
-	publish_box.add_child(_publish_blank)
-	_confirm_publish_button = Button.new()
-	_confirm_publish_button.text = "确认发布"
-	_confirm_publish_button.custom_minimum_size.y = 44
-	_confirm_publish_button.pressed.connect(_on_confirm_dialogue_pressed)
-	publish_box.add_child(_confirm_publish_button)
+	_phone_title = _label("PHONE", 24, _theme_color("accent"))
+	_phone_title.name = "PhoneWindowHandle"
+	_phone_title.mouse_filter = Control.MOUSE_FILTER_STOP
+	_phone_content.add_child(_phone_title)
+	_make_draggable_window(_phone_panel, "phone", _phone_title)
+
+	var phone_screen := _panel()
+	phone_screen.name = "PhoneScreenPanel"
+	phone_screen.size_flags_vertical = Control.SIZE_EXPAND_FILL
+	_phone_content.add_child(phone_screen)
+	var screen_box := VBoxContainer.new()
+	screen_box.add_theme_constant_override("separation", 12)
+	phone_screen.add_child(screen_box)
+	var app_grid := GridContainer.new()
+	app_grid.columns = 2
+	app_grid.add_theme_constant_override("h_separation", 10)
+	app_grid.add_theme_constant_override("v_separation", 10)
+	screen_box.add_child(app_grid)
+	for app in [
+		{"id": "babel", "label": "塔\nBABEL"},
+		{"id": "social", "label": "帖\nSOCIAL"},
+		{"id": "shop", "label": "店\nSHOP"},
+		{"id": "notebook", "label": "本\nNOTE"},
+	]:
+		var button := Button.new()
+		button.name = "PhoneAppIcon%s" % str(app["id"]).capitalize()
+		button.text = app["label"]
+		button.custom_minimum_size = Vector2(124, 86)
+		button.pressed.connect(_on_app_pressed.bind(app["id"]))
+		app_grid.add_child(button)
+	var phone_hint := _label("点击 App 会在手机旁边弹出独立窗口。", 15, _theme_color("accent"))
+	phone_hint.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
+	screen_box.add_child(phone_hint)
+	var raise_button := Button.new()
+	raise_button.text = "放下手机"
+	raise_button.custom_minimum_size.y = 52
+	raise_button.pressed.connect(set_view_state.bind("npc_up"))
+	_phone_content.add_child(raise_button)
+
+	_view_toggle_button = Button.new()
+	_view_toggle_button.name = "PhoneViewToggleButton"
+	_view_toggle_button.set_anchors_preset(Control.PRESET_BOTTOM_LEFT)
+	_view_toggle_button.offset_left = 470
+	_view_toggle_button.offset_top = -92
+	_view_toggle_button.offset_right = 596
+	_view_toggle_button.offset_bottom = -36
+	_view_toggle_button.custom_minimum_size = Vector2(126, 56)
+	_view_toggle_button.z_index = 24
+	_view_toggle_button.pressed.connect(_toggle_view_state)
+	_ui_root.add_child(_view_toggle_button)
+
+	_build_app_window("social", "社交媒体 App", "SocialAppWindow", -620.0, 8.0, -28.0, 716.0)
+	_build_app_window("babel", "巴别塔 App", "BabelAppWindow", -920.0, 104.0, -500.0, 604.0)
+	_build_app_window("shop", "情绪槽商店", "ShopAppWindow", -884.0, 132.0, -464.0, 632.0)
+	_build_app_window("notebook", "笔记本 App", "NotebookAppWindow", -848.0, 160.0, -428.0, 660.0)
 
 	_reality_dim_overlay = ColorRect.new()
 	_reality_dim_overlay.name = "RealityDimOverlay"
-	_reality_dim_overlay.color = Color(0, 0, 0, 0.28)
+	_reality_dim_overlay.color = Color(0, 0, 0, REALITY_DIM_ALPHA)
+	_reality_dim_overlay.set_meta("target_background_brightness", 1.0 - REALITY_DIM_ALPHA)
 	_reality_dim_overlay.set_anchors_preset(Control.PRESET_FULL_RECT)
 	_reality_dim_overlay.mouse_filter = Control.MOUSE_FILTER_IGNORE
-	_reality_dim_overlay.z_index = 4
+	_reality_dim_overlay.z_index = 9
 	_ui_root.add_child(_reality_dim_overlay)
+
+	_npc_focus_image = TextureRect.new()
+	_npc_focus_image.name = "NPCFocusImage"
+	_npc_focus_image.texture = _load_runtime_texture(NPC_TEXTURE_PATH)
+	_npc_focus_image.expand_mode = TextureRect.EXPAND_IGNORE_SIZE
+	_npc_focus_image.stretch_mode = TextureRect.STRETCH_KEEP_ASPECT_CENTERED
+	_npc_focus_image.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	_npc_focus_image.set_anchors_preset(Control.PRESET_FULL_RECT)
+	_npc_focus_image.z_index = 11
+	_ui_root.add_child(_npc_focus_image)
 
 	_npc_chat_bubble = _panel()
 	_npc_chat_bubble.name = "NPCChatBubble"
@@ -503,16 +765,18 @@ func _build_ui() -> void:
 	_thought_word_layer = Control.new()
 	_thought_word_layer.name = "ThoughtWordLayer"
 	_thought_word_layer.set_anchors_preset(Control.PRESET_TOP_WIDE)
-	_thought_word_layer.offset_left = 220
-	_thought_word_layer.offset_top = 318
-	_thought_word_layer.offset_right = -170
-	_thought_word_layer.offset_bottom = 408
+	_thought_word_layer.offset_left = 288
+	_thought_word_layer.offset_top = 348
+	_thought_word_layer.offset_right = -238
+	_thought_word_layer.offset_bottom = 592
 	_thought_word_layer.z_index = 13
 	_ui_root.add_child(_thought_word_layer)
-	_reality_tile_row = HBoxContainer.new()
-	_reality_tile_row.add_theme_constant_override("separation", 9)
+	_reality_tile_row = HFlowContainer.new()
+	_reality_tile_row.add_theme_constant_override("h_separation", 10)
+	_reality_tile_row.add_theme_constant_override("v_separation", 10)
 	_reality_tile_row.set_anchors_preset(Control.PRESET_FULL_RECT)
 	_thought_word_layer.add_child(_reality_tile_row)
+	_reality_tile_row.name = "RealityThoughtFlow"
 
 	_reality_panel = _panel()
 	_reality_panel.name = "LanguagePuzzleFrame"
@@ -535,54 +799,424 @@ func _build_ui() -> void:
 	reality_box.add_child(_reality_slot_box)
 	_confirm_reality_button = Button.new()
 	_confirm_reality_button.text = "尽量正常地说出口"
-	_confirm_reality_button.custom_minimum_size.y = 42
+	_confirm_reality_button.custom_minimum_size.y = 56
 	_confirm_reality_button.pressed.connect(_on_confirm_reality_pressed)
 	reality_box.add_child(_confirm_reality_button)
 	_reality_result = _label("", 16, _theme_color("accent"))
 	_reality_result.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
 	reality_box.add_child(_reality_result)
 
-	_meme_bank_tab = Button.new()
-	_meme_bank_tab.name = "MemeBankTab"
-	_meme_bank_tab.text = "梗仓库"
-	_meme_bank_tab.set_anchors_preset(Control.PRESET_BOTTOM_LEFT)
-	_meme_bank_tab.offset_left = 16
-	_meme_bank_tab.offset_top = -118
-	_meme_bank_tab.offset_right = 150
-	_meme_bank_tab.offset_bottom = -72
-	_meme_bank_tab.pressed.connect(_toggle_meme_bank)
-	_ui_root.add_child(_meme_bank_tab)
-
 	_meme_bank_window = _panel()
-	_meme_bank_window.name = "MemeBankWindow"
-	_meme_bank_window.set_anchors_preset(Control.PRESET_BOTTOM_LEFT)
-	_meme_bank_window.offset_left = 16
-	_meme_bank_window.offset_top = -178
-	_meme_bank_window.offset_right = 760
-	_meme_bank_window.offset_bottom = -22
+	_meme_bank_window.name = "MemeBankPopup"
+	_meme_bank_window.set_meta("meme_bank_popup", true)
+	_meme_bank_window.z_index = 18
 	_ui_root.add_child(_meme_bank_window)
+	_apply_meme_bank_popup_layout(false)
 	var bank_box := VBoxContainer.new()
+	bank_box.name = "MemeBankShell"
 	bank_box.add_theme_constant_override("separation", 8)
 	_meme_bank_window.add_child(bank_box)
-	var bank_title := _label("梗仓库", 18, _theme_color("accent"))
-	bank_title.mouse_filter = Control.MOUSE_FILTER_STOP
-	bank_box.add_child(bank_title)
-	_make_draggable_window(_meme_bank_window, "bank", bank_title)
+
+	var bank_header := HBoxContainer.new()
+	bank_header.name = "MemeBankHeader"
+	bank_header.add_theme_constant_override("separation", 6)
+	bank_box.add_child(bank_header)
+
+	_meme_bank_tab = Button.new()
+	_meme_bank_tab.name = "MemeBankTab"
+	_meme_bank_tab.text = "›"
+	_meme_bank_tab.set_meta("meme_bank_tab", true)
+	_meme_bank_tab.custom_minimum_size = Vector2(52, 52)
+	_meme_bank_tab.pressed.connect(_toggle_meme_bank)
+	bank_header.add_child(_meme_bank_tab)
+
+	_meme_bank_drag_handle = _label("拖拽", 14, _theme_color("accent"))
+	_meme_bank_drag_handle.name = "MemeBankDragHandle"
+	_meme_bank_drag_handle.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
+	_meme_bank_drag_handle.vertical_alignment = VERTICAL_ALIGNMENT_CENTER
+	_meme_bank_drag_handle.custom_minimum_size = Vector2(54, 52)
+	_meme_bank_drag_handle.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+	bank_header.add_child(_meme_bank_drag_handle)
+	_make_draggable_window(_meme_bank_window, "bank", _meme_bank_drag_handle)
+
+	_meme_bank_content = VBoxContainer.new()
+	_meme_bank_content.name = "MemeBankContent"
+	(_meme_bank_content as VBoxContainer).add_theme_constant_override("separation", 8)
+	bank_box.add_child(_meme_bank_content)
+	var bank_title := _label("完整梗文件", 18, _theme_color("accent"))
+	_meme_bank_content.add_child(bank_title)
 	_bank_list = HBoxContainer.new()
 	_bank_list.add_theme_constant_override("separation", 8)
-	bank_box.add_child(_bank_list)
+	_meme_bank_content.add_child(_bank_list)
 
 	_desk_log = _label("", 16, _theme_color("accent"))
 	_desk_log.name = "DeskLog"
 	_desk_log.set_anchors_preset(Control.PRESET_BOTTOM_LEFT)
-	_desk_log.offset_left = 24
+	_desk_log.offset_left = 282
 	_desk_log.offset_top = -146
-	_desk_log.offset_right = 680
+	_desk_log.offset_right = 820
 	_desk_log.offset_bottom = -112
 	_desk_log.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
 	_ui_root.add_child(_desk_log)
 
+	_build_action_spend_overlay()
+	_build_settings_window()
 	_build_flashback_overlay()
+
+
+func _build_apple_hud() -> void:
+	_hud_panel = _panel()
+	_hud_panel.name = "InternationalHUDRail"
+	_hud_panel.set_meta("dark_rail", true)
+	_hud_panel.set_anchors_preset(Control.PRESET_TOP_LEFT)
+	_hud_panel.offset_left = 0
+	_hud_panel.offset_top = 0
+	_hud_panel.offset_right = 158
+	_hud_panel.offset_bottom = 720
+	_hud_panel.z_index = 40
+	_hud_panel.add_theme_stylebox_override("panel", _style(_theme_color("ink"), Color(_theme_color("muted"), 0.22)))
+	_ui_root.add_child(_hud_panel)
+
+	var box := VBoxContainer.new()
+	box.add_theme_constant_override("separation", 18)
+	_hud_panel.add_child(box)
+
+	_hud_day_value = null
+	_hud_heat_value = null
+	_hud_pollution_value = null
+	_hud_clarity_value = null
+	_hud_floor_value = null
+	_hud_money_value = null
+
+	var spacer := Control.new()
+	spacer.custom_minimum_size.y = 34
+	box.add_child(spacer)
+
+	_add_hud_icon(box, "HUDDayIcon", "day", HUD_DAY_ICON_PATH)
+	_add_hud_icon(box, "HUDPollutionIcon", "pollution", HUD_POLLUTION_ICON_PATH)
+	_add_hud_icon(box, "HUDMoneyIcon", "money", HUD_MONEY_ICON_PATH)
+
+	var action_divider := ColorRect.new()
+	action_divider.color = _theme_color("muted")
+	action_divider.modulate.a = 0.42
+	action_divider.custom_minimum_size.y = 1
+	box.add_child(action_divider)
+
+	var action_spacer := Control.new()
+	action_spacer.custom_minimum_size.y = 10
+	box.add_child(action_spacer)
+
+	_hud_actions_label = _label("", 20, _theme_color("muted"))
+	_hud_actions_label.name = "HUDActionsLabel"
+	_hud_actions_label.set_meta("action_animation_mode", "inline_pulse")
+	_hud_actions_label.set_meta("hud_action_label", true)
+	_hud_actions_label.custom_minimum_size = Vector2(118, 70)
+	_hud_actions_label.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
+	box.add_child(_hud_actions_label)
+	_actions_label = _hud_actions_label
+
+	var settings_spacer := Control.new()
+	settings_spacer.custom_minimum_size.y = 20
+	box.add_child(settings_spacer)
+	_hud_settings_icon = _add_hud_icon(box, "HUDSettingsIcon", "settings", HUD_SETTINGS_ICON_PATH)
+	_hud_settings_icon.pressed.connect(_toggle_settings_window)
+
+	_hud_tooltip = _panel()
+	_hud_tooltip.name = "HUDTooltip"
+	_hud_tooltip.set_meta("tooltip_panel", true)
+	_hud_tooltip.visible = false
+	_hud_tooltip.z_index = 45
+	_hud_tooltip.add_theme_stylebox_override("panel", _style(_theme_color("muted"), _theme_color("accent")))
+	_ui_root.add_child(_hud_tooltip)
+	_hud_tooltip_label = _label("", 19, _theme_color("ink"))
+	_hud_tooltip_label.name = "HUDTooltipLabel"
+	_hud_tooltip.add_child(_hud_tooltip_label)
+
+
+func _add_hud_icon(parent: VBoxContainer, node_name: String, kind: String, texture_path: String) -> Button:
+	var icon := Button.new()
+	icon.name = node_name
+	icon.set_meta("hud_icon", true)
+	icon.text = ""
+	icon.icon = _load_runtime_texture(texture_path)
+	icon.custom_minimum_size = Vector2(68, 68)
+	icon.size_flags_horizontal = Control.SIZE_SHRINK_CENTER
+	icon.focus_mode = Control.FOCUS_ALL
+	icon.mouse_default_cursor_shape = Control.CURSOR_POINTING_HAND
+	icon.pressed.connect(_show_hud_tooltip.bind(kind, icon))
+	icon.mouse_entered.connect(_show_hud_tooltip.bind(kind, icon))
+	icon.mouse_exited.connect(_hide_hud_tooltip)
+	parent.add_child(icon)
+	return icon
+
+
+func _show_hud_tooltip(kind: String, source: Control) -> void:
+	if _hud_tooltip == null or _hud_tooltip_label == null or source == null:
+		return
+	match kind:
+		"day":
+			_hud_tooltip_label.text = "DAY %d" % game.day
+		"pollution":
+			_hud_tooltip_label.text = "污染 %d%%" % game.pollution
+		"money":
+			_hud_tooltip_label.text = "资金 %d" % game.money
+		"settings":
+			_hud_tooltip_label.text = "设置"
+		_:
+			_hud_tooltip_label.text = ""
+	_hud_tooltip.position = source.global_position + Vector2(118, 18)
+	_hud_tooltip.visible = true
+
+
+func _hide_hud_tooltip() -> void:
+	if _hud_tooltip != null:
+		_hud_tooltip.visible = false
+
+
+func _add_hud_metric(parent: VBoxContainer, label_text: String, value_name: String) -> Label:
+	var row := HBoxContainer.new()
+	row.add_theme_constant_override("separation", 8)
+	parent.add_child(row)
+	var key := _label(label_text, 13, _theme_color("accent"))
+	key.custom_minimum_size.x = 70
+	row.add_child(key)
+	var value := _label("", 17, _theme_color("ink"))
+	value.name = value_name
+	value.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+	value.horizontal_alignment = HORIZONTAL_ALIGNMENT_RIGHT
+	row.add_child(value)
+	return value
+
+
+func _build_vhs_overlay() -> void:
+	_vhs_scanlines.clear()
+	_vhs_overlay = Control.new()
+	_vhs_overlay.name = "VHSOverlay"
+	_vhs_overlay.set_anchors_preset(Control.PRESET_FULL_RECT)
+	_vhs_overlay.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	_vhs_overlay.visible = _vhs_enabled
+	_vhs_overlay.z_index = 3
+	_ui_root.add_child(_vhs_overlay)
+
+	var tint := ColorRect.new()
+	tint.name = "VHSTint"
+	tint.color = Color(_theme_color("ink"), 0.08)
+	tint.set_anchors_preset(Control.PRESET_FULL_RECT)
+	_vhs_overlay.add_child(tint)
+
+	for index in 34:
+		var line := ColorRect.new()
+		line.name = "VHSScanline%d" % index
+		line.color = Color(_theme_color("muted"), 0.055 if index % 2 == 0 else 0.025)
+		line.set_anchors_preset(Control.PRESET_TOP_WIDE)
+		line.offset_left = -12
+		line.offset_right = 12
+		line.offset_top = index * 24
+		line.offset_bottom = line.offset_top + 2
+		_vhs_overlay.add_child(line)
+		_vhs_scanlines.append(line)
+
+	var side_noise := ColorRect.new()
+	side_noise.name = "VHSSideNoise"
+	side_noise.color = Color(_theme_color("flash_text"), 0.10)
+	side_noise.set_anchors_preset(Control.PRESET_LEFT_WIDE)
+	side_noise.offset_left = 0
+	side_noise.offset_right = 6
+	_vhs_overlay.add_child(side_noise)
+
+
+func _build_settings_window() -> void:
+	_settings_window = _panel()
+	_settings_window.name = "SettingsWindow"
+	_settings_window.set_anchors_preset(Control.PRESET_TOP_LEFT)
+	_settings_window.offset_left = 180
+	_settings_window.offset_top = 410
+	_settings_window.offset_right = 500
+	_settings_window.offset_bottom = 664
+	_settings_window.z_index = 30
+	_settings_window.visible = false
+	_ui_root.add_child(_settings_window)
+
+	_settings_content = VBoxContainer.new()
+	_settings_content.name = "SettingsContent"
+	_settings_content.add_theme_constant_override("separation", 12)
+	_settings_window.add_child(_settings_content)
+
+	var title_bar := HBoxContainer.new()
+	title_bar.name = "SettingsTitleBar"
+	title_bar.custom_minimum_size.y = 48
+	title_bar.add_theme_constant_override("separation", 8)
+	_settings_content.add_child(title_bar)
+	_make_draggable_window(_settings_window, "settings", title_bar)
+
+	var title := _label("设置", 24, _theme_color("accent"))
+	title.name = "SettingsWindowHandle"
+	title.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+	title_bar.add_child(title)
+	_make_draggable_window(_settings_window, "settings", title)
+	var close := Button.new()
+	close.name = "SettingsCloseButton"
+	close.text = "X"
+	close.custom_minimum_size = Vector2(56, 56)
+	close.pressed.connect(_close_settings_window)
+	title_bar.add_child(close)
+
+	var volume_label := _label("音量", 17, _theme_color("ink"))
+	_settings_content.add_child(volume_label)
+	_volume_slider = HSlider.new()
+	_volume_slider.name = "SettingsVolumeSlider"
+	_volume_slider.min_value = 0
+	_volume_slider.max_value = 100
+	_volume_slider.step = 1
+	_volume_slider.value = _master_volume
+	_volume_slider.custom_minimum_size = Vector2(260, 44)
+	_volume_slider.value_changed.connect(_on_volume_changed)
+	_settings_content.add_child(_volume_slider)
+
+	_vhs_toggle = CheckButton.new()
+	_vhs_toggle.name = "SettingsVHSToggle"
+	_vhs_toggle.text = "开启 VHS 质感"
+	_vhs_toggle.button_pressed = _vhs_enabled
+	_vhs_toggle.custom_minimum_size.y = 48
+	_vhs_toggle.toggled.connect(_on_vhs_toggled)
+	_settings_content.add_child(_vhs_toggle)
+
+	var main_menu_button := Button.new()
+	main_menu_button.name = "SettingsReturnMainButton"
+	main_menu_button.text = "退回主画面"
+	main_menu_button.custom_minimum_size.y = 50
+	main_menu_button.pressed.connect(show_main_menu)
+	_settings_content.add_child(main_menu_button)
+
+
+func _toggle_settings_window() -> void:
+	if _settings_window == null:
+		return
+	_settings_open = not _settings_open
+	_settings_window.visible = _settings_open
+	if _settings_open:
+		_settings_window.move_to_front()
+	_hide_hud_tooltip()
+
+
+func _close_settings_window() -> void:
+	_settings_open = false
+	if _settings_window != null:
+		_settings_window.visible = false
+
+
+func _on_volume_changed(value: float) -> void:
+	_master_volume = value
+	var bus := AudioServer.get_bus_index("Master")
+	if bus >= 0:
+		AudioServer.set_bus_volume_db(bus, linear_to_db(maxf(0.001, value / 100.0)))
+
+
+func _on_vhs_toggled(value: bool) -> void:
+	_vhs_enabled = value
+	if _vhs_overlay != null:
+		_vhs_overlay.visible = value
+
+
+func _quit_game() -> void:
+	get_tree().quit()
+
+
+func _build_app_window(app_id: String, title: String, node_name: String, left: float, top: float, right: float, bottom: float) -> void:
+	var window := _panel()
+	window.name = node_name
+	window.clip_contents = true
+	if app_id == "social":
+		window.set_meta("phone_shell", true)
+	window.set_anchors_preset(Control.PRESET_TOP_RIGHT)
+	window.offset_left = left
+	window.offset_top = top
+	window.offset_right = right
+	window.offset_bottom = bottom
+	window.z_index = 10
+	_ui_root.add_child(window)
+
+	var app_box := VBoxContainer.new()
+	app_box.add_theme_constant_override("separation", 4 if app_id == "social" else 8)
+	window.add_child(app_box)
+
+	var title_label := _label(title, 21, _theme_color("accent"))
+	title_label.name = "%sHandle" % node_name
+	title_label.mouse_filter = Control.MOUSE_FILTER_STOP
+	title_label.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+	var close_button := Button.new()
+	close_button.name = "%sCloseButton" % node_name
+	close_button.text = "X"
+	close_button.custom_minimum_size = Vector2(56, 56)
+	close_button.pressed.connect(_close_app_window.bind(app_id))
+	if app_id == "social":
+		title_label.visible = false
+		window.add_child(title_label)
+	else:
+		var title_bar := HBoxContainer.new()
+		title_bar.name = "%sTitleBar" % node_name
+		title_bar.mouse_filter = Control.MOUSE_FILTER_STOP
+		title_bar.custom_minimum_size.y = 56
+		title_bar.add_theme_constant_override("separation", 8)
+		app_box.add_child(title_bar)
+		title_bar.add_child(title_label)
+		_make_draggable_window(window, "app:%s" % app_id, title_bar)
+		_make_draggable_window(window, "app:%s" % app_id, title_label)
+		title_bar.add_child(close_button)
+
+	var body := VBoxContainer.new()
+	body.add_theme_constant_override("separation", 8)
+	if app_id == "social" or app_id == "notebook":
+		body.name = "SocialAppBody"
+		if app_id == "notebook":
+			body.name = "NotebookAppBody"
+		body.size_flags_vertical = Control.SIZE_EXPAND_FILL
+		app_box.add_child(body)
+	else:
+		var app_scroll := ScrollContainer.new()
+		app_scroll.size_flags_vertical = Control.SIZE_EXPAND_FILL
+		app_box.add_child(app_scroll)
+		app_scroll.add_child(body)
+
+	_app_windows[app_id] = window
+	_app_titles[app_id] = title_label
+	_app_bodies[app_id] = body
+	if app_id == "social":
+		_app_window = window
+		_app_title = title_label
+		_app_body = body
+
+
+func _apply_phone_popup_layout(expanded: bool) -> void:
+	if _phone_panel == null:
+		return
+	_phone_panel.set_anchors_preset(Control.PRESET_BOTTOM_RIGHT)
+	if expanded:
+		_phone_panel.offset_left = -468
+		_phone_panel.offset_top = -690
+		_phone_panel.offset_right = -28
+		_phone_panel.offset_bottom = -20
+	else:
+		_phone_panel.offset_left = -78
+		_phone_panel.offset_top = -300
+		_phone_panel.offset_right = -12
+		_phone_panel.offset_bottom = -92
+
+
+func _apply_meme_bank_popup_layout(open: bool) -> void:
+	if _meme_bank_window == null:
+		return
+	_meme_bank_window.set_anchors_preset(Control.PRESET_BOTTOM_LEFT)
+	if open:
+		_meme_bank_window.offset_left = 220
+		_meme_bank_window.offset_top = -326
+		_meme_bank_window.offset_right = 628
+		_meme_bank_window.offset_bottom = -124
+	else:
+		_meme_bank_window.offset_left = 544
+		_meme_bank_window.offset_top = -180
+		_meme_bank_window.offset_right = 650
+		_meme_bank_window.offset_bottom = -128
 
 
 func _render() -> void:
@@ -601,14 +1235,35 @@ func _render() -> void:
 
 
 func _render_status() -> void:
-	_stats_label.text = "DAY %d   热度 %d   污染 %d%%   清晰 %d%%   塔层 %d/%d   资金 %d" % [
-		game.day, game.heat, game.pollution, game.clarity, game.tower_floor, MemeGameStateScript.MAX_TOWER_FLOOR, game.money
-	]
+	if _hud_day_value != null:
+		_hud_day_value.text = str(game.day)
+	if _hud_heat_value != null:
+		_hud_heat_value.text = str(game.heat)
+	if _hud_pollution_value != null:
+		_hud_pollution_value.text = "%d%%" % game.pollution
+	if _hud_clarity_value != null:
+		_hud_clarity_value.text = "%d%%" % game.clarity
+	if _hud_floor_value != null:
+		_hud_floor_value.text = "%d/%d" % [game.tower_floor, MemeGameStateScript.MAX_TOWER_FLOOR]
+	if _hud_money_value != null:
+		_hud_money_value.text = str(game.money)
+	if _hud_actions_label != null:
+		_hud_actions_label.text = _action_text(game.actions_remaining)
+	if _actions_label != null and _actions_label != _hud_actions_label:
+		_actions_label.text = _action_text(game.actions_remaining)
+	if _desk_log != null:
+		_desk_log.text = log_text
+
+
+func _action_text(actions: int) -> String:
+	return "今日行动\n%s" % _action_pips(actions)
+
+
+func _action_pips(actions: int) -> String:
 	var pips := ""
 	for index in game.max_actions_per_day:
-		pips += "●" if index < game.actions_remaining else "○"
-	_actions_label.text = "今日操作 %s" % pips
-	_desk_log.text = log_text
+		pips += "●" if index < actions else "○"
+	return pips
 
 
 func _render_world_prompt() -> void:
@@ -620,21 +1275,24 @@ func _render_world_prompt() -> void:
 
 
 func _render_app() -> void:
-	match game.active_app_window:
-		"babel":
-			_app_title.text = "巴别塔 App"
-			_render_babel_app()
-		"shop":
-			_app_title.text = "情绪槽商店"
-			_render_shop_app()
-		"notebook":
-			_app_title.text = "笔记本 App"
-			_render_notebook_app()
-		"social":
-			_app_title.text = "社交媒体 App"
-			_render_social_app()
-		_:
-			_clear(_app_body)
+	for app_id in ["social", "babel", "shop", "notebook"]:
+		if not _app_bodies.has(app_id):
+			continue
+		_app_body = _app_bodies[app_id] as VBoxContainer
+		_app_title = _app_titles[app_id] as Label
+		match app_id:
+			"babel":
+				_app_title.text = "巴别塔 App"
+				_render_babel_app()
+			"shop":
+				_app_title.text = "情绪槽商店"
+				_render_shop_app()
+			"notebook":
+				_app_title.text = "笔记本 App"
+				_render_notebook_app()
+			"social":
+				_app_title.text = "社交媒体 App"
+				_render_social_app()
 
 
 func _render_babel_app() -> void:
@@ -652,35 +1310,435 @@ func _render_babel_app() -> void:
 
 func _render_social_app() -> void:
 	_clear(_app_body)
-	var controls := HBoxContainer.new()
-	var refresh := Button.new()
-	refresh.text = "刷帖子"
-	refresh.pressed.connect(func():
-		feed_shift += 1
-		log_text = "帖子刷新了。"
-		_render()
-	)
-	controls.add_child(refresh)
-	_app_body.add_child(controls)
+	_publish_blank = null
+	_confirm_publish_button = null
+	var phone_view := _panel()
+	phone_view.name = "SocialPhoneView"
+	phone_view.set_meta("phone_surface", true)
+	phone_view.size_flags_vertical = Control.SIZE_EXPAND_FILL
+	_app_body.add_child(phone_view)
+
+	var phone_box := VBoxContainer.new()
+	phone_box.add_theme_constant_override("separation", 8)
+	phone_view.add_child(phone_box)
+
+	var status_bar := HBoxContainer.new()
+	status_bar.name = "SocialPhoneStatusBar"
+	status_bar.custom_minimum_size.y = 60
+	status_bar.mouse_filter = Control.MOUSE_FILTER_STOP
+	status_bar.add_theme_constant_override("separation", 6)
+	phone_box.add_child(status_bar)
+	_make_draggable_window(_app_windows.get("social", null) as Control, "app:social", status_bar)
+	var time_label := _label("9:41", 14, _theme_color("ink"))
+	time_label.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	time_label.custom_minimum_size.x = 40
+	status_bar.add_child(time_label)
+	var no_signal_group := HBoxContainer.new()
+	no_signal_group.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	no_signal_group.add_theme_constant_override("separation", 5)
+	status_bar.add_child(no_signal_group)
+	var no_signal_icon := TextureRect.new()
+	no_signal_icon.name = "SocialNoSignalIcon"
+	no_signal_icon.texture = _load_runtime_texture(NO_SIGNAL_ICON_PATH)
+	no_signal_icon.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	no_signal_icon.visible = true
+	no_signal_icon.custom_minimum_size = Vector2(22, 22)
+	no_signal_icon.expand_mode = TextureRect.EXPAND_IGNORE_SIZE
+	no_signal_icon.stretch_mode = TextureRect.STRETCH_KEEP_ASPECT_CENTERED
+	no_signal_group.add_child(no_signal_icon)
+	var signal_label := _label("无信号", 13, _theme_color("accent"))
+	signal_label.name = "SocialNoSignalLabel"
+	signal_label.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	no_signal_group.add_child(signal_label)
+	var top_spacer := Control.new()
+	top_spacer.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	top_spacer.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+	status_bar.add_child(top_spacer)
+	var close_social := Button.new()
+	close_social.name = "SocialAppInlineCloseButton"
+	close_social.text = "X"
+	close_social.custom_minimum_size = Vector2(56, 56)
+	close_social.pressed.connect(_close_app_window.bind("social"))
+	status_bar.add_child(close_social)
+
+	var channel_tabs := HBoxContainer.new()
+	channel_tabs.name = "SocialChannelTabs"
+	channel_tabs.custom_minimum_size.y = 44
+	channel_tabs.add_theme_constant_override("separation", 6)
+	phone_box.add_child(channel_tabs)
+	for tab_text in ["发现", "塔下"]:
+		var tab_item := VBoxContainer.new()
+		tab_item.name = "SocialChannelTabItem%s" % tab_text
+		tab_item.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+		tab_item.add_theme_constant_override("separation", 0)
+		channel_tabs.add_child(tab_item)
+		var tab := Button.new()
+		tab.name = "SocialChannelTab%s" % tab_text
+		tab.text = tab_text
+		tab.set_meta("flat_phone_button", true)
+		tab.custom_minimum_size = Vector2(132, 44)
+		tab.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+		tab.pressed.connect(_on_social_channel_pressed.bind(tab_text))
+		tab_item.add_child(tab)
+		var underline := ColorRect.new()
+		underline.name = "SocialChannelTabUnderline%s" % tab_text
+		underline.color = _theme_color("muted")
+		underline.custom_minimum_size.y = 3
+		underline.visible = tab_text == _social_channel
+		tab_item.add_child(underline)
+
+	var page_host := VBoxContainer.new()
+	page_host.name = "SocialPageHost"
+	page_host.size_flags_vertical = Control.SIZE_EXPAND_FILL
+	page_host.add_theme_constant_override("separation", 8)
+	phone_box.add_child(page_host)
+
+	match _social_screen:
+		"detail":
+			_render_social_detail_page(page_host)
+		"publish":
+			_render_social_publish_page(page_host)
+		"profile":
+			_render_social_profile_page(page_host)
+		_:
+			_render_social_home_page(page_host)
+
+	_render_social_bottom_nav(phone_box)
+
+
+func _render_social_home_page(parent: VBoxContainer) -> void:
+	var home_page := VBoxContainer.new()
+	home_page.name = "SocialHomePage"
+	home_page.size_flags_vertical = Control.SIZE_EXPAND_FILL
+	home_page.add_theme_constant_override("separation", 0)
+	parent.add_child(home_page)
+
+	var feed_frame := PanelContainer.new()
+	feed_frame.name = "SocialFeedDarkFrame"
+	feed_frame.set_meta("social_feed_dark", true)
+	feed_frame.size_flags_vertical = Control.SIZE_EXPAND_FILL
+	home_page.add_child(feed_frame)
+
+	var feed_scroll := ScrollContainer.new()
+	feed_scroll.name = "SocialFeedScroll"
+	feed_scroll.set_meta("slow_scroll_step", SOCIAL_FEED_WHEEL_STEP)
+	feed_scroll.size_flags_vertical = Control.SIZE_EXPAND_FILL
+	feed_scroll.horizontal_scroll_mode = ScrollContainer.SCROLL_MODE_SHOW_NEVER
+	feed_scroll.vertical_scroll_mode = ScrollContainer.SCROLL_MODE_SHOW_NEVER
+	feed_scroll.gui_input.connect(_on_social_feed_scroll_gui_input.bind(feed_scroll))
+	feed_frame.add_child(feed_scroll)
+
+	var masonry := HBoxContainer.new()
+	masonry.name = "SocialFeedMasonry"
+	masonry.add_theme_constant_override("separation", 12)
+	masonry.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+	feed_scroll.add_child(masonry)
+	var columns: Array[VBoxContainer] = []
+	for column_index in 2:
+		var column := VBoxContainer.new()
+		column.name = "SocialMasonryColumn%d" % column_index
+		column.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+		column.add_theme_constant_override("separation", 10)
+		masonry.add_child(column)
+		columns.append(column)
 	var feed: Array = _day_plan()["feed"]
-	for post_index in feed.size():
-		var post: Dictionary = feed[(post_index + feed_shift) % feed.size()]
+	var card_count: int = maxi(6, feed.size() * 4)
+	for post_index in card_count:
+		var post := _social_post_for_index(post_index)
+		var card_panel := _panel()
+		card_panel.name = "SocialPostCard%d" % post_index
+		card_panel.set_meta("social_card", true)
+		card_panel.custom_minimum_size = Vector2(0, 232 + (post_index % 4) * 38)
+		card_panel.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+		card_panel.mouse_filter = Control.MOUSE_FILTER_STOP
+		card_panel.gui_input.connect(_on_social_card_gui_input.bind(post_index))
+		card_panel.mouse_default_cursor_shape = Control.CURSOR_POINTING_HAND
+		columns[post_index % columns.size()].add_child(card_panel)
 		var card := VBoxContainer.new()
-		card.add_theme_constant_override("separation", 5)
-		card.add_child(_label("@%s" % post["handle"], 15, _theme_color("accent")))
-		var post_text := _label(_corrupt(str(post["text"])), 16, _theme_color("ink"))
-		post_text.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
-		card.add_child(post_text)
-		var tokens := HBoxContainer.new()
-		tokens.add_theme_constant_override("separation", 5)
-		for token in post["tokens"]:
-			var btn := Button.new()
-			btn.text = str(token["text"])
-			btn.disabled = game.actions_remaining <= 0
-			btn.pressed.connect(_on_token_pressed.bind(post["id"], token))
-			tokens.add_child(btn)
-		card.add_child(tokens)
-		_app_body.add_child(_wrap(card))
+		card.add_theme_constant_override("separation", 6)
+		card_panel.add_child(card)
+		_render_social_card_poster(card, post_index, post)
+		var caption := _label(_social_caption(post, post_index), 14, _theme_color("ink"))
+		caption.name = "SocialPostCaption%d" % post_index
+		caption.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
+		card.add_child(caption)
+		var meta_row := HBoxContainer.new()
+		meta_row.add_theme_constant_override("separation", 4)
+		card.add_child(meta_row)
+		var likes := _label("♡ %d" % (64 + (post_index * 31) % 120), 12, _theme_color("accent"))
+		likes.name = "SocialPostMetaLikes%d" % post_index
+		likes.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+		meta_row.add_child(likes)
+		meta_row.add_child(_label("...", 14, _theme_color("accent")))
+	var scroll_hint := _label("继续下滑浏览更多信号", 13, _theme_color("accent"))
+	scroll_hint.name = "SocialScrollHint"
+	scroll_hint.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
+	columns[0].add_child(scroll_hint)
+
+
+func _render_social_card_poster(parent: VBoxContainer, post_index: int, post: Dictionary) -> void:
+	var poster := PanelContainer.new()
+	poster.name = "SocialPostPoster%d" % post_index
+	poster.set_meta("poster_frame", true)
+	poster.custom_minimum_size.y = 136 + (post_index % 4) * 46
+	poster.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+	poster.add_theme_stylebox_override("panel", _style(_social_poster_color(post_index), _theme_color("accent")))
+	parent.add_child(poster)
+
+	var poster_texture := TextureRect.new()
+	poster_texture.name = "SocialPostTexture%d" % post_index
+	poster_texture.texture = _load_runtime_texture(_social_poster_texture_path(post_index))
+	poster_texture.custom_minimum_size = Vector2(0, poster.custom_minimum_size.y)
+	poster_texture.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+	poster_texture.size_flags_vertical = Control.SIZE_EXPAND_FILL
+	poster_texture.expand_mode = TextureRect.EXPAND_IGNORE_SIZE
+	poster_texture.stretch_mode = TextureRect.STRETCH_KEEP_ASPECT_COVERED
+	poster.add_child(poster_texture)
+
+
+func _social_poster_color(post_index: int) -> Color:
+	match post_index % 4:
+		0:
+			return _theme_color("muted")
+		1:
+			return _theme_color("surface")
+		2:
+			return _theme_color("accent").lightened(0.46)
+		_:
+			return _theme_color("bg").lightened(0.10)
+
+
+func _social_poster_headline(post_index: int) -> String:
+	var heads := ["BABEL\nSIGNAL", "空位图像", "塔下笔记", "哈吉米\nECHO"]
+	return heads[post_index % heads.size()]
+
+
+func _social_fragment(post: Dictionary) -> String:
+	var text := str(post.get("text", ""))
+	return text.substr(0, mini(12, text.length()))
+
+
+func _social_caption(_post: Dictionary, post_index: int) -> String:
+	return str(SOCIAL_HOME_CAPTIONS[post_index % SOCIAL_HOME_CAPTIONS.size()]).substr(0, 24)
+
+
+func _render_social_detail_page(parent: VBoxContainer) -> void:
+	var detail_page := VBoxContainer.new()
+	detail_page.name = "SocialPostDetailPage"
+	detail_page.size_flags_vertical = Control.SIZE_EXPAND_FILL
+	detail_page.add_theme_constant_override("separation", 8)
+	parent.add_child(detail_page)
+
+	var post := _social_post_for_index(_social_detail_post_index)
+
+	var top_row := HBoxContainer.new()
+	top_row.add_theme_constant_override("separation", 8)
+	detail_page.add_child(top_row)
+	var back := Button.new()
+	back.name = "SocialBackToHome"
+	back.text = "‹"
+	back.custom_minimum_size = Vector2(76, 56)
+	back.pressed.connect(_close_social_detail_window)
+	top_row.add_child(back)
+	var title := _label("@%s" % post["handle"], 18, _theme_color("accent"))
+	title.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+	top_row.add_child(title)
+	var floor_label := _label("塔层 %d/%d" % [game.tower_floor, MemeGameStateScript.MAX_TOWER_FLOOR], 16, _theme_color("ink"))
+	floor_label.name = "SocialDetailTowerFloor"
+	top_row.add_child(floor_label)
+
+	var detail_card := _panel()
+	detail_card.name = "SocialPostDetailCard"
+	detail_card.set_meta("detail_dark_panel", true)
+	detail_card.size_flags_vertical = Control.SIZE_EXPAND_FILL
+	detail_page.add_child(detail_card)
+	var detail_box := VBoxContainer.new()
+	detail_box.add_theme_constant_override("separation", 9)
+	detail_card.add_child(detail_box)
+	var media := PanelContainer.new()
+	media.custom_minimum_size.y = 274
+	media.set_meta("poster_frame", true)
+	media.add_theme_stylebox_override("panel", _style(_theme_color("muted"), _theme_color("accent")))
+	detail_box.add_child(media)
+	var media_texture := TextureRect.new()
+	media_texture.name = "SocialDetailPostTexture"
+	media_texture.texture = _load_runtime_texture(_social_poster_texture_path(_social_detail_post_index))
+	media_texture.custom_minimum_size = Vector2(300, 274)
+	media_texture.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+	media_texture.size_flags_vertical = Control.SIZE_EXPAND_FILL
+	media_texture.expand_mode = TextureRect.EXPAND_IGNORE_SIZE
+	media_texture.stretch_mode = TextureRect.STRETCH_KEEP_ASPECT_COVERED
+	media.add_child(media_texture)
+	var post_text := _label(_corrupt(str(post["text"])), 17, _theme_color("surface"))
+	post_text.set_meta("on_dark", true)
+	post_text.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
+	detail_box.add_child(post_text)
+	var tokens := GridContainer.new()
+	tokens.columns = 2
+	tokens.add_theme_constant_override("h_separation", 6)
+	tokens.add_theme_constant_override("v_separation", 6)
+	detail_box.add_child(tokens)
+	for token in post["tokens"]:
+		var btn := Button.new()
+		btn.text = str(token["text"])
+		btn.clip_text = true
+		btn.disabled = game.actions_remaining <= 0
+		btn.custom_minimum_size = Vector2(120, 44)
+		btn.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+		btn.pressed.connect(_on_token_pressed.bind(post["id"], token))
+		tokens.add_child(btn)
+
+
+func _render_social_publish_page(parent: VBoxContainer) -> void:
+	var publish_page := VBoxContainer.new()
+	publish_page.name = "SocialPublishPage"
+	publish_page.size_flags_vertical = Control.SIZE_EXPAND_FILL
+	publish_page.add_theme_constant_override("separation", 8)
+	parent.add_child(publish_page)
+
+	publish_page.add_child(_label("发布", 22, _theme_color("accent")))
+
+	var publish_scroll := ScrollContainer.new()
+	publish_scroll.name = "SocialPublishScroll"
+	publish_scroll.size_flags_vertical = Control.SIZE_EXPAND_FILL
+	publish_scroll.horizontal_scroll_mode = ScrollContainer.SCROLL_MODE_SHOW_NEVER
+	publish_scroll.vertical_scroll_mode = ScrollContainer.SCROLL_MODE_AUTO
+	publish_page.add_child(publish_scroll)
+
+	var publish_content := VBoxContainer.new()
+	publish_content.name = "SocialPublishContent"
+	publish_content.add_theme_constant_override("separation", 8)
+	publish_scroll.add_child(publish_content)
+
+	var composer := _panel()
+	composer.name = "SocialPublishComposer"
+	publish_content.add_child(composer)
+	var composer_box := VBoxContainer.new()
+	composer_box.add_theme_constant_override("separation", 8)
+	composer.add_child(composer_box)
+	composer_box.add_child(_label("把梗仓库里的完整梗拖到这里", 16, _theme_color("accent")))
+	_publish_blank = DropButtonScript.new()
+	_publish_blank.name = "SocialPublishBlank"
+	_publish_blank.custom_minimum_size.y = 58
+	_publish_blank.configure_drop_target("meme", "blank_1")
+	_publish_blank.dropped.connect(_on_dialogue_meme_dropped)
+	_publish_blank.pressed.connect(_on_dialogue_blank_pressed)
+	composer_box.add_child(_publish_blank)
+	var hint := _label("发布会消耗 1 次行动。浏览、切页和拖拽预览不扣行动。", 15, _theme_color("accent"))
+	hint.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
+	publish_content.add_child(hint)
+
+	var action_bar := _panel()
+	action_bar.name = "SocialPublishActionBar"
+	action_bar.set_meta("fixed_action_bar", true)
+	publish_page.add_child(action_bar)
+	var action_box := VBoxContainer.new()
+	action_box.add_theme_constant_override("separation", 6)
+	action_bar.add_child(action_box)
+	_confirm_publish_button = Button.new()
+	_confirm_publish_button.name = "SocialPublishButton"
+	_confirm_publish_button.text = "确认发布"
+	_confirm_publish_button.custom_minimum_size.y = 56
+	_confirm_publish_button.pressed.connect(_on_confirm_dialogue_pressed)
+	action_box.add_child(_confirm_publish_button)
+
+
+func _render_social_profile_page(parent: VBoxContainer) -> void:
+	var profile_page := VBoxContainer.new()
+	profile_page.name = "SocialProfilePage"
+	profile_page.size_flags_vertical = Control.SIZE_EXPAND_FILL
+	profile_page.add_theme_constant_override("separation", 10)
+	parent.add_child(profile_page)
+	profile_page.add_child(_label("我的", 22, _theme_color("accent")))
+	profile_page.add_child(_label("已合成梗：%d" % game.completed_memes.size(), 17, _theme_color("ink")))
+	profile_page.add_child(_label("污染：%d%%   清晰：%d%%" % [game.pollution, game.clarity], 17, _theme_color("ink")))
+	var note := _label("你的语言档案会随着塔层上升变窄。", 16, _theme_color("accent"))
+	note.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
+	profile_page.add_child(note)
+
+
+func _render_social_bottom_nav(phone_box: VBoxContainer) -> void:
+	var bottom_nav := HBoxContainer.new()
+	bottom_nav.name = "SocialBottomNav"
+	bottom_nav.set_meta("phone_nav", true)
+	bottom_nav.custom_minimum_size.y = 48
+	bottom_nav.add_theme_constant_override("separation", 6)
+	phone_box.add_child(bottom_nav)
+	var nav_items := [
+		{"name": "SocialNavHome", "text": "首页", "screen": "home"},
+		{"name": "SocialNavCreate", "text": "发布", "screen": "publish"},
+		{"name": "SocialNavMine", "text": "我的", "screen": "profile"},
+	]
+	for nav in nav_items:
+		var nav_button := Button.new()
+		nav_button.name = str(nav["name"])
+		nav_button.text = str(nav["text"])
+		nav_button.set_meta("flat_phone_button", true)
+		nav_button.custom_minimum_size = Vector2(100, 44)
+		nav_button.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+		nav_button.pressed.connect(_set_social_screen.bind(str(nav["screen"])))
+		bottom_nav.add_child(nav_button)
+	var indicator_wrap := CenterContainer.new()
+	indicator_wrap.name = "SocialHomeIndicatorWrap"
+	indicator_wrap.custom_minimum_size.y = 12
+	phone_box.add_child(indicator_wrap)
+	var home_indicator := ColorRect.new()
+	home_indicator.name = "SocialHomeIndicator"
+	home_indicator.color = _theme_color("ink")
+	home_indicator.custom_minimum_size = Vector2(94, 4)
+	indicator_wrap.add_child(home_indicator)
+
+
+func _set_social_screen(screen: String) -> void:
+	if _input_locked:
+		return
+	_social_screen = screen
+	if screen != "detail":
+		_social_channel = "发现"
+	_render()
+
+
+func _on_social_channel_pressed(channel: String) -> void:
+	if _input_locked:
+		return
+	_social_channel = channel
+	if channel == "塔下":
+		_social_screen = "detail"
+		_social_detail_post_index = 0
+	else:
+		_social_screen = "home"
+	_render()
+
+
+func _open_social_post(post_index: int) -> void:
+	if _input_locked:
+		return
+	_social_detail_post_index = post_index
+	_social_screen = "detail"
+	_social_channel = "塔下"
+	_render()
+
+
+func _on_social_card_gui_input(event: InputEvent, post_index: int) -> void:
+	if _input_locked:
+		return
+	if event is InputEventMouseButton and event.button_index == MOUSE_BUTTON_LEFT and event.pressed:
+		_open_social_post(post_index)
+
+
+func _on_social_feed_scroll_gui_input(event: InputEvent, feed_scroll: ScrollContainer) -> void:
+	if _input_locked:
+		return
+	if event is InputEventMouseButton and event.pressed:
+		var direction := 0
+		if event.button_index == MOUSE_BUTTON_WHEEL_DOWN:
+			direction = 1
+		elif event.button_index == MOUSE_BUTTON_WHEEL_UP:
+			direction = -1
+		if direction != 0:
+			var max_scroll := int(feed_scroll.get_v_scroll_bar().max_value)
+			feed_scroll.scroll_vertical = clampi(feed_scroll.scroll_vertical + direction * SOCIAL_FEED_WHEEL_STEP, 0, max_scroll)
+			feed_scroll.accept_event()
 
 
 func _render_shop_app() -> void:
@@ -703,33 +1761,56 @@ func _render_shop_app() -> void:
 
 func _render_notebook_app() -> void:
 	_clear(_app_body)
-	_app_body.add_child(_label("拾取词语", 18, _theme_color("accent")))
-	var token_row := HBoxContainer.new()
-	token_row.add_theme_constant_override("separation", 5)
+
+	var notebook_page := VBoxContainer.new()
+	notebook_page.name = "NotebookCraftPage"
+	notebook_page.size_flags_vertical = Control.SIZE_EXPAND_FILL
+	notebook_page.add_theme_constant_override("separation", 8)
+	_app_body.add_child(notebook_page)
+
+	var notebook_scroll := ScrollContainer.new()
+	notebook_scroll.name = "NotebookCraftScroll"
+	notebook_scroll.size_flags_vertical = Control.SIZE_EXPAND_FILL
+	notebook_scroll.horizontal_scroll_mode = ScrollContainer.SCROLL_MODE_SHOW_NEVER
+	notebook_scroll.vertical_scroll_mode = ScrollContainer.SCROLL_MODE_AUTO
+	notebook_page.add_child(notebook_scroll)
+
+	var notebook_content := VBoxContainer.new()
+	notebook_content.name = "NotebookCraftContent"
+	notebook_content.add_theme_constant_override("separation", 8)
+	notebook_scroll.add_child(notebook_content)
+
+	notebook_content.add_child(_label("拾取词语", 18, _theme_color("accent")))
+	var token_row := HFlowContainer.new()
+	token_row.name = "NotebookTokenFlow"
+	token_row.add_theme_constant_override("h_separation", 6)
+	token_row.add_theme_constant_override("v_separation", 6)
 	for token in game.notebook_tokens:
 		var btn_token = DraggableButtonScript.new()
 		btn_token.text = str(token["text"])
+		btn_token.clip_text = true
+		btn_token.custom_minimum_size = Vector2(96, 44)
 		btn_token.set_drag_payload("token", str(token["id"]), str(token["text"]))
 		btn_token.pressed.connect(_on_note_token_pressed.bind(str(token["id"])))
 		token_row.add_child(btn_token)
-	_app_body.add_child(token_row)
+	notebook_content.add_child(token_row)
 
-	_app_body.add_child(_label("核心槽", 18, _theme_color("accent")))
+	notebook_content.add_child(_label("核心槽", 18, _theme_color("accent")))
 	for slot in game.get_craft_slots():
 		var slot_id := str(slot["id"])
 		if slot_id.begins_with("emotion:"):
 			continue
 		var btn_slot = DropButtonScript.new()
-		btn_slot.custom_minimum_size.y = 44
+		btn_slot.custom_minimum_size.y = 52
 		btn_slot.text = "%s：%s" % [slot["label"], _slot_text(slot_id, str(slot.get("placeholder", "")))]
 		btn_slot.configure_drop_target("token", slot_id)
 		btn_slot.dropped.connect(_on_slot_token_dropped)
 		btn_slot.pressed.connect(_on_slot_pressed.bind(slot_id))
-		_app_body.add_child(btn_slot)
+		notebook_content.add_child(btn_slot)
 
-	_app_body.add_child(_label("情绪槽文字", 18, _theme_color("accent")))
+	notebook_content.add_child(_label("情绪槽文字", 18, _theme_color("accent")))
 	if game.owned_emotion_slots.is_empty():
-		_app_body.add_child(_label("去商店购买一个情绪槽。", 15, _theme_color("accent")))
+		notebook_content.add_child(_label("去商店购买一个情绪槽。", 15, _theme_color("accent")))
 	for emotion in game.get_owned_emotion_slot_data():
 		var slot_id := str(emotion["id"])
 		var row := HBoxContainer.new()
@@ -737,29 +1818,52 @@ func _render_notebook_app() -> void:
 		row.add_child(_label(str(emotion["label"]), 16, _theme_color("ink")))
 		var edit := LineEdit.new()
 		edit.text = str(game.emotion_slot_texts.get(slot_id, emotion.get("default_text", "")))
+		edit.custom_minimum_size.y = 44
 		edit.size_flags_horizontal = Control.SIZE_EXPAND_FILL
 		edit.text_changed.connect(_on_emotion_text_changed.bind(slot_id))
 		row.add_child(edit)
-		_app_body.add_child(row)
+		notebook_content.add_child(row)
 
 	var preview := _label("预览：%s" % _craft_preview_text(), 15, _theme_color("accent"))
 	preview.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
-	_app_body.add_child(preview)
+	notebook_content.add_child(preview)
+
+	var action_bar := _panel()
+	action_bar.name = "NotebookCraftActionBar"
+	action_bar.set_meta("fixed_action_bar", true)
+	notebook_page.add_child(action_bar)
+	var action_box := VBoxContainer.new()
+	action_box.add_theme_constant_override("separation", 6)
+	action_bar.add_child(action_box)
+
 	var craft := Button.new()
+	craft.name = "NotebookCraftButton"
 	craft.text = "确认合成"
-	craft.custom_minimum_size.y = 46
+	craft.custom_minimum_size.y = 56
 	craft.disabled = game.actions_remaining <= 0
 	craft.pressed.connect(_on_confirm_craft_pressed)
-	_app_body.add_child(craft)
+	action_box.add_child(craft)
 
 
 func _render_publish() -> void:
+	if _publish_blank == null or _confirm_publish_button == null:
+		return
 	var meme := _placed_meme()
 	_publish_blank.text = "发布空格：%s" % (meme.get("title", "等待完整梗") if not meme.is_empty() else "等待完整梗")
 	_confirm_publish_button.disabled = meme.is_empty() or game.actions_remaining <= 0
 
 
 func _render_bank() -> void:
+	if _meme_bank_tab != null:
+		if _meme_bank_open:
+			_meme_bank_tab.text = "梗仓库 ▾"
+			_meme_bank_tab.custom_minimum_size = Vector2(142, 48)
+		elif _should_show_meme_bank():
+			_meme_bank_tab.text = "梗库"
+			_meme_bank_tab.custom_minimum_size = Vector2(94, 52)
+		else:
+			_meme_bank_tab.text = "◢"
+			_meme_bank_tab.custom_minimum_size = Vector2(52, 52)
 	_clear(_bank_list)
 	if game.completed_memes.is_empty():
 		_bank_list.add_child(_label("还没有完整梗。", 15, _theme_color("accent")))
@@ -822,24 +1926,70 @@ func _render_reality() -> void:
 
 func _update_visibility() -> void:
 	var in_phone: bool = game.view_state == "phone_down"
-	_phone_panel.visible = in_phone
+	var has_open_app := false
+	for app_open_key in _open_app_windows.keys():
+		if bool(_open_app_windows.get(app_open_key, false)):
+			has_open_app = true
+			break
+	if _phone_popup_expanded != in_phone:
+		_phone_popup_expanded = in_phone
+		_apply_phone_popup_layout(in_phone)
+	_phone_panel.visible = (not in_phone) or not has_open_app
 	_phone_tab.visible = not in_phone
-	_app_window.visible = in_phone and not game.active_app_window.is_empty()
-	_publish_panel.visible = in_phone
-	_meme_bank_tab.visible = in_phone
-	_meme_bank_window.visible = in_phone and _meme_bank_open
+	_phone_content.visible = in_phone and _phone_panel.visible
+	if in_phone and not game.active_app_window.is_empty():
+		_open_app_windows[game.active_app_window] = true
+	for app_id in _app_windows.keys():
+		var app_window := _app_windows[app_id] as Control
+		if app_window != null:
+			app_window.visible = in_phone and bool(_open_app_windows.get(app_id, false))
+	if _publish_panel != null:
+		_publish_panel.visible = false
+	var show_meme_bank := _should_show_meme_bank()
+	var peek_meme_bank := _should_peek_meme_bank()
+	_meme_bank_window.visible = show_meme_bank or peek_meme_bank
+	if not show_meme_bank:
+		_meme_bank_open = false
+	if _meme_bank_layout_open != _meme_bank_open:
+		_meme_bank_layout_open = _meme_bank_open
+		_apply_meme_bank_popup_layout(_meme_bank_open)
+	if _meme_bank_content != null:
+		_meme_bank_content.visible = show_meme_bank and _meme_bank_open
+	if _phone_down_backdrop_image != null:
+		_phone_down_backdrop_image.visible = in_phone or _phone_art_alpha > 0.03
+	if _hand_phone_image != null:
+		_hand_phone_image.visible = in_phone or _phone_art_alpha > 0.03
+	if _view_toggle_button != null:
+		_view_toggle_button.visible = _game_started and (in_phone or game.reality_phase == "npc_speaking")
+		_view_toggle_button.text = "放下手机" if in_phone else "拿起手机"
+	if _settings_window != null:
+		_settings_window.visible = _settings_open and _game_started
+	if _vhs_overlay != null:
+		_vhs_overlay.visible = _vhs_enabled and _game_started
+	if _world_prompt != null:
+		_world_prompt.visible = false
 	var composing: bool = (not in_phone) and game.reality_phase == "player_composing"
 	var result: bool = (not in_phone) and game.reality_phase == "reality_result"
 	_npc_chat_bubble.visible = not in_phone
 	_reality_dim_overlay.visible = composing
+	if _npc_focus_image != null:
+		_npc_focus_image.visible = composing
 	_player_portrait.visible = composing
 	_thought_word_layer.visible = composing
 	_reality_panel.visible = composing or result
 	if _npc != null:
 		_npc.visible = not in_phone
+	if _phone_rig != null:
+		_phone_rig.visible = false
 
 
 func _animate_world(delta: float) -> void:
+	if not _game_started:
+		if _camera != null:
+			_camera.position = _camera.position.lerp(Vector3(0.0, 1.54, 2.55), minf(1.0, delta * 3.0))
+			_camera.rotation_degrees = _camera.rotation_degrees.lerp(Vector3(-18.0, 0.0, 0.0), minf(1.0, delta * 3.0))
+		_animate_vhs(delta)
+		return
 	var phone_target := Vector3(0.0, 0.15, -1.15) if game.view_state == "phone_down" else Vector3(1.45, -0.8, -1.0)
 	var camera_target_pos := Vector3(0.0, 1.45, 2.2) if game.view_state == "phone_down" else Vector3(0.0, 1.62, 2.7)
 	var camera_target_rot := Vector3(-54.0, 0.0, 0.0) if game.view_state == "phone_down" else Vector3(-8.0, 0.0, 0.0)
@@ -848,11 +1998,36 @@ func _animate_world(delta: float) -> void:
 	if _phone_rig != null:
 		_phone_rig.position = _phone_rig.position.lerp(phone_target, minf(1.0, delta * 6.0))
 		_phone_rig.rotation_degrees = Vector3(68.0, 0.0, 0.0)
+	if _hand_phone_image != null:
+		var target_alpha := 1.0 if game.view_state == "phone_down" else 0.0
+		_phone_art_alpha = lerpf(_phone_art_alpha, target_alpha, minf(1.0, delta * 3.4))
+		if _phone_down_backdrop_image != null:
+			_phone_down_backdrop_image.visible = game.view_state == "phone_down" or _phone_art_alpha > 0.03
+			_phone_down_backdrop_image.modulate.a = _phone_art_alpha
+			_phone_down_backdrop_image.position = Vector2(0.0, lerpf(28.0, 0.0, _phone_art_alpha))
+		_hand_phone_image.visible = game.view_state == "phone_down" or _phone_art_alpha > 0.03
+		_hand_phone_image.modulate.a = _phone_art_alpha
+		_hand_phone_image.position = Vector2(0.0, lerpf(150.0, 18.0, _phone_art_alpha))
 	if _road != null:
 		_road_scroll += delta * 1.4
 		for index in _road.get_child_count():
 			var tile := _road.get_child(index) as Node3D
 			tile.position.z = -2.0 - index * 3.8 + fmod(_road_scroll, 3.8)
+	_animate_vhs(delta)
+
+
+func _animate_vhs(delta: float) -> void:
+	if _vhs_overlay == null or not _vhs_enabled:
+		return
+	_vhs_overlay.modulate.a = 0.88 + sin(Time.get_ticks_msec() / 130.0) * 0.04
+	for index in _vhs_scanlines.size():
+		var line := _vhs_scanlines[index]
+		if line == null:
+			continue
+		var base_y := float(index * 24)
+		var drift := fmod(Time.get_ticks_msec() / 42.0 + index * 3.0, 24.0)
+		line.offset_top = base_y + drift * delta
+		line.offset_bottom = line.offset_top + 2
 
 
 func _active_palette() -> Dictionary:
@@ -866,10 +2041,78 @@ func _theme_color(key: String) -> Color:
 	return Color(str(palette.get(key, PALETTE_1.get(key, "FFF1C9"))))
 
 
+func _load_runtime_texture(path: String) -> Texture2D:
+	if _texture_cache.has(path):
+		return _texture_cache[path]
+	var image := Image.new()
+	if FileAccess.file_exists(path):
+		var bytes := FileAccess.get_file_as_bytes(path)
+		var err := image.load_png_from_buffer(bytes)
+		if err != OK:
+			err = image.load_jpg_from_buffer(bytes)
+		if err != OK:
+			err = image.load_webp_from_buffer(bytes)
+		if err != OK:
+			return null
+		var texture := ImageTexture.create_from_image(image)
+		_texture_cache[path] = texture
+		return texture
+	if FileAccess.file_exists("%s.import" % path):
+		var resource := load(path)
+		if resource is Texture2D:
+			_texture_cache[path] = resource
+			return resource
+	return null
+
+
+func _social_poster_texture_path(post_index: int) -> String:
+	return "res://assets/generated/social/poster_%02d.png" % (post_index % SOCIAL_POSTER_COUNT)
+
+
+func _social_post_for_index(post_index: int) -> Dictionary:
+	var feed: Array = _day_plan()["feed"]
+	if feed.is_empty():
+		return {}
+	var post: Dictionary = (feed[post_index % feed.size()] as Dictionary).duplicate(true)
+	post["text"] = SOCIAL_DETAIL_TEXTS[post_index % SOCIAL_DETAIL_TEXTS.size()]
+	post["handle"] = SOCIAL_DETAIL_HANDLES[post_index % SOCIAL_DETAIL_HANDLES.size()]
+	return post
+
+
 func _toggle_meme_bank() -> void:
 	if _input_locked:
 		return
+	if not _should_show_meme_bank():
+		log_text = "梗仓库只露出一个角，等发布或合成时再打开。"
+		_render_status()
+		return
 	_meme_bank_open = not _meme_bank_open
+	if _meme_bank_open and _meme_bank_window != null:
+		_meme_bank_window.move_to_front()
+	_render()
+
+
+func _close_app_window(app_id: String) -> void:
+	if _input_locked:
+		return
+	_open_app_windows[app_id] = false
+	if game.active_app_window == app_id:
+		game.active_app_window = ""
+		for candidate in ["social", "babel", "shop", "notebook"]:
+			if bool(_open_app_windows.get(candidate, false)):
+				game.active_app = candidate
+				game.active_app_window = candidate
+				break
+	log_text = "关闭 %s 窗口。" % app_id
+	_render()
+
+
+func _close_social_detail_window() -> void:
+	if _input_locked:
+		return
+	_social_screen = "home"
+	_social_channel = "发现"
+	log_text = "关闭社交详情。"
 	_render()
 
 
@@ -888,11 +2131,33 @@ func _make_draggable_window(window: Control, window_id: String, handle: Control)
 	if window == null or handle == null:
 		return
 	_draggable_windows[window_id] = window
+	if bool(handle.get_meta("drag_connected", false)) and str(handle.get_meta("drag_window_id", "")) == window_id:
+		return
+	handle.set_meta("drag_connected", true)
+	handle.set_meta("drag_window_id", window_id)
+	handle.set_meta("drag_handle", true)
 	handle.mouse_filter = Control.MOUSE_FILTER_STOP
-	handle.gui_input.connect(_on_window_handle_gui_input.bind(window_id, window))
+	handle.mouse_default_cursor_shape = Control.CURSOR_MOVE
+	handle.gui_input.connect(_on_window_handle_gui_input.bind(window_id, window, handle))
 
 
-func _on_window_handle_gui_input(event: InputEvent, _window_id: String, window: Control) -> void:
+func _should_show_meme_bank() -> bool:
+	if game.view_state != "phone_down":
+		return false
+	var social_publish_open := bool(_open_app_windows.get("social", false)) and _social_screen == "publish"
+	var notebook_open := bool(_open_app_windows.get("notebook", false))
+	return social_publish_open or notebook_open
+
+
+func _should_peek_meme_bank() -> bool:
+	if _should_show_meme_bank():
+		return false
+	if game.view_state == "phone_down":
+		return true
+	return game.reality_phase == "npc_speaking"
+
+
+func _on_window_handle_gui_input(event: InputEvent, _window_id: String, window: Control, handle: Control) -> void:
 	if _input_locked:
 		return
 	if event is InputEventMouseButton and event.button_index == MOUSE_BUTTON_LEFT:
@@ -900,11 +2165,17 @@ func _on_window_handle_gui_input(event: InputEvent, _window_id: String, window: 
 			_dragged_window = window
 			_drag_offset = get_viewport().get_mouse_position() - window.global_position
 			window.move_to_front()
+			if window is CanvasItem:
+				(window as CanvasItem).z_index = maxi((window as CanvasItem).z_index, 24)
 		else:
 			_dragged_window = null
+		if not (handle is Button):
+			handle.accept_event()
 	elif event is InputEventMouseMotion and _dragged_window == window:
 		window.global_position = get_viewport().get_mouse_position() - _drag_offset
 		_clamp_window_to_viewport(window)
+		if not (handle is Button):
+			handle.accept_event()
 
 
 func _clamp_window_to_viewport(window: Control) -> void:
@@ -919,23 +2190,17 @@ func _clamp_window_to_viewport(window: Control) -> void:
 func _build_player_portrait() -> Control:
 	var portrait := PanelContainer.new()
 	portrait.set_anchors_preset(Control.PRESET_BOTTOM_LEFT)
-	portrait.offset_left = 24
+	portrait.offset_left = 224
 	portrait.offset_top = -300
-	portrait.offset_right = 230
+	portrait.offset_right = 430
 	portrait.offset_bottom = -24
-	var box := VBoxContainer.new()
-	box.add_theme_constant_override("separation", 6)
-	portrait.add_child(box)
-	var head := PanelContainer.new()
-	head.custom_minimum_size = Vector2(128, 94)
-	box.add_child(head)
-	var face := _label("  o   o\n    ─\n  _____", 24, _theme_color("ink"))
-	face.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
-	head.add_child(face)
-	var torso := _label("主角\n正在想普通的话", 17, _theme_color("accent"))
-	torso.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
-	torso.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
-	box.add_child(torso)
+	var image := TextureRect.new()
+	image.name = "PlayerPortraitImage"
+	image.texture = _load_runtime_texture(PLAYER_PORTRAIT_TEXTURE_PATH)
+	image.expand_mode = TextureRect.EXPAND_IGNORE_SIZE
+	image.stretch_mode = TextureRect.STRETCH_KEEP_ASPECT_CENTERED
+	image.custom_minimum_size = Vector2(182, 248)
+	portrait.add_child(image)
 	return portrait
 
 
@@ -947,7 +2212,7 @@ func _apply_world_theme() -> void:
 				continue
 			var mat := tile.material_override as StandardMaterial3D
 			if mat != null:
-				mat.albedo_color = _theme_color("accent").darkened(0.50 - index * 0.08)
+				mat.albedo_color = Color.WHITE if mat.albedo_texture != null else _theme_color("accent").darkened(0.50 - index * 0.08)
 	if _phone_rig != null:
 		var phone_body := _phone_rig.get_node_or_null("PhoneBody") as MeshInstance3D
 		if phone_body != null and phone_body.material_override is StandardMaterial3D:
@@ -961,7 +2226,7 @@ func _apply_world_theme() -> void:
 		var npc_body := _npc.get_node_or_null("NPCPlane") as MeshInstance3D
 		if npc_body != null and npc_body.material_override is StandardMaterial3D:
 			var mat := npc_body.material_override as StandardMaterial3D
-			mat.albedo_color = _theme_color("surface")
+			mat.albedo_color = Color.WHITE if mat.albedo_texture != null else _theme_color("surface")
 			mat.emission = _theme_color("muted")
 
 
@@ -970,20 +2235,67 @@ func _apply_ui_theme(node: Node = null) -> void:
 		node = _ui_root
 	if node == null:
 		return
-	if node is Label and not node.has_meta("flashback_text"):
-		(node as Label).add_theme_color_override("font_color", _theme_color("ink"))
+	if node is Label and not node.has_meta("flashback_text") and not node.has_meta("action_overlay_text"):
+		if node.has_meta("hud_action_label"):
+			(node as Label).add_theme_color_override("font_color", _theme_color("muted"))
+		elif node.has_meta("on_dark"):
+			(node as Label).add_theme_color_override("font_color", _theme_color("surface"))
+		else:
+			(node as Label).add_theme_color_override("font_color", _theme_color("ink"))
 	elif node is Button:
 		var button := node as Button
-		button.add_theme_color_override("font_color", _theme_color("ink"))
-		button.add_theme_color_override("font_hover_color", _theme_color("ink"))
-		button.add_theme_color_override("font_pressed_color", _theme_color("surface"))
-		button.add_theme_color_override("font_disabled_color", _theme_color("accent").lightened(0.22))
-		button.add_theme_stylebox_override("normal", _style(_theme_color("surface"), _theme_color("accent")))
-		button.add_theme_stylebox_override("hover", _style(_theme_color("muted"), _theme_color("ink")))
-		button.add_theme_stylebox_override("pressed", _style(_theme_color("accent"), _theme_color("ink")))
-		button.add_theme_stylebox_override("disabled", _style(_theme_color("surface").darkened(0.10), _theme_color("accent").lightened(0.20)))
+		if button.has_meta("hud_icon"):
+			var empty := StyleBoxEmpty.new()
+			button.add_theme_stylebox_override("normal", empty)
+			button.add_theme_stylebox_override("hover", _style(Color(_theme_color("muted"), 0.18), Color(_theme_color("muted"), 0.20)))
+			button.add_theme_stylebox_override("pressed", _style(Color(_theme_color("muted"), 0.32), Color(_theme_color("muted"), 0.32)))
+		elif button.has_meta("meme_bank_tab") and not _meme_bank_open:
+			button.add_theme_color_override("font_color", _theme_color("muted"))
+			button.add_theme_color_override("font_hover_color", _theme_color("surface"))
+			button.add_theme_color_override("font_pressed_color", _theme_color("surface"))
+			button.add_theme_stylebox_override("normal", _circle_button_style(Color(_theme_color("ink"), 0.68), Color(_theme_color("muted"), 0.18)))
+			button.add_theme_stylebox_override("hover", _circle_button_style(Color(_theme_color("ink"), 0.88), Color(_theme_color("muted"), 0.36)))
+			button.add_theme_stylebox_override("pressed", _circle_button_style(_theme_color("ink"), _theme_color("muted")))
+		elif button.has_meta("flat_phone_button"):
+			var flat := StyleBoxEmpty.new()
+			button.add_theme_color_override("font_color", _theme_color("ink"))
+			button.add_theme_color_override("font_hover_color", _theme_color("accent"))
+			button.add_theme_color_override("font_pressed_color", _theme_color("ink"))
+			button.add_theme_stylebox_override("normal", flat)
+			button.add_theme_stylebox_override("hover", _flat_button_state_style(Color(_theme_color("muted"), 0.24)))
+			button.add_theme_stylebox_override("pressed", _flat_button_state_style(Color(_theme_color("muted"), 0.40)))
+		else:
+			button.add_theme_color_override("font_color", _theme_color("ink"))
+			button.add_theme_color_override("font_hover_color", _theme_color("ink"))
+			button.add_theme_color_override("font_pressed_color", _theme_color("surface"))
+			button.add_theme_color_override("font_disabled_color", _theme_color("accent").lightened(0.22))
+			button.add_theme_stylebox_override("normal", _style(_theme_color("surface"), _theme_color("accent")))
+			button.add_theme_stylebox_override("hover", _style(_theme_color("muted"), _theme_color("ink")))
+			button.add_theme_stylebox_override("pressed", _style(_theme_color("accent"), _theme_color("ink")))
+			button.add_theme_stylebox_override("disabled", _style(_theme_color("surface").darkened(0.10), _theme_color("accent").lightened(0.20)))
 	elif node is PanelContainer:
-		(node as PanelContainer).add_theme_stylebox_override("panel", _style(_theme_color("surface"), _theme_color("accent")))
+		if node.has_meta("phone_shell"):
+			(node as PanelContainer).add_theme_stylebox_override("panel", _phone_shell_style())
+		elif node.has_meta("phone_surface"):
+			(node as PanelContainer).add_theme_stylebox_override("panel", _phone_surface_style())
+		elif node.has_meta("social_card"):
+			(node as PanelContainer).add_theme_stylebox_override("panel", _social_card_style())
+		elif node.has_meta("poster_frame"):
+			(node as PanelContainer).add_theme_stylebox_override("panel", _poster_frame_style())
+		elif node.has_meta("detail_dark_panel"):
+			(node as PanelContainer).add_theme_stylebox_override("panel", _detail_dark_style())
+		elif node.has_meta("social_feed_dark"):
+			(node as PanelContainer).add_theme_stylebox_override("panel", _social_feed_dark_style())
+		elif node.has_meta("meme_bank_popup") and not _meme_bank_open:
+			(node as PanelContainer).add_theme_stylebox_override("panel", StyleBoxEmpty.new())
+		elif node.has_meta("dark_rail"):
+			(node as PanelContainer).add_theme_stylebox_override("panel", _style(_theme_color("ink"), Color(_theme_color("muted"), 0.22)))
+		elif node.has_meta("tooltip_panel"):
+			(node as PanelContainer).add_theme_stylebox_override("panel", _style(_theme_color("muted"), _theme_color("accent")))
+		elif node.has_meta("soft_panel"):
+			(node as PanelContainer).add_theme_stylebox_override("panel", _soft_style(_theme_color("surface"), _theme_color("accent")))
+		else:
+			(node as PanelContainer).add_theme_stylebox_override("panel", _style(_theme_color("surface"), _theme_color("accent")))
 	elif node is LineEdit:
 		var edit := node as LineEdit
 		edit.add_theme_color_override("font_color", _theme_color("ink"))
@@ -991,6 +2303,98 @@ func _apply_ui_theme(node: Node = null) -> void:
 		edit.add_theme_stylebox_override("normal", _style(_theme_color("surface"), _theme_color("accent")))
 	for child in node.get_children():
 		_apply_ui_theme(child)
+
+
+func _build_action_spend_overlay() -> void:
+	_action_spend_overlay = Control.new()
+	_action_spend_overlay.name = "ActionSpendOverlay"
+	_action_spend_overlay.set_anchors_preset(Control.PRESET_FULL_RECT)
+	_action_spend_overlay.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	_action_spend_overlay.visible = false
+	_action_spend_overlay.z_index = 90
+	_ui_root.add_child(_action_spend_overlay)
+
+	_action_spend_blackout = null
+
+	_action_spend_label = Label.new()
+	_action_spend_label.name = "ActionSpendLabel"
+	_action_spend_label.set_meta("action_overlay_text", false)
+	_action_spend_label.set_meta("action_animation_mode", "inline_pulse")
+	_action_spend_label.visible = false
+	_action_spend_label.add_theme_font_size_override("font_size", 20)
+	_action_spend_label.add_theme_color_override("font_color", _theme_color("muted"))
+	_action_spend_label.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
+	_action_spend_label.vertical_alignment = VERTICAL_ALIGNMENT_CENTER
+	_action_spend_overlay.add_child(_action_spend_label)
+
+
+func _play_action_spend_animation(before_actions: int, after_actions: int) -> void:
+	if _hud_actions_label == null:
+		return
+	if _action_spend_tween != null and _action_spend_tween.is_valid():
+		_action_spend_tween.kill()
+	_action_spend_after_actions = after_actions
+	_action_spend_should_settle = game.needs_day_settlement
+	_hud_actions_label.text = _action_text(before_actions)
+	_hud_actions_label.scale = Vector2.ONE
+	_hud_actions_label.pivot_offset = _hud_actions_label.size * 0.5
+	if _action_spend_overlay != null:
+		_action_spend_overlay.visible = false
+	_set_input_locked(true)
+
+	_action_spend_tween = create_tween()
+	_action_spend_tween.tween_property(_hud_actions_label, "scale", Vector2(1.07, 1.07), 0.08).set_trans(Tween.TRANS_QUINT).set_ease(Tween.EASE_OUT)
+	_action_spend_tween.tween_callback(_set_action_spend_center_text.bind(after_actions))
+	_action_spend_tween.tween_property(_hud_actions_label, "scale", Vector2.ONE, 0.14).set_trans(Tween.TRANS_QUINT).set_ease(Tween.EASE_IN_OUT)
+	_action_spend_tween.tween_callback(_finish_action_spend_animation)
+
+
+func _set_action_spend_center_text(after_actions: int) -> void:
+	if _hud_actions_label != null:
+		_hud_actions_label.text = _action_text(after_actions)
+	if _action_spend_label != null:
+		_action_spend_label.text = _action_text(after_actions)
+
+
+func _finish_action_spend_animation() -> void:
+	if _action_spend_tween != null and _action_spend_tween.is_valid():
+		_action_spend_tween.kill()
+	_action_spend_tween = null
+	if _action_spend_overlay != null:
+		_action_spend_overlay.visible = false
+	if _action_spend_label != null:
+		_action_spend_label.scale = Vector2.ONE
+	if _hud_actions_label != null:
+		_hud_actions_label.scale = Vector2.ONE
+	_set_input_locked(false)
+
+	var settled := false
+	if _action_spend_should_settle and game.settle_day_if_needed():
+		selected_token_id = ""
+		selected_meme_id = ""
+		selected_reality_tile_id = ""
+		if not game.event_log.is_empty():
+			log_text = game.event_log[0]
+		settled = true
+	_action_spend_should_settle = false
+	_render()
+	if not settled and _hud_actions_label != null and _action_spend_after_actions >= 0:
+		_hud_actions_label.text = _action_text(_action_spend_after_actions)
+	_action_spend_after_actions = -1
+
+
+func _action_spend_start_position() -> Vector2:
+	if _hud_actions_label == null:
+		return Vector2(28, 320)
+	return _hud_actions_label.global_position
+
+
+func _action_spend_center_position() -> Vector2:
+	var viewport_size := Vector2(1280, 720)
+	if get_viewport() != null:
+		viewport_size = get_viewport().get_visible_rect().size
+	var label_size := _action_spend_label.custom_minimum_size if _action_spend_label != null else Vector2(620, 92)
+	return (viewport_size - label_size) * 0.5
 
 
 func _build_flashback_overlay() -> void:
@@ -1089,7 +2493,6 @@ func _finish_pollution_flashback() -> void:
 		selected_token_id = ""
 		selected_meme_id = ""
 		selected_reality_tile_id = ""
-		feed_shift = 0
 		log_text = "黑屏之后，已经是第二天。"
 		if not game.event_log.is_empty():
 			log_text = "%s\n%s" % [log_text, game.event_log[0]]
@@ -1134,6 +2537,8 @@ func _set_input_locked(value: bool) -> void:
 	_input_locked = value
 	if _flashback_overlay != null:
 		_flashback_overlay.mouse_filter = Control.MOUSE_FILTER_STOP if value else Control.MOUSE_FILTER_IGNORE
+	if _action_spend_overlay != null:
+		_action_spend_overlay.mouse_filter = Control.MOUSE_FILTER_STOP if value and _action_spend_overlay.visible else Control.MOUSE_FILTER_IGNORE
 
 
 func _render_ending() -> void:
@@ -1172,6 +2577,11 @@ func _on_app_pressed(app_id: String) -> void:
 		return
 	game.set_view_state("phone_down")
 	game.set_active_app(app_id)
+	_open_app_windows[app_id] = true
+	if _app_windows.has(app_id):
+		var window := _app_windows[app_id] as Control
+		if window != null:
+			window.move_to_front()
 	log_text = "打开 %s。" % app_id
 	_render()
 
@@ -1179,10 +2589,11 @@ func _on_app_pressed(app_id: String) -> void:
 func _on_token_pressed(post_id: String, token: Dictionary) -> void:
 	if _input_locked:
 		return
+	var actions_before: int = int(game.actions_remaining)
 	if game.pick_token(post_id, token):
 		selected_token_id = "%s-%s-%d" % [post_id, token.get("id", "token"), game.day]
 		log_text = "拾取：%s" % token["text"]
-		_after_effective_action()
+		_after_effective_action(actions_before)
 	else:
 		log_text = "这个词没有进入笔记本。"
 		_render()
@@ -1192,9 +2603,10 @@ func _on_buy_emotion_slot_pressed() -> void:
 	if _input_locked:
 		return
 	var slot := game.get_daily_emotion_slot()
+	var actions_before: int = int(game.actions_remaining)
 	if game.buy_daily_emotion_slot():
 		log_text = "购买情绪槽：%s" % slot.get("label", "情绪")
-		_after_effective_action()
+		_after_effective_action(actions_before)
 	else:
 		log_text = "购买失败。"
 		_render()
@@ -1242,10 +2654,11 @@ func _on_slot_pressed(slot_id: String) -> void:
 func _on_confirm_craft_pressed() -> void:
 	if _input_locked:
 		return
+	var actions_before: int = int(game.actions_remaining)
 	if game.confirm_craft_with_emotions():
 		selected_meme_id = str(game.completed_memes[0]["id"])
 		log_text = "合成新梗：%s" % game.completed_memes[0]["title"]
-		_after_effective_action()
+		_after_effective_action(actions_before)
 	else:
 		log_text = "对象和说法还没有形成句子。"
 		_render()
@@ -1285,10 +2698,11 @@ func _on_dialogue_meme_dropped(data: Dictionary, blank_id: String) -> void:
 func _on_confirm_dialogue_pressed() -> void:
 	if _input_locked:
 		return
+	var actions_before: int = int(game.actions_remaining)
 	if game.confirm_dialogue():
 		selected_meme_id = ""
 		log_text = "句子发到手机里。热度在塔下回响。"
-		_after_effective_action()
+		_after_effective_action(actions_before)
 	else:
 		log_text = "发布空格里还没有完整梗。"
 		_render()
@@ -1328,24 +2742,30 @@ func _on_reality_tile_dropped(data: Dictionary, slot_id: String) -> void:
 func _on_confirm_reality_pressed() -> void:
 	if _input_locked:
 		return
+	var actions_before: int = int(game.actions_remaining)
 	if game.confirm_reality_dialogue():
 		selected_reality_tile_id = ""
 		log_text = "你说：%s" % game.last_polluted_sentence
-		_after_effective_action()
+		_after_effective_action(actions_before)
 	else:
 		log_text = "遗产规则还没有全部进入句子。"
 		_render()
 
 
-func _after_effective_action() -> void:
+func _after_effective_action(actions_before: int = -1) -> void:
 	if game.pollution_flashback_pending:
 		_play_pollution_flashback()
+		return
+	if actions_before >= 0 and game.actions_remaining < actions_before:
+		_render()
+		if _hud_actions_label != null:
+			_hud_actions_label.text = _action_text(actions_before)
+		_play_action_spend_animation(actions_before, game.actions_remaining)
 		return
 	if game.settle_day_if_needed():
 		selected_token_id = ""
 		selected_meme_id = ""
 		selected_reality_tile_id = ""
-		feed_shift = 0
 		if not game.event_log.is_empty():
 			log_text = game.event_log[0]
 	_render()
@@ -1445,6 +2865,97 @@ func _style(bg: Color, border: Color) -> StyleBoxFlat:
 	return style
 
 
+func _soft_style(bg: Color, border: Color) -> StyleBoxFlat:
+	var style := StyleBoxFlat.new()
+	style.bg_color = Color(bg, 0.94)
+	style.border_color = Color(border, 0.24)
+	style.set_border_width_all(1)
+	style.set_corner_radius_all(16)
+	style.set_content_margin_all(16)
+	return style
+
+
+func _phone_shell_style() -> StyleBoxFlat:
+	var style := StyleBoxFlat.new()
+	style.bg_color = _theme_color("ink")
+	style.border_color = _theme_color("ink")
+	style.set_border_width_all(6)
+	style.set_corner_radius_all(24)
+	style.set_content_margin_all(6)
+	return style
+
+
+func _phone_surface_style() -> StyleBoxFlat:
+	var style := StyleBoxFlat.new()
+	style.bg_color = _theme_color("surface")
+	style.border_color = _theme_color("surface")
+	style.set_border_width_all(0)
+	style.set_corner_radius_all(16)
+	style.set_content_margin_all(10)
+	return style
+
+
+func _social_feed_dark_style() -> StyleBoxFlat:
+	var style := StyleBoxFlat.new()
+	style.bg_color = _theme_color("ink")
+	style.border_color = Color(_theme_color("muted"), 0.18)
+	style.set_border_width_all(0)
+	style.set_corner_radius_all(12)
+	style.set_content_margin_all(6)
+	return style
+
+
+func _social_card_style() -> StyleBoxFlat:
+	var style := StyleBoxFlat.new()
+	style.bg_color = _theme_color("surface")
+	style.border_color = Color(_theme_color("muted"), 0.62)
+	style.set_border_width_all(1)
+	style.set_corner_radius_all(10)
+	style.set_content_margin_all(6)
+	return style
+
+
+func _poster_frame_style() -> StyleBoxFlat:
+	var style := StyleBoxFlat.new()
+	style.bg_color = _theme_color("muted")
+	style.border_color = Color(_theme_color("ink"), 0.65)
+	style.set_border_width_all(1)
+	style.set_corner_radius_all(8)
+	style.set_content_margin_all(0)
+	return style
+
+
+func _detail_dark_style() -> StyleBoxFlat:
+	var style := StyleBoxFlat.new()
+	style.bg_color = _theme_color("ink")
+	style.border_color = _theme_color("ink")
+	style.set_border_width_all(0)
+	style.set_corner_radius_all(10)
+	style.set_content_margin_all(10)
+	return style
+
+
+func _flat_button_state_style(bg: Color) -> StyleBoxFlat:
+	var style := StyleBoxFlat.new()
+	style.bg_color = bg
+	style.border_color = Color(bg, 0.0)
+	style.set_border_width_all(0)
+	style.set_corner_radius_all(10)
+	style.set_content_margin_all(4)
+	return style
+
+
+func _circle_button_style(bg: Color, border: Color) -> StyleBoxFlat:
+	var style := StyleBoxFlat.new()
+	style.bg_color = bg
+	style.border_color = border
+	style.set_border_width_all(1)
+	style.set_corner_radius_all(28)
+	style.set_content_margin_all(10)
+	return style
+
+
 func _clear(node: Node) -> void:
 	for child in node.get_children():
+		node.remove_child(child)
 		child.queue_free()
