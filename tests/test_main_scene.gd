@@ -684,6 +684,8 @@ func _run() -> void:
 			_assert_true(meme_bank_popup.visible, "notebook view should show the integrated meme bank popup")
 			if social_app_window != null:
 				_assert_true(not _controls_overlap(meme_bank_popup, social_app_window), "collapsed notebook meme bank should not cover the social phone")
+			if notebook_app_window != null:
+				_assert_true(not _controls_overlap(meme_bank_popup, notebook_app_window), "collapsed notebook meme bank should not cover the notebook phone")
 			if view_toggle_button != null:
 				_assert_true(not _controls_overlap(meme_bank_popup, view_toggle_button), "collapsed notebook meme bank should not cover the put-phone button")
 			_assert_true(not meme_bank_content.visible, "meme bank content should start collapsed")
@@ -691,6 +693,8 @@ func _run() -> void:
 			_assert_true(meme_bank_content.visible, "toggling meme bank should open the drawer content")
 			if social_app_window != null:
 				_assert_true(not _controls_overlap(meme_bank_popup, social_app_window), "opened meme bank drawer should not cover the social phone")
+			if notebook_app_window != null:
+				_assert_true(not _controls_overlap(meme_bank_popup, notebook_app_window), "opened meme bank drawer should not cover the notebook phone")
 			if view_toggle_button != null:
 				_assert_true(not _controls_overlap(meme_bank_popup, view_toggle_button), "opened meme bank drawer should not cover the put-phone button")
 			if hud_actions_label != null:
@@ -710,6 +714,10 @@ func _run() -> void:
 			_assert_eq(root.game.actions_remaining, 5, "moving a window should not spend an action")
 			for window_id in ["phone", "app:babel", "app:social", "app:shop", "app:notebook", "bank", "reality", "settings"]:
 				_assert_true(root._move_window_for_test(window_id, Vector2(0, 0)), "window should remain registered as draggable: %s" % window_id)
+			if meme_bank_popup != null:
+				root._move_window_for_test("app:social", Vector2(-190, 0))
+				root._render()
+				_assert_true(not _controls_overlap(meme_bank_popup, social_app_window), "meme bank corner should avoid a dragged social phone")
 		_assert_true(_has_node_with_method(root, "set_drag_payload"), "notebook and bank items should expose drag payloads")
 		_assert_true(_has_node_with_method(root, "configure_drop_target"), "slots and dialogue blank should expose drop targets")
 		root._on_slot_token_dropped({"kind": "token", "id": "n1"}, "object")

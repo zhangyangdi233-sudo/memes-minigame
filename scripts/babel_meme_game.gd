@@ -1955,6 +1955,7 @@ func _update_visibility() -> void:
 		_apply_meme_bank_popup_layout(_meme_bank_open)
 	if _meme_bank_content != null:
 		_meme_bank_content.visible = show_meme_bank and _meme_bank_open
+	_avoid_meme_bank_overlaps()
 	if _phone_down_backdrop_image != null:
 		_phone_down_backdrop_image.visible = in_phone or _phone_art_alpha > 0.03
 	if _hand_phone_image != null:
@@ -2158,6 +2159,71 @@ func _should_peek_meme_bank() -> bool:
 	if game.view_state == "phone_down":
 		return true
 	return game.reality_phase == "npc_speaking"
+
+
+func _avoid_meme_bank_overlaps() -> void:
+	if _meme_bank_window == null or not _meme_bank_window.visible:
+		return
+	var targets := _meme_bank_overlap_targets()
+	if not _meme_bank_conflicts_at(_meme_bank_window.global_position, targets):
+		return
+	var bank_rect := _meme_bank_window.get_global_rect()
+	var viewport_size := Vector2(1280, 720)
+	if get_viewport() != null:
+		viewport_size = get_viewport().get_visible_rect().size
+	var margin := 12.0
+	var min_x := margin
+	if _hud_panel != null and _hud_panel.visible:
+		min_x = maxf(min_x, _hud_panel.get_global_rect().end.x + margin)
+	var max_x := maxf(min_x, viewport_size.x - bank_rect.size.x - margin)
+	var max_y := maxf(margin, viewport_size.y - bank_rect.size.y - margin)
+	var current := _meme_bank_window.global_position
+	var candidates: Array[Vector2] = []
+	for target in targets:
+		if target == null or not target.visible:
+			continue
+		var target_rect := target.get_global_rect()
+		if not Rect2(current, bank_rect.size).intersects(target_rect):
+			continue
+		candidates.append(Vector2(target_rect.position.x - bank_rect.size.x - margin, current.y))
+		candidates.append(Vector2(target_rect.end.x + margin, current.y))
+		candidates.append(Vector2(current.x, target_rect.position.y - bank_rect.size.y - margin))
+		candidates.append(Vector2(current.x, target_rect.end.y + margin))
+	candidates.append(Vector2(min_x, current.y))
+	candidates.append(Vector2(max_x, current.y))
+	for candidate in candidates:
+		var clamped := Vector2(
+			clampf(candidate.x, min_x, max_x),
+			clampf(candidate.y, margin, max_y)
+		)
+		if not _meme_bank_conflicts_at(clamped, targets):
+			_meme_bank_window.global_position = clamped
+			return
+
+
+func _meme_bank_overlap_targets() -> Array[Control]:
+	var targets: Array[Control] = []
+	for app_id in _app_windows.keys():
+		var app_window := _app_windows[app_id] as Control
+		if app_window != null and app_window.visible:
+			targets.append(app_window)
+	if _view_toggle_button != null and _view_toggle_button.visible:
+		targets.append(_view_toggle_button)
+	if _hud_actions_label != null and _hud_actions_label.visible:
+		targets.append(_hud_actions_label)
+	return targets
+
+
+func _meme_bank_conflicts_at(position: Vector2, targets: Array[Control]) -> bool:
+	if _meme_bank_window == null:
+		return false
+	var rect := Rect2(position, _meme_bank_window.get_global_rect().size)
+	for target in targets:
+		if target == null or not target.visible:
+			continue
+		if rect.intersects(target.get_global_rect()):
+			return true
+	return false
 
 
 func _on_window_handle_gui_input(event: InputEvent, _window_id: String, window: Control, handle: Control) -> void:
