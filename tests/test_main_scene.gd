@@ -4,7 +4,11 @@ var _failures: Array[String] = []
 
 
 func _init() -> void:
-	_run()
+	call_deferred("_run_async")
+
+
+func _run_async() -> void:
+	await _run()
 	if _failures.is_empty():
 		print("main scene tests passed")
 		quit(0)
@@ -255,6 +259,10 @@ func _run() -> void:
 			else:
 				root._toggle_settings_window()
 			_assert_true(settings_window.visible, "settings icon should open the settings window")
+			if settings_volume != null:
+				settings_volume.value = 35
+				settings_volume.value_changed.emit(settings_volume.value)
+				_assert_eq(int(root._master_volume), 35, "settings volume slider should update the master volume value")
 			if vhs_overlay != null and root.has_method("_on_vhs_toggled"):
 				_assert_true(vhs_overlay.visible, "VHS overlay should start enabled")
 				root._on_vhs_toggled(false)
@@ -264,6 +272,93 @@ func _run() -> void:
 			if settings_close != null:
 				settings_close.pressed.emit()
 				_assert_true(not settings_window.visible, "settings close should hide the settings window")
+			if hud_settings_icon != null and settings_return_main != null:
+				hud_settings_icon.pressed.emit()
+				settings_return_main = _find_node_by_name(root, "SettingsReturnMainButton") as Button
+				if settings_return_main != null:
+					settings_return_main.pressed.emit()
+					await process_frame
+					var returned_menu := _find_node_by_name(root, "MainMenuLayer") as Control
+					_assert_true(returned_menu != null and returned_menu.visible, "settings return button should go back to the main menu")
+					_assert_true(_find_node_by_name(root, "InternationalHUDRail") == null, "returning to main menu should remove gameplay HUD")
+					root.new_game()
+					international_hud = _find_node_by_name(root, "InternationalHUDRail") as PanelContainer
+					hud_settings_icon = _find_node_by_name(root, "HUDSettingsIcon") as Button
+					view_toggle_button = _find_node_by_name(root, "PhoneViewToggleButton") as Button
+					hud_actions_label = _find_node_by_name(root, "HUDActionsLabel") as Label
+					action_overlay = root.get_node_or_null("CanvasLayer/UIRoot/ActionSpendOverlay") as Control
+					action_label = root.get_node_or_null("CanvasLayer/UIRoot/ActionSpendOverlay/ActionSpendLabel") as Label
+					phone_popup = _find_node_by_name(root, "PhonePopup") as PanelContainer
+					phone_tab = _find_node_by_name(root, "PhoneTab") as Button
+					phone_content = _find_node_by_name(root, "PhoneContent") as Control
+					phone_app_babel = _find_node_by_name(root, "PhoneAppIconBabel") as Button
+					phone_app_social = _find_node_by_name(root, "PhoneAppIconSocial") as Button
+					phone_app_shop = _find_node_by_name(root, "PhoneAppIconShop") as Button
+					phone_app_notebook = _find_node_by_name(root, "PhoneAppIconNotebook") as Button
+					babel_app_window = _find_node_by_name(root, "BabelAppWindow") as PanelContainer
+					social_app_window = _find_node_by_name(root, "SocialAppWindow") as PanelContainer
+					shop_app_window = _find_node_by_name(root, "ShopAppWindow") as PanelContainer
+					notebook_app_window = _find_node_by_name(root, "NotebookAppWindow") as PanelContainer
+					phone_handle = _find_node_by_name(root, "PhoneWindowHandle") as Label
+					babel_handle = _find_node_by_name(root, "BabelAppWindowHandle") as Label
+					shop_handle = _find_node_by_name(root, "ShopAppWindowHandle") as Label
+					notebook_handle = _find_node_by_name(root, "NotebookAppWindowHandle") as Label
+					babel_close = _find_node_by_name(root, "BabelAppWindowCloseButton") as Button
+					social_close = _find_node_by_name(root, "SocialAppWindowCloseButton") as Button
+					shop_close = _find_node_by_name(root, "ShopAppWindowCloseButton") as Button
+					notebook_close = _find_node_by_name(root, "NotebookAppWindowCloseButton") as Button
+					social_phone_view = _find_node_by_name(root, "SocialPhoneView") as PanelContainer
+					social_status_bar = _find_node_by_name(root, "SocialPhoneStatusBar") as HBoxContainer
+					social_inline_close = _find_node_by_name(root, "SocialAppInlineCloseButton") as Button
+					social_no_signal_icon = _find_node_by_name(root, "SocialNoSignalIcon") as TextureRect
+					social_no_signal_label = _find_node_by_name(root, "SocialNoSignalLabel") as Label
+					social_no_signal_group = social_no_signal_icon.get_parent() if social_no_signal_icon != null else null
+					social_search_bar = _find_node_by_name(root, "SocialSearchBar") as PanelContainer
+					social_refresh_button = _find_node_by_name(root, "SocialRefreshButton") as Button
+					social_channel_tabs = _find_node_by_name(root, "SocialChannelTabs") as HBoxContainer
+					social_channel_tab_discover = _find_node_by_name(root, "SocialChannelTab发现") as Button
+					social_channel_tab_tower = _find_node_by_name(root, "SocialChannelTab塔下") as Button
+					social_channel_tab_underline_discover = _find_node_by_name(root, "SocialChannelTabUnderline发现") as ColorRect
+					social_home_page = _find_node_by_name(root, "SocialHomePage") as VBoxContainer
+					social_feed_scroll = _find_node_by_name(root, "SocialFeedScroll") as ScrollContainer
+					social_feed_masonry = _find_node_by_name(root, "SocialFeedMasonry") as HBoxContainer
+					social_masonry_column_0 = _find_node_by_name(root, "SocialMasonryColumn0") as VBoxContainer
+					social_masonry_column_1 = _find_node_by_name(root, "SocialMasonryColumn1") as VBoxContainer
+					social_publish_page = _find_node_by_name(root, "SocialPublishPage") as VBoxContainer
+					social_publish_composer = _find_node_by_name(root, "SocialPublishComposer") as PanelContainer
+					social_post_detail_page = _find_node_by_name(root, "SocialPostDetailPage") as VBoxContainer
+					social_profile_page = _find_node_by_name(root, "SocialProfilePage") as VBoxContainer
+					social_bottom_nav = _find_node_by_name(root, "SocialBottomNav") as HBoxContainer
+					social_nav_home = _find_node_by_name(root, "SocialNavHome") as Button
+					social_nav_create = _find_node_by_name(root, "SocialNavCreate") as Button
+					social_nav_mine = _find_node_by_name(root, "SocialNavMine") as Button
+					social_home_indicator = _find_node_by_name(root, "SocialHomeIndicator") as ColorRect
+					social_post_card = _find_node_by_name(root, "SocialPostCard0") as PanelContainer
+					social_post_card_1 = _find_node_by_name(root, "SocialPostCard1") as PanelContainer
+					social_post_card_4 = _find_node_by_name(root, "SocialPostCard4") as PanelContainer
+					social_post_poster = _find_node_by_name(root, "SocialPostPoster0") as PanelContainer
+					social_post_caption = _find_node_by_name(root, "SocialPostCaption0") as Label
+					social_post_caption_1 = _find_node_by_name(root, "SocialPostCaption1") as Label
+					social_post_meta_likes = _find_node_by_name(root, "SocialPostMetaLikes0") as Label
+					social_post_texture = _find_node_by_name(root, "SocialPostTexture0") as TextureRect
+					social_post_open = _find_node_by_name(root, "SocialPostOpen0") as Button
+					social_detail_window = _find_node_by_name(root, "SocialDetailWindow") as PanelContainer
+					social_detail_close = _find_node_by_name(root, "SocialDetailWindowCloseButton") as Button
+					social_scroll_hint = _find_node_by_name(root, "SocialScrollHint") as Label
+					external_publish_panel = _find_node_by_name(root, "PublishPanel") as PanelContainer
+					flashback_overlay = root.get_node_or_null("CanvasLayer/UIRoot/PollutionFlashbackOverlay") as Control
+					npc_bubble = root.get_node_or_null("CanvasLayer/UIRoot/NPCChatBubble") as PanelContainer
+					dim_overlay = root.get_node_or_null("CanvasLayer/UIRoot/RealityDimOverlay") as ColorRect
+					npc_focus_image = root.get_node_or_null("CanvasLayer/UIRoot/NPCFocusImage") as TextureRect
+					player_portrait = root.get_node_or_null("CanvasLayer/UIRoot/PlayerPortrait") as Control
+					thought_layer = root.get_node_or_null("CanvasLayer/UIRoot/ThoughtWordLayer") as Control
+					thought_flow = _find_node_by_name(root, "RealityThoughtFlow") as HFlowContainer
+					puzzle_frame = root.get_node_or_null("CanvasLayer/UIRoot/LanguagePuzzleFrame") as PanelContainer
+					confirm_reality_button = _find_node_by_text(root, "尽量正常地说出口") as Button
+					meme_bank_popup = _find_node_by_name(root, "MemeBankPopup") as PanelContainer
+					meme_bank_tab = _find_node_by_name(root, "MemeBankTab") as Button
+					meme_bank_drag_handle = _find_node_by_name(root, "MemeBankDragHandle") as Label
+					meme_bank_content = _find_node_by_name(root, "MemeBankContent") as Control
 		if view_toggle_button != null:
 			_assert_true(view_toggle_button.visible, "take/put phone button should be visible during gameplay")
 			_assert_true(str(view_toggle_button.text).contains("放下手机"), "phone-down view should expose a put-phone button")

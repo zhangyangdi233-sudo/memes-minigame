@@ -1085,7 +1085,7 @@ func _build_settings_window() -> void:
 	main_menu_button.name = "SettingsReturnMainButton"
 	main_menu_button.text = "退回主画面"
 	main_menu_button.custom_minimum_size.y = 50
-	main_menu_button.pressed.connect(show_main_menu)
+	main_menu_button.pressed.connect(_on_return_main_menu_pressed)
 	_settings_content.add_child(main_menu_button)
 
 
@@ -1110,6 +1110,10 @@ func _on_volume_changed(value: float) -> void:
 	var bus := AudioServer.get_bus_index("Master")
 	if bus >= 0:
 		AudioServer.set_bus_volume_db(bus, linear_to_db(maxf(0.001, value / 100.0)))
+
+
+func _on_return_main_menu_pressed() -> void:
+	call_deferred("show_main_menu")
 
 
 func _on_vhs_toggled(value: bool) -> void:
