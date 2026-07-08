@@ -703,6 +703,8 @@ func _run() -> void:
 			root._render()
 			var moved_pos := social_app_window.position
 			_assert_true(moved_pos != before_pos, "dragged app window should move from its initial position")
+			if view_toggle_button != null:
+				_assert_true(view_toggle_button.z_index > social_app_window.z_index, "fixed take/put phone button should stay above dragged app windows")
 			root._render()
 			_assert_eq(social_app_window.position, moved_pos, "dragged app window position should survive render")
 			_assert_eq(root.game.actions_remaining, 5, "moving a window should not spend an action")
@@ -750,6 +752,9 @@ func _run() -> void:
 			var camera_before_take := camera.rotation_degrees.x
 			root.set_view_state("phone_down")
 			root._animate_world(0.05)
+			view_toggle_button = _find_node_by_name(root, "PhoneViewToggleButton") as Button
+			if view_toggle_button != null:
+				_assert_true(str(view_toggle_button.text).contains("放下手机"), "taking the phone should restore the put-phone button copy")
 			_assert_true(hand_phone_image.visible and hand_phone_image.modulate.a > alpha_before_take, "taking the phone should fade the hand-phone artwork back in")
 			if phone_down_backdrop_image != null:
 				_assert_true(phone_down_backdrop_image.visible and phone_down_backdrop_image.modulate.a > backdrop_alpha_before_take, "taking the phone should fade the phone-down backdrop back in")

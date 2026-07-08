@@ -708,7 +708,7 @@ func _build_ui() -> void:
 	_view_toggle_button.offset_right = 596
 	_view_toggle_button.offset_bottom = -36
 	_view_toggle_button.custom_minimum_size = Vector2(126, 56)
-	_view_toggle_button.z_index = 24
+	_view_toggle_button.z_index = 42
 	_view_toggle_button.pressed.connect(_toggle_view_state)
 	_ui_root.add_child(_view_toggle_button)
 
@@ -2123,6 +2123,9 @@ func _move_window_for_test(window_id: String, delta: Vector2) -> bool:
 	if window == null:
 		return false
 	window.position += delta
+	window.move_to_front()
+	if window is CanvasItem:
+		(window as CanvasItem).z_index = maxi((window as CanvasItem).z_index, 24)
 	_clamp_window_to_viewport(window)
 	return true
 
