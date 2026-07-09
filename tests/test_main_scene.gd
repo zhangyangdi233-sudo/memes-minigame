@@ -735,6 +735,10 @@ func _run() -> void:
 			_assert_true(str(meme_bank_tab.text).contains("◢"), "passive meme bank should only expose a corner")
 			if social_app_window != null:
 				_assert_true(not _controls_overlap(meme_bank_popup, social_app_window), "passive meme bank corner should not cover the social phone")
+			if social_bottom_nav != null:
+				_assert_true(not _controls_overlap(meme_bank_popup, social_bottom_nav), "passive meme bank corner should not cover the social bottom navigation")
+			if social_home_indicator != null:
+				_assert_true(not _controls_overlap(meme_bank_popup, social_home_indicator), "passive meme bank corner should not cover the social home indicator")
 			if view_toggle_button != null:
 				_assert_true(not _controls_overlap(meme_bank_popup, view_toggle_button), "passive meme bank corner should not cover the put-phone button")
 			if international_hud != null:
@@ -756,6 +760,10 @@ func _run() -> void:
 			_assert_true(meme_bank_popup.visible, "meme bank should appear as a contextual drawer on the social publish page")
 			if social_app_window != null:
 				_assert_true(not _controls_overlap(meme_bank_popup, social_app_window), "collapsed publish meme bank should not cover the social phone")
+			if social_bottom_nav != null:
+				_assert_true(not _controls_overlap(meme_bank_popup, social_bottom_nav), "collapsed publish meme bank should not cover the social bottom navigation")
+			if social_home_indicator != null:
+				_assert_true(not _controls_overlap(meme_bank_popup, social_home_indicator), "collapsed publish meme bank should not cover the social home indicator")
 			if view_toggle_button != null:
 				_assert_true(not _controls_overlap(meme_bank_popup, view_toggle_button), "collapsed publish meme bank should not cover the put-phone button")
 		root.game.set_active_app("notebook")
@@ -863,6 +871,12 @@ func _run() -> void:
 			_assert_true(meme_bank_popup.visible, "meme bank should still peek from the bottom during NPC speaking")
 			_assert_true(str(meme_bank_tab.text).contains("◢"), "NPC speaking meme bank should only expose a corner")
 			_assert_true(not meme_bank_content.visible, "NPC speaking meme bank peek should not reveal drawer content")
+			if root.has_method("_meme_bank_overlap_targets"):
+				var hidden_nav_targets: Array = root._meme_bank_overlap_targets()
+				var hidden_bottom_nav := _find_node_by_name(root, "SocialBottomNav") as Control
+				var hidden_home_indicator := _find_node_by_name(root, "SocialHomeIndicator") as Control
+				_assert_true(hidden_bottom_nav == null or not hidden_nav_targets.has(hidden_bottom_nav), "hidden social bottom navigation should not steer the NPC-view meme bank corner")
+				_assert_true(hidden_home_indicator == null or not hidden_nav_targets.has(hidden_home_indicator), "hidden social home indicator should not steer the NPC-view meme bank corner")
 		if hand_phone_image != null and camera != null and root.has_method("_animate_world"):
 			var alpha_before_take := hand_phone_image.modulate.a
 			var backdrop_alpha_before_take := phone_down_backdrop_image.modulate.a if phone_down_backdrop_image != null else 0.0
@@ -1015,6 +1029,8 @@ func _is_descendant_of(node: Node, ancestor: Node) -> bool:
 
 func _controls_overlap(a: Control, b: Control) -> bool:
 	if a == null or b == null:
+		return false
+	if not a.is_visible_in_tree() or not b.is_visible_in_tree():
 		return false
 	return a.get_global_rect().intersects(b.get_global_rect())
 

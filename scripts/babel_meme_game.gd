@@ -2267,7 +2267,7 @@ func _avoid_meme_bank_overlaps() -> void:
 	var current := _meme_bank_window.global_position
 	var candidates: Array[Vector2] = []
 	for target in targets:
-		if target == null or not target.visible:
+		if target == null or not target.is_visible_in_tree():
 			continue
 		var target_rect := target.get_global_rect()
 		if not Rect2(current, bank_rect.size).intersects(target_rect):
@@ -2292,13 +2292,29 @@ func _meme_bank_overlap_targets() -> Array[Control]:
 	var targets: Array[Control] = []
 	for app_id in _app_windows.keys():
 		var app_window := _app_windows[app_id] as Control
-		if app_window != null and app_window.visible:
+		if app_window != null and app_window.is_visible_in_tree():
 			targets.append(app_window)
-	if _view_toggle_button != null and _view_toggle_button.visible:
+	if _view_toggle_button != null and _view_toggle_button.is_visible_in_tree():
 		targets.append(_view_toggle_button)
-	if _hud_actions_label != null and _hud_actions_label.visible:
+	if _hud_actions_label != null and _hud_actions_label.is_visible_in_tree():
 		targets.append(_hud_actions_label)
+	for node_name in ["SocialBottomNav", "SocialHomeIndicator"]:
+		var social_control := _find_control_by_name(_ui_root, node_name)
+		if social_control != null and social_control.is_visible_in_tree():
+			targets.append(social_control)
 	return targets
+
+
+func _find_control_by_name(node: Node, node_name: String) -> Control:
+	if node == null:
+		return null
+	if node.name == node_name and node is Control:
+		return node as Control
+	for child in node.get_children():
+		var found := _find_control_by_name(child, node_name)
+		if found != null:
+			return found
+	return null
 
 
 func _meme_bank_conflicts_at(position: Vector2, targets: Array[Control]) -> bool:
@@ -2306,7 +2322,7 @@ func _meme_bank_conflicts_at(position: Vector2, targets: Array[Control]) -> bool
 		return false
 	var rect := Rect2(position, _meme_bank_window.get_global_rect().size)
 	for target in targets:
-		if target == null or not target.visible:
+		if target == null or not target.is_visible_in_tree():
 			continue
 		if rect.intersects(target.get_global_rect()):
 			return true
