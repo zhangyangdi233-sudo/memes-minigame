@@ -688,7 +688,8 @@ func _build_ui() -> void:
 		var button := Button.new()
 		button.name = "PhoneAppIcon%s" % str(app["id"]).capitalize()
 		button.text = app["label"]
-		button.custom_minimum_size = Vector2(124, 86)
+		button.custom_minimum_size = Vector2(144, 92)
+		button.size_flags_horizontal = Control.SIZE_EXPAND_FILL
 		button.pressed.connect(_on_app_pressed.bind(app["id"]))
 		app_grid.add_child(button)
 	var phone_hint := _label("点击 App 会在手机旁边弹出独立窗口。", 15, _theme_color("accent"))
@@ -712,7 +713,7 @@ func _build_ui() -> void:
 	_view_toggle_button.pressed.connect(_toggle_view_state)
 	_ui_root.add_child(_view_toggle_button)
 
-	_build_app_window("social", "社交媒体 App", "SocialAppWindow", -620.0, 8.0, -28.0, 716.0)
+	_build_app_window("social", "社交媒体 App", "SocialAppWindow", -660.0, 6.0, -24.0, 716.0)
 	_build_app_window("babel", "巴别塔 App", "BabelAppWindow", -920.0, 104.0, -500.0, 604.0)
 	_build_app_window("shop", "情绪槽商店", "ShopAppWindow", -884.0, 132.0, -464.0, 632.0)
 	_build_app_window("notebook", "笔记本 App", "NotebookAppWindow", -848.0, 160.0, -428.0, 660.0)
@@ -1194,33 +1195,47 @@ func _build_app_window(app_id: String, title: String, node_name: String, left: f
 func _apply_phone_popup_layout(expanded: bool) -> void:
 	if _phone_panel == null:
 		return
+	var viewport_size := _viewport_size()
 	_phone_panel.set_anchors_preset(Control.PRESET_BOTTOM_RIGHT)
 	if expanded:
-		_phone_panel.offset_left = -468
-		_phone_panel.offset_top = -690
-		_phone_panel.offset_right = -28
-		_phone_panel.offset_bottom = -20
+		var phone_width := minf(464.0, maxf(286.0, viewport_size.x - 220.0))
+		var phone_height := minf(696.0, maxf(452.0, minf(viewport_size.y - 18.0, phone_width * 1.50)))
+		_phone_panel.offset_right = -24
+		_phone_panel.offset_bottom = -18
+		if viewport_size.x < 720.0:
+			_phone_panel.offset_right = -8
+			_phone_panel.offset_bottom = -8
+		_phone_panel.offset_left = _phone_panel.offset_right - phone_width
+		_phone_panel.offset_top = _phone_panel.offset_bottom - phone_height
 	else:
-		_phone_panel.offset_left = -78
-		_phone_panel.offset_top = -300
+		_phone_panel.offset_left = -82
+		_phone_panel.offset_top = -306
 		_phone_panel.offset_right = -12
-		_phone_panel.offset_bottom = -92
+		_phone_panel.offset_bottom = -94
 
 
 func _apply_meme_bank_popup_layout(open: bool) -> void:
 	if _meme_bank_window == null:
 		return
-	_meme_bank_window.set_anchors_preset(Control.PRESET_BOTTOM_LEFT)
+	var viewport_size := _viewport_size()
 	if open:
-		_meme_bank_window.offset_left = 220
-		_meme_bank_window.offset_top = -326
-		_meme_bank_window.offset_right = 628
-		_meme_bank_window.offset_bottom = -124
+		_meme_bank_window.set_anchors_preset(Control.PRESET_BOTTOM_LEFT)
+		var safe_left := 190.0
+		if _hud_panel != null:
+			safe_left = maxf(safe_left, _hud_panel.offset_right + 22.0)
+		var min_bank_width := 180.0 if viewport_size.x < 560.0 else 296.0
+		var bank_width := minf(408.0, maxf(min_bank_width, viewport_size.x - safe_left - 28.0))
+		safe_left = clampf(safe_left, 12.0, maxf(12.0, viewport_size.x - bank_width - 12.0))
+		_meme_bank_window.offset_left = safe_left
+		_meme_bank_window.offset_top = -324
+		_meme_bank_window.offset_right = safe_left + bank_width
+		_meme_bank_window.offset_bottom = -120
 	else:
-		_meme_bank_window.offset_left = 544
-		_meme_bank_window.offset_top = -180
-		_meme_bank_window.offset_right = 650
-		_meme_bank_window.offset_bottom = -128
+		_meme_bank_window.set_anchors_preset(Control.PRESET_BOTTOM_RIGHT)
+		_meme_bank_window.offset_left = -82
+		_meme_bank_window.offset_top = -88
+		_meme_bank_window.offset_right = -22
+		_meme_bank_window.offset_bottom = -28
 
 
 func _render() -> void:
@@ -1328,7 +1343,7 @@ func _render_social_app() -> void:
 
 	var status_bar := HBoxContainer.new()
 	status_bar.name = "SocialPhoneStatusBar"
-	status_bar.custom_minimum_size.y = 60
+	status_bar.custom_minimum_size.y = 68
 	status_bar.mouse_filter = Control.MOUSE_FILTER_STOP
 	status_bar.add_theme_constant_override("separation", 6)
 	phone_box.add_child(status_bar)
@@ -1361,13 +1376,13 @@ func _render_social_app() -> void:
 	var close_social := Button.new()
 	close_social.name = "SocialAppInlineCloseButton"
 	close_social.text = "X"
-	close_social.custom_minimum_size = Vector2(56, 56)
+	close_social.custom_minimum_size = Vector2(60, 60)
 	close_social.pressed.connect(_close_app_window.bind("social"))
 	status_bar.add_child(close_social)
 
 	var channel_tabs := HBoxContainer.new()
 	channel_tabs.name = "SocialChannelTabs"
-	channel_tabs.custom_minimum_size.y = 44
+	channel_tabs.custom_minimum_size.y = 48
 	channel_tabs.add_theme_constant_override("separation", 6)
 	phone_box.add_child(channel_tabs)
 	for tab_text in ["发现", "塔下"]:
@@ -1380,7 +1395,7 @@ func _render_social_app() -> void:
 		tab.name = "SocialChannelTab%s" % tab_text
 		tab.text = tab_text
 		tab.set_meta("flat_phone_button", true)
-		tab.custom_minimum_size = Vector2(132, 44)
+		tab.custom_minimum_size = Vector2(132, 48)
 		tab.size_flags_horizontal = Control.SIZE_EXPAND_FILL
 		tab.pressed.connect(_on_social_channel_pressed.bind(tab_text))
 		tab_item.add_child(tab)
@@ -1665,7 +1680,7 @@ func _render_social_bottom_nav(phone_box: VBoxContainer) -> void:
 	var bottom_nav := HBoxContainer.new()
 	bottom_nav.name = "SocialBottomNav"
 	bottom_nav.set_meta("phone_nav", true)
-	bottom_nav.custom_minimum_size.y = 48
+	bottom_nav.custom_minimum_size.y = 54
 	bottom_nav.add_theme_constant_override("separation", 6)
 	phone_box.add_child(bottom_nav)
 	var nav_items := [
@@ -1678,7 +1693,7 @@ func _render_social_bottom_nav(phone_box: VBoxContainer) -> void:
 		nav_button.name = str(nav["name"])
 		nav_button.text = str(nav["text"])
 		nav_button.set_meta("flat_phone_button", true)
-		nav_button.custom_minimum_size = Vector2(100, 44)
+		nav_button.custom_minimum_size = Vector2(100, 50)
 		nav_button.size_flags_horizontal = Control.SIZE_EXPAND_FILL
 		nav_button.pressed.connect(_set_social_screen.bind(str(nav["screen"])))
 		bottom_nav.add_child(nav_button)
@@ -2046,6 +2061,12 @@ func _theme_color(key: String) -> Color:
 	return Color(str(palette.get(key, PALETTE_1.get(key, "FFF1C9"))))
 
 
+func _viewport_size() -> Vector2:
+	if get_viewport() != null:
+		return get_viewport().get_visible_rect().size
+	return Vector2(1280, 720)
+
+
 func _load_runtime_texture(path: String) -> Texture2D:
 	if _texture_cache.has(path):
 		return _texture_cache[path]
@@ -2135,6 +2156,15 @@ func _move_window_for_test(window_id: String, delta: Vector2) -> bool:
 	return true
 
 
+func _window_position_for_test(window_id: String) -> Vector2:
+	if not _draggable_windows.has(window_id):
+		return Vector2.INF
+	var window := _draggable_windows[window_id] as Control
+	if window == null:
+		return Vector2.INF
+	return window.position
+
+
 func _make_draggable_window(window: Control, window_id: String, handle: Control) -> void:
 	if window == null or handle == null:
 		return
@@ -2172,9 +2202,7 @@ func _avoid_meme_bank_overlaps() -> void:
 	if not _meme_bank_conflicts_at(_meme_bank_window.global_position, targets):
 		return
 	var bank_rect := _meme_bank_window.get_global_rect()
-	var viewport_size := Vector2(1280, 720)
-	if get_viewport() != null:
-		viewport_size = get_viewport().get_visible_rect().size
+	var viewport_size := _viewport_size()
 	var margin := 12.0
 	var min_x := margin
 	if _hud_panel != null and _hud_panel.visible:
@@ -2252,9 +2280,7 @@ func _on_window_handle_gui_input(event: InputEvent, _window_id: String, window: 
 
 
 func _clamp_window_to_viewport(window: Control) -> void:
-	var viewport_size := Vector2(1280, 720)
-	if get_viewport() != null:
-		viewport_size = get_viewport().get_visible_rect().size
+	var viewport_size := _viewport_size()
 	var max_x := maxf(0.0, viewport_size.x - maxf(80.0, window.size.x))
 	var max_y := maxf(0.0, viewport_size.y - maxf(80.0, window.size.y))
 	window.position = Vector2(clampf(window.position.x, 0.0, max_x), clampf(window.position.y, 0.0, max_y))
@@ -2463,9 +2489,7 @@ func _action_spend_start_position() -> Vector2:
 
 
 func _action_spend_center_position() -> Vector2:
-	var viewport_size := Vector2(1280, 720)
-	if get_viewport() != null:
-		viewport_size = get_viewport().get_visible_rect().size
+	var viewport_size := _viewport_size()
 	var label_size := _action_spend_label.custom_minimum_size if _action_spend_label != null else Vector2(620, 92)
 	return (viewport_size - label_size) * 0.5
 
@@ -2580,9 +2604,7 @@ func _set_flashback_blackout(value: bool) -> void:
 
 
 func _scramble_flashback_words(step: int) -> void:
-	var viewport_size := Vector2(1280, 720)
-	if get_viewport() != null:
-		viewport_size = get_viewport().get_visible_rect().size
+	var viewport_size := _viewport_size()
 	var phrases := [
 		"哈吉米",
 		"哈吉米    哈吉米    哈吉米",

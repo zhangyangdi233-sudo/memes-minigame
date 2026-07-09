@@ -51,6 +51,7 @@ func _run() -> void:
 		_assert_true(root.has_method("begin_reality_player_turn"), "main scene should expose player turn transition")
 		_assert_true(root.has_method("_toggle_meme_bank"), "main scene should expose meme bank drawer toggle")
 		_assert_true(root.has_method("_move_window_for_test"), "main scene should expose test window movement helper")
+		_assert_true(root.has_method("_window_position_for_test"), "main scene should expose test window position helper")
 		_assert_true(root.has_method("set_view_state"), "main scene should expose set_view_state")
 		_assert_true(root.has_method("_should_show_meme_bank"), "main scene should expose meme bank context visibility")
 		_assert_true(root.has_method("_should_peek_meme_bank"), "main scene should expose meme bank peek visibility")
@@ -565,7 +566,7 @@ func _run() -> void:
 			for icon_button in [phone_app_babel, phone_app_social, phone_app_shop, phone_app_notebook]:
 				_assert_true(icon_button != null and icon_button.visible, "phone home should show every app icon after closing social")
 				if icon_button != null:
-					_assert_true(icon_button.custom_minimum_size.x >= 100.0 and icon_button.custom_minimum_size.y >= 80.0, "phone app icons should be large enough to tap")
+					_assert_true(icon_button.custom_minimum_size.x >= 140.0 and icon_button.custom_minimum_size.y >= 90.0, "phone app icons should be large enough to tap without cramping")
 			_assert_eq(str(root.game.active_app_window), "", "closing the final social app should clear the active app window")
 			root._on_app_pressed("social")
 		if social_app_window != null and babel_app_window != null and shop_app_window != null and notebook_app_window != null:
@@ -581,7 +582,7 @@ func _run() -> void:
 				var social_height := social_app_window.offset_bottom - social_app_window.offset_top
 				var current_social_feed_masonry := _find_node_by_name(root, "SocialFeedMasonry") as HBoxContainer
 				_assert_true(social_width >= 580.0, "social app window should be wide enough that the masonry content is not cramped")
-				_assert_true(social_width <= 640.0, "social app window should stay close to the large reference-phone proportions")
+				_assert_true(social_width <= 660.0, "social app window should stay close to the large reference-phone proportions")
 				_assert_true(social_height >= 700.0, "social app window should be tall enough to read as a phone screen")
 				_assert_true(social_height / maxf(1.0, social_width) >= 1.08, "social app window should keep a vertical mobile composition without squeezing content")
 				_assert_true(1280.0 + social_app_window.offset_left >= 600.0, "main social phone should sit in the right half like the reference layout")
@@ -807,8 +808,18 @@ func _run() -> void:
 			root._render()
 			_assert_eq(social_app_window.position, moved_pos, "dragged app window position should survive render")
 			_assert_eq(root.game.actions_remaining, 5, "moving a window should not spend an action")
-			for window_id in ["phone", "app:babel", "app:social", "app:shop", "app:notebook", "bank", "reality", "settings"]:
+			var draggable_ids := ["phone", "app:babel", "app:social", "app:shop", "app:notebook", "bank", "reality", "settings"]
+			for window_id in draggable_ids:
 				_assert_true(root._move_window_for_test(window_id, Vector2(0, 0)), "window should remain registered as draggable: %s" % window_id)
+			var drag_index := 0
+			for window_id in draggable_ids:
+				var window_pos_before: Vector2 = root._window_position_for_test(window_id)
+				_assert_true(root._move_window_for_test(window_id, Vector2(9 + drag_index, 6)), "registered window should accept movement: %s" % window_id)
+				var window_pos_after: Vector2 = root._window_position_for_test(window_id)
+				_assert_true(window_pos_after != window_pos_before, "registered window should change position when moved: %s" % window_id)
+				root._render()
+				_assert_eq(root._window_position_for_test(window_id), window_pos_after, "registered window should keep its dragged position after render: %s" % window_id)
+				drag_index += 1
 			if meme_bank_popup != null:
 				root._move_window_for_test("app:social", Vector2(-190, 0))
 				root._render()
