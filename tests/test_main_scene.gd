@@ -589,13 +589,13 @@ func _run() -> void:
 				_assert_true(current_social_feed_masonry != null and _is_descendant_of(current_social_feed_masonry, social_app_window), "social feed grid should live inside the social app window")
 		if social_bottom_nav != null and social_feed_scroll != null:
 			_assert_true(not _is_descendant_of(social_bottom_nav, social_feed_scroll), "bottom nav should not scroll away with the feed")
-			_assert_true(int(social_feed_scroll.get_meta("slow_scroll_step", 0)) <= 4, "social feed wheel scroll should be slower for phone-style browsing")
+			_assert_true(int(social_feed_scroll.get_meta("slow_scroll_step", 0)) <= 3, "social feed wheel scroll should be slower for phone-style browsing")
 			var wheel_event := InputEventMouseButton.new()
 			wheel_event.button_index = MOUSE_BUTTON_WHEEL_DOWN
 			wheel_event.pressed = true
 			social_feed_scroll.scroll_vertical = 0
 			root._on_social_feed_scroll_gui_input(wheel_event, social_feed_scroll)
-			_assert_true(social_feed_scroll.scroll_vertical <= 4, "one wheel notch should move the masonry feed only a small amount")
+			_assert_true(social_feed_scroll.scroll_vertical <= 3, "one wheel notch should move the masonry feed only a small amount")
 			if social_feed_masonry != null:
 				_assert_eq(social_feed_masonry.get_child_count(), 2, "mobile social feed should keep a two-column discovery layout")
 		if social_post_card != null and social_post_card_1 != null:
@@ -610,6 +610,9 @@ func _run() -> void:
 			_assert_true(str(root._social_post_for_index(0).get("handle", "")) != str(root._social_post_for_index(1).get("handle", "")), "social post handles should vary across lifestyle-note styles")
 			_assert_true(_unique_social_values(root, "text", 12) >= 10, "first twelve social detail posts should be varied")
 			_assert_true(_unique_social_values(root, "handle", 12) >= 10, "first twelve social handles should be varied")
+			_assert_true(_unique_social_values(root, "text", 24) >= 20, "first twenty-four social detail posts should feel like a varied lifestyle-note feed")
+			_assert_true(_unique_social_values(root, "handle", 24) >= 20, "first twenty-four social handles should vary across note personas")
+			_assert_true(_unique_social_captions(root, 24) >= 20, "home feed captions should vary beyond the original small pool")
 			_assert_true(str(root._social_post_for_index(0).get("text", "")).contains("："), "social detail posts should read like compact image-note captions")
 		_assert_true(_generated_posters_are_varied(), "generated social poster images should not all be identical")
 		if social_nav_home != null and social_nav_create != null and social_nav_mine != null:
@@ -969,6 +972,13 @@ func _unique_social_values(root: Node, key: String, count: int) -> int:
 	for index in count:
 		var post: Dictionary = root._social_post_for_index(index)
 		values[str(post.get(key, ""))] = true
+	return values.size()
+
+
+func _unique_social_captions(root: Node, count: int) -> int:
+	var values := {}
+	for index in count:
+		values[str(root._social_caption({}, index))] = true
 	return values.size()
 
 
