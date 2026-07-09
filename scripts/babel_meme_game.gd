@@ -1170,10 +1170,7 @@ func _build_app_window(app_id: String, title: String, node_name: String, left: f
 	if app_id == "social":
 		window.set_meta("phone_shell", true)
 	window.set_anchors_preset(Control.PRESET_TOP_RIGHT)
-	window.offset_left = left
-	window.offset_top = top
-	window.offset_right = right
-	window.offset_bottom = bottom
+	_apply_app_window_layout(window, app_id, left, top, right, bottom)
 	window.z_index = 10
 	_ui_root.add_child(window)
 
@@ -1226,6 +1223,28 @@ func _build_app_window(app_id: String, title: String, node_name: String, left: f
 		_app_window = window
 		_app_title = title_label
 		_app_body = body
+
+
+func _apply_app_window_layout(window: Control, app_id: String, left: float, top: float, right: float, bottom: float) -> void:
+	var viewport_size := _viewport_size()
+	if viewport_size.x >= 900.0:
+		window.offset_left = left
+		window.offset_top = top
+		window.offset_right = right
+		window.offset_bottom = bottom
+		return
+	var safe_left := 12.0
+	if _hud_panel != null:
+		safe_left = maxf(safe_left, _hud_panel.offset_right + 10.0)
+	var right_margin := 12.0
+	var available_width := maxf(220.0, viewport_size.x - safe_left - right_margin)
+	var original_width := right - left
+	var target_width := minf(original_width, available_width)
+	var top_margin := 6.0 if app_id == "social" else clampf(top, 12.0, 72.0)
+	window.offset_right = -right_margin
+	window.offset_left = window.offset_right - target_width
+	window.offset_top = top_margin
+	window.offset_bottom = viewport_size.y - 8.0
 
 
 func _apply_phone_popup_layout(expanded: bool) -> void:
