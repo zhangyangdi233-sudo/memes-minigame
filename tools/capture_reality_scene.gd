@@ -2,6 +2,7 @@ extends SceneTree
 
 const OUTPUT_PATH := "/Users/zhang/Documents/游戏/babel-meme-game/tools/current_reality_view.png"
 const VIEW_SIZE := Vector2i(1672, 941)
+const HEADLESS_CAPTURE_ERROR := "Screenshot capture requires a rendered display. Run this tool without --headless from a GUI session."
 
 
 func _init() -> void:
@@ -10,6 +11,8 @@ func _init() -> void:
 
 func _capture() -> void:
 	root.size = VIEW_SIZE
+	if not _ensure_capture_supported():
+		return
 	var scene := load("res://scenes/babel_meme_game.tscn") as PackedScene
 	if scene == null:
 		push_error("Unable to load main scene")
@@ -42,3 +45,12 @@ func _capture() -> void:
 		return
 	print("saved screenshot: %s" % OUTPUT_PATH)
 	quit(0)
+
+
+func _ensure_capture_supported() -> bool:
+	var display_name := DisplayServer.get_name().to_lower()
+	if display_name == "headless":
+		push_error(HEADLESS_CAPTURE_ERROR)
+		quit(2)
+		return false
+	return true
