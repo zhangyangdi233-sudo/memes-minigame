@@ -31,7 +31,11 @@ func _run() -> void:
 	test_reality_phase_moves_from_npc_to_player_to_result()
 	test_first_crossing_sixty_triggers_flashback_and_forces_day_end()
 	test_flashback_trigger_is_once_per_run()
+	test_place_meme_is_free_and_confirm_dialogue_costs_action()
+	test_publish_breakdown_uses_base_times_multiplier_and_repeat_decay()
+	test_visible_six_day_trends_match_scoring_rotation()
 	test_day_settlement_can_raise_tower_and_unlock_ending()
+	test_twelve_day_catchup_guarantees_tower_ending()
 
 
 func test_navigation_is_free_and_five_actions_mark_day_end() -> void:
@@ -244,6 +248,38 @@ func test_place_meme_is_free_and_confirm_dialogue_costs_action() -> void:
 	_assert_eq(game.actions_remaining, 4, "confirm dialogue should cost one action")
 	_assert_eq(game.dialogue_blanks.size(), 0, "dialogue blank should clear after use")
 	_assert_true(game.heat > 18, "successful dialogue should increase heat")
+	_assert_true(not game.last_publish_breakdown.is_empty(), "confirmed publish should preserve its score breakdown")
+	_assert_true(game.published_memes[0].has("score_breakdown"), "published meme record should keep the score breakdown used for legacy ranking")
+
+
+func test_publish_breakdown_uses_base_times_multiplier_and_repeat_decay() -> void:
+	var game: RefCounted = _state_script.new()
+	game.new_run()
+	game.pollution = 40
+	var meme := {
+		"id": "m-score",
+		"text": "哈吉米，末班车没有终点",
+		"tags": ["哈吉米", "追问", "焦虑"],
+		"rarity": 2,
+		"pollution_bias": 2,
+	}
+	var first: Dictionary = game.get_publish_breakdown(meme)
+	_assert_true(int(first.get("base_value", 0)) > 0, "publish breakdown should expose an additive base value")
+	_assert_true(float(first.get("total_multiplier", 0.0)) > 1.0, "matching tags and pollution should create a visible resonance multiplier")
+	_assert_eq(int(first.get("score", 0)), int(round(float(first.get("base_value", 0)) * float(first.get("total_multiplier", 0.0)))), "publish score should read as base value times resonance multiplier")
+	game.published_memes = [{"text": meme["text"], "score": first["score"], "floor": 1}]
+	var repeated: Dictionary = game.get_publish_breakdown(meme)
+	_assert_true(float(repeated.get("repeat_multiplier", 1.0)) < 1.0, "reusing the same meme should expose a repeat decay multiplier")
+	_assert_true(int(repeated.get("score", 0)) < int(first.get("score", 0)), "repeat decay should lower the final propagation score")
+
+
+func test_visible_six_day_trends_match_scoring_rotation() -> void:
+	var game: RefCounted = _state_script.new()
+	game.new_run()
+	game.day = 5
+	_assert_true("圣歌" in game._current_accepted_tags() and "巴别塔" in game._current_accepted_tags(), "day five scoring should match the visible hymn and Babel trend")
+	game.day = 6
+	_assert_true("空位" in game._current_accepted_tags() and "沉默" in game._current_accepted_tags(), "day six scoring should match the visible empty-seat and silence trend")
 
 
 func test_day_settlement_can_raise_tower_and_unlock_ending() -> void:
@@ -262,6 +298,18 @@ func test_day_settlement_can_raise_tower_and_unlock_ending() -> void:
 	_assert_eq(game.tower_floor, 5, "high progress should raise the tower floor")
 	_assert_true(game.get("ending_unlocked"), "floor 5 should unlock ending")
 	_assert_true(game.legacy_rules.size() >= 1, "raising tower should preserve previous floor as legacy")
+
+
+func test_twelve_day_catchup_guarantees_tower_ending() -> void:
+	var game: RefCounted = _state_script.new()
+	game.new_run()
+	for _day_index in 12:
+		for action_index in 5:
+			_assert_true(game.spend_action("no-progress-%d" % action_index), "five empty progress actions should still be valid daily actions")
+		_assert_true(game.settle_day_if_needed(), "forced no-progress day should still settle")
+	_assert_eq(game.tower_floor, 5, "narrative catchup should guarantee reaching the top by the end of day twelve")
+	_assert_true(game.ending_unlocked, "day twelve catchup should unlock the tower ending")
+	_assert_eq(game.legacy_rules.size(), 4, "guaranteed ascent should still create one permanent legacy rule for every departed floor")
 
 
 func _assert_true(value: bool, message: String) -> void:

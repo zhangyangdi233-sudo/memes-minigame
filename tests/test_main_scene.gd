@@ -37,6 +37,8 @@ func _run() -> void:
 		_assert_true(main_menu_title != null and str(main_menu_title.text).contains("HAJIMI"), "main menu should use the large Hajimi title treatment")
 		_assert_true(main_menu_start != null, "main menu should expose a start game button")
 		_assert_true(main_menu_exit != null, "main menu should expose an exit game button")
+		if main_menu_start != null:
+			_assert_true(_signal_connection_is_deferred(main_menu_start, "pressed"), "starting a game should defer scene teardown until the button signal finishes")
 	if root.has_method("new_game"):
 		root.new_game()
 		_assert_true(root.get_node_or_null("Camera3D") is Camera3D, "main scene should contain a Camera3D")
@@ -62,10 +64,7 @@ func _run() -> void:
 		_assert_true(root.has_method("_toggle_settings_window"), "main scene should expose settings window toggle")
 		_assert_true(root.has_method("_on_vhs_toggled"), "main scene should expose VHS toggle handler")
 		for asset_path in [
-			"res://assets/generated/world/road_loop_green.png",
-			"res://assets/generated/world/hand_phone_down.png",
 			"res://assets/generated/world/phone_down_backdrop.png",
-			"res://assets/generated/world/npc_front.png",
 			"res://assets/generated/ui/player_portrait.png",
 			"res://assets/generated/ui/no_signal_icon.png",
 			"res://assets/generated/ui/hud_day_icon.png",
@@ -73,8 +72,6 @@ func _run() -> void:
 			"res://assets/generated/ui/hud_money_icon.png",
 			"res://assets/generated/ui/hud_settings_icon.png",
 			"res://assets/generated/social/poster_sheet.png",
-			"res://assets/generated/social/poster_00.png",
-			"res://assets/generated/social/poster_11.png",
 		]:
 			_assert_true(FileAccess.file_exists(asset_path), "generated asset should exist: %s" % asset_path)
 		var camera := root.get_node_or_null("Camera3D") as Camera3D
@@ -168,6 +165,7 @@ func _run() -> void:
 		var social_post_caption_1 := _find_node_by_name(root, "SocialPostCaption1") as Label
 		var social_post_meta_likes := _find_node_by_name(root, "SocialPostMetaLikes0") as Label
 		var social_post_texture := _find_node_by_name(root, "SocialPostTexture0") as TextureRect
+		var social_post_texture_1 := _find_node_by_name(root, "SocialPostTexture1") as TextureRect
 		var social_post_open := _find_node_by_name(root, "SocialPostOpen0") as Button
 		var social_detail_window := _find_node_by_name(root, "SocialDetailWindow") as PanelContainer
 		var social_detail_close := _find_node_by_name(root, "SocialDetailWindowCloseButton") as Button
@@ -194,28 +192,23 @@ func _run() -> void:
 		_assert_true(road_tile != null, "scene should expose a road tile")
 		if road_tile != null:
 			var road_mat := road_tile.material_override as StandardMaterial3D
-			_assert_true(road_mat != null and road_mat.albedo_texture != null, "road tile should use generated road texture")
+			_assert_true(road_mat != null and road_mat.albedo_texture == null, "3D road should stay procedural behind the generated low-view backdrop")
 			_assert_true(phone_down_backdrop_image != null, "phone-down view should expose the generated road-and-phone backdrop")
 			if phone_down_backdrop_image != null:
 				_assert_true(phone_down_backdrop_image.texture != null, "phone-down backdrop should be loaded as a texture")
 				_assert_eq(str(phone_down_backdrop_image.get_meta("asset_path", "")), "res://assets/generated/world/phone_down_backdrop.png", "phone-down backdrop should use the generated reference-style road asset")
 				_assert_true(phone_down_backdrop_image.visible, "phone-down view should show the generated backdrop artwork")
 				_assert_eq(phone_down_backdrop_image.stretch_mode, TextureRect.STRETCH_KEEP_ASPECT_COVERED, "phone-down backdrop should fill the viewport")
-			_assert_true(hand_phone_image != null, "phone-down view should expose generated hand and phone artwork")
-			if hand_phone_image != null:
-				_assert_true(hand_phone_image.texture != null, "hand and phone artwork should be loaded as a texture")
-				_assert_eq(str(hand_phone_image.get_meta("asset_path", "")), "res://assets/generated/world/hand_phone_down.png", "foreground hand-phone layer should use the transparent generated hand asset")
-				_assert_true(hand_phone_image.visible, "phone-down view should show the generated hand and phone artwork")
-				_assert_eq(hand_phone_image.stretch_mode, TextureRect.STRETCH_KEEP_ASPECT_CENTERED, "foreground hand-phone artwork should keep its generated proportions")
-				if hand_phone_image.texture != null:
-					_assert_eq(hand_phone_image.texture.get_width(), 1280, "hand-phone artwork should be generated at the full gameplay viewport width")
-					_assert_eq(hand_phone_image.texture.get_height(), 720, "hand-phone artwork should be generated at the full gameplay viewport height")
+				if phone_down_backdrop_image.texture != null:
+					_assert_eq(phone_down_backdrop_image.texture.get_width(), 1672, "combined low-view artwork should preserve its generated width")
+					_assert_eq(phone_down_backdrop_image.texture.get_height(), 941, "combined low-view artwork should preserve its generated height")
+			_assert_true(hand_phone_image == null, "combined low-view artwork should not be duplicated by a second hand-phone layer")
 			if phone_rig != null:
 				_assert_true(not phone_rig.visible, "generated hand-phone art should replace the old low-view 3D phone rig")
 		_assert_true(npc_plane != null, "scene should expose NPC plane")
 		if npc_plane != null:
 			var npc_mat := npc_plane.material_override as StandardMaterial3D
-			_assert_true(npc_mat != null and npc_mat.albedo_texture != null, "NPC plane should use generated NPC texture")
+			_assert_true(npc_mat != null and npc_mat.albedo_texture == null, "NPC plane should use the procedural world material after removed assets stay deleted")
 		_assert_true(apple_hud == null, "old Apple HUD panel should be removed")
 		_assert_true(international_hud != null, "scene should expose an International-style icon HUD rail")
 		_assert_true(hud_title == null, "HUD should not show the BABEL PHONE title")
@@ -506,6 +499,10 @@ func _run() -> void:
 			_assert_true(social_post_texture != null, "social post cards should use generated poster textures")
 			if social_post_texture != null:
 				_assert_true(social_post_texture.texture != null, "social post texture should load generated poster art")
+				_assert_true(social_post_texture.texture is AtlasTexture, "social post texture should crop one cell from the generated poster sheet")
+				_assert_eq(str(social_post_texture.get_meta("poster_sheet_path", "")), "res://assets/generated/social/poster_sheet.png", "social cards should use the retained poster sheet")
+			if social_post_texture != null and social_post_texture_1 != null and social_post_texture.texture is AtlasTexture and social_post_texture_1.texture is AtlasTexture:
+				_assert_true((social_post_texture.texture as AtlasTexture).region != (social_post_texture_1.texture as AtlasTexture).region, "adjacent social cards should use different poster-sheet cells")
 			_assert_true(social_post_caption != null, "social post cards should expose a short caption")
 			_assert_true(social_post_meta_likes != null and str(social_post_meta_likes.text).contains("♡"), "social post cards should show reference-like engagement counts")
 			_assert_true(social_post_open == null, "social post cards should not use a separate enter button")
@@ -542,7 +539,9 @@ func _run() -> void:
 		_assert_true(flashback_overlay != null, "scene should expose a full-screen pollution flashback overlay")
 		_assert_true(npc_bubble != null, "scene should expose the NPC chat bubble")
 		_assert_true(dim_overlay != null, "scene should expose the reality dim overlay")
-		_assert_true(npc_focus_image != null, "player composing should expose a bright NPC focus layer above the dim overlay")
+		_assert_true(npc_focus_image == null, "NPC brightness should come from the dim-overlay cutout instead of duplicating removed NPC art")
+		if dim_overlay != null:
+			_assert_true(dim_overlay.material is ShaderMaterial, "reality dim overlay should cut a bright opening around the centered NPC")
 		_assert_true(player_portrait != null, "scene should expose the player portrait")
 		_assert_true(thought_layer != null, "scene should expose the thought word layer")
 		_assert_true(thought_flow != null, "thought words should use a wrapping flow container")
@@ -554,17 +553,19 @@ func _run() -> void:
 		if meme_bank_drag_handle != null:
 			_assert_true(meme_bank_drag_handle.has_meta("drag_handle"), "meme bank drag handle should move the whole drawer")
 		if phone_popup != null and phone_tab != null and phone_content != null:
-			var phone_width := phone_popup.offset_right - phone_popup.offset_left
-			var phone_height := phone_popup.offset_bottom - phone_popup.offset_top
 			_assert_true(_is_descendant_of(phone_tab, phone_popup), "phone tab and phone content should be one popup object")
 			_assert_true(_is_descendant_of(phone_content, phone_popup), "phone content should expand from the integrated phone popup")
-			_assert_true(not phone_popup.visible, "phone launcher should stay hidden while the main social phone is already open")
-			_assert_true(not phone_tab.visible, "collapsed phone tab should be hidden while the phone is open")
+			_assert_true(phone_popup.visible, "phone launcher should remain as an attached side dock while an app is open")
+			_assert_true(phone_tab.visible, "collapsed phone dock should remain reachable while app windows are open")
 			_assert_true(not phone_content.visible, "phone launcher content should not overlap the main social phone")
-			_assert_true(phone_width >= 280.0 and phone_height >= 500.0, "open phone should be large enough to read as a proportional phone")
-			_assert_true(phone_width >= 420.0, "open phone launcher should not compress the app icon grid")
-			_assert_true(phone_height / maxf(1.0, phone_width) >= 1.45, "open phone should keep a tall smartphone aspect ratio")
-			_assert_true(phone_height / maxf(1.0, phone_width) <= 2.05, "open phone should not be stretched beyond phone proportions")
+			root._open_phone_launcher()
+			var phone_width := phone_popup.offset_right - phone_popup.offset_left
+			var phone_height := phone_popup.offset_bottom - phone_popup.offset_top
+			_assert_true(phone_content.visible, "clicking the attached phone dock should expand the phone home")
+			_assert_true(phone_width >= 420.0 and phone_height >= 700.0, "expanded phone home should be large enough for the app grid")
+			_assert_true(phone_height / maxf(1.0, phone_width) >= 1.68, "expanded phone home should keep a modern tall-phone aspect ratio")
+			_assert_true(phone_height / maxf(1.0, phone_width) <= 1.78, "expanded phone home should keep the selected 1.72 ratio")
+			root._on_app_pressed("social")
 		if social_inline_close != null and social_app_window != null and phone_popup != null and phone_content != null:
 			social_inline_close.pressed.emit()
 			_assert_true(not social_app_window.visible, "closing social app should hide the social app window")
@@ -588,11 +589,12 @@ func _run() -> void:
 				var social_width := social_app_window.offset_right - social_app_window.offset_left
 				var social_height := social_app_window.offset_bottom - social_app_window.offset_top
 				var current_social_feed_masonry := _find_node_by_name(root, "SocialFeedMasonry") as HBoxContainer
-				_assert_true(social_width >= 580.0, "social app window should be wide enough that the masonry content is not cramped")
-				_assert_true(social_width <= 660.0, "social app window should stay close to the large reference-phone proportions")
-				_assert_true(social_height >= 700.0, "social app window should be tall enough to read as a phone screen")
-				_assert_true(social_height / maxf(1.0, social_width) >= 1.08, "social app window should keep a vertical mobile composition without squeezing content")
-				_assert_true(1280.0 + social_app_window.offset_left >= 600.0, "main social phone should sit in the right half like the reference layout")
+				_assert_true(social_width >= 470.0, "social app window should leave two readable masonry columns")
+				_assert_true(social_width <= 520.0, "social app window should stay close to the reference phone width")
+				_assert_true(social_height >= 840.0, "social app window should use the available vertical phone space")
+				_assert_true(social_height / maxf(1.0, social_width) >= 1.70, "social app window should keep a tall mobile composition")
+				var viewport_width := float(ProjectSettings.get_setting("display/window/size/viewport_width", 1600))
+				_assert_true(viewport_width + social_app_window.offset_left >= viewport_width * 0.55, "main social phone should sit in the right half like the reference layout")
 				_assert_true(current_social_feed_masonry != null and _is_descendant_of(current_social_feed_masonry, social_app_window), "social feed grid should live inside the social app window")
 		if social_bottom_nav != null and social_feed_scroll != null:
 			_assert_true(not _is_descendant_of(social_bottom_nav, social_feed_scroll), "bottom nav should not scroll away with the feed")
@@ -640,6 +642,8 @@ func _run() -> void:
 			var publish_scroll_after_nav := _find_node_by_name(root, "SocialPublishScroll") as ScrollContainer
 			var publish_action_bar_after_nav := _find_node_by_name(root, "SocialPublishActionBar") as PanelContainer
 			var publish_button_after_nav := _find_node_by_name(root, "SocialPublishButton") as Button
+			var publish_score_after_nav := _find_node_by_name(root, "SocialPublishScoreBreakdown") as PanelContainer
+			var publish_score_text_after_nav := _find_node_by_name(root, "SocialPublishScoreText") as Label
 			var feed_after_nav := _find_node_by_name(root, "SocialFeedMasonry") as HBoxContainer
 			var inline_close_after_publish := _find_node_by_name(root, "SocialAppInlineCloseButton") as Button
 			var bottom_nav_after_publish := _find_node_by_name(root, "SocialBottomNav") as HBoxContainer
@@ -647,6 +651,9 @@ func _run() -> void:
 			_assert_true(composer_after_nav != null, "dedicated publish page should contain the publish composer")
 			_assert_true(publish_scroll_after_nav != null, "publish page should put expandable content inside an internal scroll area")
 			_assert_true(publish_action_bar_after_nav != null, "publish page should expose a fixed action bar for confirmation")
+			_assert_true(publish_score_after_nav != null, "publish page should expose a Balatro-like base-times-multiplier breakdown")
+			if publish_score_text_after_nav != null:
+				_assert_true(str(publish_score_text_after_nav.text).contains("传播基础") and str(publish_score_text_after_nav.text).contains("共鸣倍率"), "publish score breakdown should label both base value and multiplier")
 			if composer_after_nav != null and publish_scroll_after_nav != null:
 				_assert_true(_is_descendant_of(composer_after_nav, publish_scroll_after_nav), "publish composer should scroll inside the phone instead of stretching the phone")
 			if publish_button_after_nav != null and publish_action_bar_after_nav != null and publish_scroll_after_nav != null:
@@ -972,10 +979,7 @@ func _run() -> void:
 			var remaining_brightness := 1.0 - dim_overlay.color.a
 			_assert_true(remaining_brightness >= 0.70 and remaining_brightness <= 0.80, "player composing dim overlay should keep background brightness around 70-80 percent")
 			_assert_true(absf(float(dim_overlay.get_meta("target_background_brightness", 0.0)) - remaining_brightness) < 0.001, "dim overlay should document its intended background brightness")
-			if npc_focus_image != null:
-				_assert_true(npc_focus_image.visible, "player composing phase should keep NPC visible above the dimmed background")
-				_assert_true(npc_focus_image.texture != null, "NPC focus layer should use generated NPC art")
-				_assert_true(npc_focus_image.z_index > dim_overlay.z_index, "NPC focus layer should render above the dim overlay")
+			_assert_true(dim_overlay.material is ShaderMaterial, "player composing phase should keep the centered NPC bright through a shader cutout")
 			_assert_true(player_portrait.visible, "player composing phase should show the player portrait")
 			_assert_true(player_portrait.z_index > dim_overlay.z_index, "player portrait should remain bright above the dim overlay")
 			if international_hud != null:
@@ -1045,16 +1049,28 @@ func _unique_social_captions(root: Node, count: int) -> int:
 
 
 func _generated_posters_are_varied() -> bool:
-	var sizes := {}
-	var byte_prefixes := {}
+	var path := "res://assets/generated/social/poster_sheet.png"
+	if not FileAccess.file_exists(path):
+		return false
+	var image := Image.new()
+	if image.load_png_from_buffer(FileAccess.get_file_as_bytes(path)) != OK or image.is_empty():
+		return false
+	var cell_width := image.get_width() / 4
+	var cell_height := image.get_height() / 3
+	if cell_width <= 0 or cell_height <= 0:
+		return false
+	var fingerprints := {}
 	for index in 12:
-		var path := "res://assets/generated/social/poster_%02d.png" % index
-		if not FileAccess.file_exists(path):
-			return false
-		var bytes := FileAccess.get_file_as_bytes(path)
-		sizes[str(bytes.size())] = true
-		byte_prefixes[bytes.slice(0, mini(64, bytes.size())).hex_encode()] = true
-	return sizes.size() > 1 or byte_prefixes.size() > 1
+		var column := index % 4
+		var row := floori(float(index) / 4.0)
+		var samples: Array[String] = []
+		for sample_y in range(1, 4):
+			for sample_x in range(1, 4):
+				var x := column * cell_width + int(cell_width * sample_x / 4.0)
+				var y := row * cell_height + int(cell_height * sample_y / 4.0)
+				samples.append(image.get_pixel(x, y).to_html())
+		fingerprints["|".join(samples)] = true
+	return fingerprints.size() >= 8
 
 
 func _has_node_with_method(node: Node, method_name: String) -> bool:
@@ -1062,6 +1078,13 @@ func _has_node_with_method(node: Node, method_name: String) -> bool:
 		return true
 	for child in node.get_children():
 		if _has_node_with_method(child, method_name):
+			return true
+	return false
+
+
+func _signal_connection_is_deferred(node: Object, signal_name: StringName) -> bool:
+	for connection in node.get_signal_connection_list(signal_name):
+		if int(connection.get("flags", 0)) & CONNECT_DEFERRED:
 			return true
 	return false
 

@@ -27,69 +27,69 @@ const POLLUTION_PALETTE_5 := {
 	"flash_text": "39FF14",
 }
 
-const ROAD_TEXTURE_PATH := "res://assets/generated/world/road_loop_green.png"
-const HAND_PHONE_TEXTURE_PATH := "res://assets/generated/world/hand_phone_down.png"
 const PHONE_DOWN_BACKDROP_PATH := "res://assets/generated/world/phone_down_backdrop.png"
-const NPC_TEXTURE_PATH := "res://assets/generated/world/npc_front.png"
 const PLAYER_PORTRAIT_TEXTURE_PATH := "res://assets/generated/ui/player_portrait.png"
 const NO_SIGNAL_ICON_PATH := "res://assets/generated/ui/no_signal_icon.png"
 const HUD_DAY_ICON_PATH := "res://assets/generated/ui/hud_day_icon.png"
 const HUD_POLLUTION_ICON_PATH := "res://assets/generated/ui/hud_pollution_icon.png"
 const HUD_MONEY_ICON_PATH := "res://assets/generated/ui/hud_money_icon.png"
 const HUD_SETTINGS_ICON_PATH := "res://assets/generated/ui/hud_settings_icon.png"
-const SOCIAL_POSTER_COUNT := 12
+const SOCIAL_POSTER_SHEET_PATH := "res://assets/generated/social/poster_sheet.png"
+const SOCIAL_POSTER_COLUMNS := 4
+const SOCIAL_POSTER_ROWS := 3
+const SOCIAL_POSTER_COUNT := SOCIAL_POSTER_COLUMNS * SOCIAL_POSTER_ROWS
 const SOCIAL_FEED_WHEEL_STEP := 2
 const SOCIAL_HOME_CAPTIONS := [
-	"路面一直复制自己",
-	"塔下截图，没有信号",
-	"包里只剩旧票根",
-	"空房间的绿光",
-	"三站以后又回原点",
-	"便利店晚班便签",
-	"今天穿了旧词",
-	"错字路牌合集",
-	"草稿箱午餐",
-	"黑屏也要留白",
-	"失焦散步记录",
-	"塔顶没有头像",
-	"早八无信号通勤",
-	"口袋里的小票",
-	"夜市灯箱偏绿",
-	"桌面清空计划",
-	"雨天鞋底取样",
-	"本周静音穿搭",
-	"半份便当独白",
-	"等红灯时存档",
-	"电梯里的空格",
-	"卧室低电量",
-	"路边花坛噪点",
-	"周末别解释",
+	"末班电梯多了一层",
+	"凌晨三点有人按门铃",
+	"最后一班车没有终点",
+	"监控里我晚到一分钟",
+	"无信号时收到自己来电",
+	"楼道声控灯跟着我走",
+	"地图删掉了这条小路",
+	"旧群聊每天多一个人",
+	"便利店店员没有影子",
+	"照片里窗外多了一层",
+	"回家后门牌变成空白",
+	"电梯镜子比我先眨眼",
+	"楼上空房每天拖椅子",
+	"停电后广播还在报站",
+	"小区群里有人发未来",
+	"废站台昨晚重新亮灯",
+	"门禁记录显示我没回家",
+	"凌晨外卖写着不要开门",
+	"同一张票刷出两个名字",
+	"失物招领里有我的手机",
+	"不存在的楼层正在施工",
+	"下雨时路牌会换方向",
+	"我在旧帖里看见今天",
+	"塔下每晚少一个窗口",
 ]
 const SOCIAL_DETAIL_TEXTS := [
-	"最近几格：手、路面、空屏，顺序不能换。",
-	"塔下截图：点赞很多，信号一格都没有。",
-	"旧票根还在包里，像没发出的回复。",
-	"空房间只开一盏绿灯，墙替我读评论。",
-	"三站以后又回原点，路线像复制粘贴。",
-	"便利店便签：别把沉默放进微波炉。",
-	"今天穿了旧词，黑外套配米白纸条。",
-	"错字路牌合集，每张都把名字写歪。",
-	"午餐只剩草稿箱，米饭旁边躺着未发送。",
-	"黑屏也要留白，越空越有人替你补完。",
-	"失焦散步记录，脚步清楚，话不清楚。",
-	"塔顶没有头像，只留下一个灰色空号。",
-	"早八无信号，车窗把我切成几张图。",
-	"口袋里的小票，金额像一串旧咒语。",
-	"夜市灯箱偏绿，所有招牌都在复读。",
-	"桌面清空计划：只保留水杯和未读。",
-	"雨天鞋底取样，路面把话磨成颗粒。",
-	"本周静音穿搭，领口别一枚空格。",
-	"半份便当独白，筷子停在第二句。",
-	"等红灯时存档，倒计时没有走完。",
-	"电梯里的空格，楼层键全都按过。",
-	"卧室低电量，床头线缠住一句话。",
-	"路边花坛噪点，花名被信号盖住。",
-	"周末别解释，照片会自己替你说谎。",
+	"实拍：末班电梯停在不存在的十三层。",
+	"求证：凌晨三点，楼道监控会少一帧。",
+	"旧帖：最后一班车从来没有终点站。",
+	"监控里的人，比我早一分钟回到家。",
+	"无信号时，手机收到我的来电。",
+	"楼道灯一盏盏亮，身后却没有人。",
+	"地图更新后，那条回家小路消失了。",
+	"退了三年的群，每晚仍多一个成员。",
+	"便利店整夜开着，店员却没有影子。",
+	"同一扇窗，照片里比现实多一层。",
+	"门牌一到午夜，就会变成空白。",
+	"别看镜子，它总比你先眨一次眼。",
+	"楼上没人住，凌晨却总在拖椅子。",
+	"停电以后，废站广播仍准时报站。",
+	"小区群有人发来明天的失踪通知。",
+	"封了十年的站台，昨晚重新亮灯。",
+	"门禁说我没回来，可我一直在屋里。",
+	"外卖备注只有一句：听见也别开门。",
+	"同一张旧车票，刷出了两个名字。",
+	"失物招领照片里，是我正在用的手机。",
+	"施工公告写着一层不存在的楼层。",
+	"每次下雨，路牌都会指向另一边。",
+	"十年前的旧帖，拍到了今天的我。",
+	"塔下每到午夜，就少一扇亮着的窗。",
 ]
 const SOCIAL_DETAIL_HANDLES := [
 	"夜路相册",
@@ -301,6 +301,7 @@ var _action_spend_after_actions := -1
 var _action_spend_should_settle := false
 var _meme_bank_open := false
 var _phone_popup_expanded := true
+var _phone_launcher_open := true
 var _meme_bank_layout_mode := ""
 var _open_app_windows: Dictionary = {}
 var _social_screen := "home"
@@ -338,6 +339,15 @@ func _input(event: InputEvent) -> void:
 		_dragged_window.global_position = _event_pointer_position(event) - _drag_offset
 		_clamp_window_to_viewport(_dragged_window)
 	elif event is InputEventMouseButton and event.button_index == MOUSE_BUTTON_LEFT and not event.pressed:
+		if _dragged_window == _meme_bank_window:
+			_avoid_meme_bank_overlaps()
+		_dragged_window = null
+	elif event is InputEventScreenDrag:
+		_dragged_window.global_position = _event_pointer_position(event) - _drag_offset
+		_clamp_window_to_viewport(_dragged_window)
+	elif event is InputEventScreenTouch and not event.pressed:
+		if _dragged_window == _meme_bank_window:
+			_avoid_meme_bank_overlaps()
 		_dragged_window = null
 
 
@@ -352,6 +362,7 @@ func new_game() -> void:
 	selected_reality_tile_id = ""
 	_meme_bank_open = false
 	_phone_popup_expanded = true
+	_phone_launcher_open = false
 	_meme_bank_layout_mode = ""
 	_open_app_windows = {"social": true}
 	_social_screen = "home"
@@ -377,6 +388,7 @@ func show_main_menu() -> void:
 	_settings_open = false
 	_input_locked = false
 	_phone_art_alpha = 0.0
+	_phone_launcher_open = false
 	_build_world()
 	_build_main_menu()
 
@@ -388,8 +400,10 @@ func set_view_state(value: String) -> void:
 		if value == "npc_up":
 			log_text = "你放下手机，视线抬到对方脸上。"
 			_meme_bank_open = false
+			_phone_launcher_open = false
 		else:
 			log_text = "你又低头看向手机。"
+			_phone_launcher_open = game.active_app_window.is_empty()
 			if not game.active_app_window.is_empty():
 				_open_app_windows[game.active_app_window] = true
 			if _phone_panel != null:
@@ -432,7 +446,6 @@ func _build_world() -> void:
 	_road = Node3D.new()
 	_road.name = "Road"
 	add_child(_road)
-	var road_texture := _load_runtime_texture(ROAD_TEXTURE_PATH)
 	for index in 3:
 		var tile := MeshInstance3D.new()
 		tile.name = "RoadTile%d" % index
@@ -441,8 +454,7 @@ func _build_world() -> void:
 		tile.mesh = plane
 		tile.position = Vector3(0.0, -0.08, -2.0 - index * 3.8)
 		var mat := StandardMaterial3D.new()
-		mat.albedo_color = Color.WHITE if road_texture != null else _theme_color("accent").darkened(0.50 - index * 0.08)
-		mat.albedo_texture = road_texture
+		mat.albedo_color = _theme_color("accent").darkened(0.50 - index * 0.08)
 		mat.roughness = 0.8
 		tile.material_override = mat
 		_road.add_child(tile)
@@ -483,9 +495,7 @@ func _build_world() -> void:
 	npc_body.mesh = npc_quad
 	npc_body.position = Vector3(0.0, 1.25, -3.2)
 	var npc_mat := StandardMaterial3D.new()
-	var npc_texture := _load_runtime_texture(NPC_TEXTURE_PATH)
-	npc_mat.albedo_color = Color.WHITE if npc_texture != null else _theme_color("surface")
-	npc_mat.albedo_texture = npc_texture
+	npc_mat.albedo_color = _theme_color("surface")
 	npc_mat.transparency = BaseMaterial3D.TRANSPARENCY_ALPHA
 	npc_mat.cull_mode = BaseMaterial3D.CULL_DISABLED
 	npc_mat.emission_enabled = true
@@ -576,7 +586,7 @@ func _build_main_menu() -> void:
 	start_button.name = "MainMenuStartButton"
 	start_button.text = "开始游戏"
 	start_button.custom_minimum_size = Vector2(168, 54)
-	start_button.pressed.connect(new_game)
+	start_button.pressed.connect(new_game, CONNECT_DEFERRED)
 	buttons.add_child(start_button)
 
 	var exit_button := Button.new()
@@ -653,17 +663,7 @@ func _build_ui() -> void:
 	_phone_down_backdrop_image.set_anchors_preset(Control.PRESET_FULL_RECT)
 	_phone_down_backdrop_image.z_index = 1
 	_ui_root.add_child(_phone_down_backdrop_image)
-
-	_hand_phone_image = TextureRect.new()
-	_hand_phone_image.name = "HandPhoneDownImage"
-	_hand_phone_image.texture = _load_runtime_texture(HAND_PHONE_TEXTURE_PATH)
-	_hand_phone_image.set_meta("asset_path", HAND_PHONE_TEXTURE_PATH)
-	_hand_phone_image.expand_mode = TextureRect.EXPAND_IGNORE_SIZE
-	_hand_phone_image.stretch_mode = TextureRect.STRETCH_KEEP_ASPECT_CENTERED
-	_hand_phone_image.mouse_filter = Control.MOUSE_FILTER_IGNORE
-	_hand_phone_image.set_anchors_preset(Control.PRESET_FULL_RECT)
-	_hand_phone_image.z_index = 3
-	_ui_root.add_child(_hand_phone_image)
+	_hand_phone_image = null
 
 	_build_apple_hud()
 
@@ -679,32 +679,60 @@ func _build_ui() -> void:
 
 	_phone_panel = _panel()
 	_phone_panel.name = "PhonePopup"
+	_phone_panel.set_meta("phone_shell", true)
+	_phone_panel.clip_contents = true
 	_phone_panel.z_index = 20
 	_ui_root.add_child(_phone_panel)
 	_apply_phone_popup_layout(true)
 
 	var phone_shell := VBoxContainer.new()
 	phone_shell.name = "PhoneShell"
-	phone_shell.add_theme_constant_override("separation", 10)
+	phone_shell.add_theme_constant_override("separation", 0)
 	_phone_panel.add_child(phone_shell)
 
 	_phone_tab = Button.new()
 	_phone_tab.name = "PhoneTab"
 	_phone_tab.text = "PHONE\n打开"
 	_phone_tab.custom_minimum_size = Vector2(78, 168)
-	_phone_tab.pressed.connect(set_view_state.bind("phone_down"))
+	_phone_tab.pressed.connect(_open_phone_launcher)
 	phone_shell.add_child(_phone_tab)
 
 	_phone_content = VBoxContainer.new()
 	_phone_content.name = "PhoneContent"
 	_phone_content.size_flags_vertical = Control.SIZE_EXPAND_FILL
-	(_phone_content as VBoxContainer).add_theme_constant_override("separation", 12)
+	(_phone_content as VBoxContainer).add_theme_constant_override("separation", 8)
 	phone_shell.add_child(_phone_content)
 
-	_phone_title = _label("PHONE", 24, _theme_color("accent"))
+	var phone_header := HBoxContainer.new()
+	phone_header.name = "PhoneWindowHeader"
+	phone_header.custom_minimum_size.y = 60
+	phone_header.mouse_filter = Control.MOUSE_FILTER_STOP
+	phone_header.add_theme_constant_override("separation", 8)
+	_phone_content.add_child(phone_header)
+
+	_phone_title = _label("PHONE", 20, _theme_color("accent"))
 	_phone_title.name = "PhoneWindowHandle"
 	_phone_title.mouse_filter = Control.MOUSE_FILTER_STOP
-	_phone_content.add_child(_phone_title)
+	_phone_title.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+	phone_header.add_child(_phone_title)
+	var phone_signal_icon := TextureRect.new()
+	phone_signal_icon.name = "PhoneHomeNoSignalIcon"
+	phone_signal_icon.texture = _load_runtime_texture(NO_SIGNAL_ICON_PATH)
+	phone_signal_icon.custom_minimum_size = Vector2(22, 22)
+	phone_signal_icon.expand_mode = TextureRect.EXPAND_IGNORE_SIZE
+	phone_signal_icon.stretch_mode = TextureRect.STRETCH_KEEP_ASPECT_CENTERED
+	phone_signal_icon.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	phone_header.add_child(phone_signal_icon)
+	var phone_signal := _label("无信号", 13, _theme_color("accent"))
+	phone_signal.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	phone_header.add_child(phone_signal)
+	var phone_close := Button.new()
+	phone_close.name = "PhoneHomeCloseButton"
+	phone_close.text = "X"
+	phone_close.custom_minimum_size = Vector2(56, 56)
+	phone_close.pressed.connect(set_view_state.bind("npc_up"))
+	phone_header.add_child(phone_close)
+	_make_draggable_window(_phone_panel, "phone", phone_header)
 	_make_draggable_window(_phone_panel, "phone", _phone_title)
 
 	var phone_screen := _panel()
@@ -728,18 +756,10 @@ func _build_ui() -> void:
 		var button := Button.new()
 		button.name = "PhoneAppIcon%s" % str(app["id"]).capitalize()
 		button.text = app["label"]
-		button.custom_minimum_size = Vector2(144, 92)
+		button.custom_minimum_size = Vector2(160, 112)
 		button.size_flags_horizontal = Control.SIZE_EXPAND_FILL
 		button.pressed.connect(_on_app_pressed.bind(app["id"]))
 		app_grid.add_child(button)
-	var phone_hint := _label("点击 App 会在手机旁边弹出独立窗口。", 15, _theme_color("accent"))
-	phone_hint.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
-	screen_box.add_child(phone_hint)
-	var raise_button := Button.new()
-	raise_button.text = "放下手机"
-	raise_button.custom_minimum_size.y = 52
-	raise_button.pressed.connect(set_view_state.bind("npc_up"))
-	_phone_content.add_child(raise_button)
 
 	_view_toggle_button = Button.new()
 	_view_toggle_button.name = "PhoneViewToggleButton"
@@ -753,10 +773,10 @@ func _build_ui() -> void:
 	_view_toggle_button.pressed.connect(_toggle_view_state)
 	_ui_root.add_child(_view_toggle_button)
 
-	_build_app_window("social", "社交媒体 App", "SocialAppWindow", -660.0, 6.0, -24.0, 716.0)
-	_build_app_window("babel", "巴别塔 App", "BabelAppWindow", -920.0, 104.0, -500.0, 604.0)
-	_build_app_window("shop", "情绪槽商店", "ShopAppWindow", -884.0, 132.0, -464.0, 632.0)
-	_build_app_window("notebook", "笔记本 App", "NotebookAppWindow", -848.0, 160.0, -428.0, 660.0)
+	_build_app_window("social", "社交媒体 App", "SocialAppWindow", -514.0, 20.0, -24.0, 880.0)
+	_build_app_window("babel", "巴别塔 App", "BabelAppWindow", -1032.0, 96.0, -592.0, 676.0)
+	_build_app_window("shop", "情绪槽商店", "ShopAppWindow", -1000.0, 124.0, -560.0, 704.0)
+	_build_app_window("notebook", "笔记本 App", "NotebookAppWindow", -968.0, 152.0, -528.0, 732.0)
 
 	_reality_dim_overlay = ColorRect.new()
 	_reality_dim_overlay.name = "RealityDimOverlay"
@@ -765,17 +785,15 @@ func _build_ui() -> void:
 	_reality_dim_overlay.set_anchors_preset(Control.PRESET_FULL_RECT)
 	_reality_dim_overlay.mouse_filter = Control.MOUSE_FILTER_IGNORE
 	_reality_dim_overlay.z_index = 9
+	var reality_dim_shader := Shader.new()
+	reality_dim_shader.code = "shader_type canvas_item;\nuniform float dim_alpha = 0.24;\nvoid fragment() {\n\tvec2 p = UV - vec2(0.5, 0.43);\n\tfloat ellipse = length(vec2(p.x / 0.15, p.y / 0.38));\n\tfloat outside_npc = smoothstep(0.82, 1.08, ellipse);\n\tCOLOR = vec4(0.0, 0.0, 0.0, dim_alpha * outside_npc);\n}"
+	var reality_dim_material := ShaderMaterial.new()
+	reality_dim_material.shader = reality_dim_shader
+	reality_dim_material.set_shader_parameter("dim_alpha", REALITY_DIM_ALPHA)
+	_reality_dim_overlay.material = reality_dim_material
 	_ui_root.add_child(_reality_dim_overlay)
 
-	_npc_focus_image = TextureRect.new()
-	_npc_focus_image.name = "NPCFocusImage"
-	_npc_focus_image.texture = _load_runtime_texture(NPC_TEXTURE_PATH)
-	_npc_focus_image.expand_mode = TextureRect.EXPAND_IGNORE_SIZE
-	_npc_focus_image.stretch_mode = TextureRect.STRETCH_KEEP_ASPECT_CENTERED
-	_npc_focus_image.mouse_filter = Control.MOUSE_FILTER_IGNORE
-	_npc_focus_image.set_anchors_preset(Control.PRESET_FULL_RECT)
-	_npc_focus_image.z_index = 11
-	_ui_root.add_child(_npc_focus_image)
+	_npc_focus_image = null
 
 	_npc_chat_bubble = _panel()
 	_npc_chat_bubble.name = "NPCChatBubble"
@@ -1249,6 +1267,8 @@ func _apply_app_window_layout(window: Control, app_id: String, left: float, top:
 	var original_width := right - left
 	var target_width := minf(original_width, available_width)
 	var top_margin := 6.0 if app_id == "social" else clampf(top, 12.0, 72.0)
+	if app_id == "social":
+		target_width = minf(target_width, (viewport_size.y - top_margin - 8.0) * 0.62)
 	window.offset_right = -right_margin
 	window.offset_left = window.offset_right - target_width
 	window.offset_top = top_margin
@@ -1261,8 +1281,13 @@ func _apply_phone_popup_layout(expanded: bool) -> void:
 	var viewport_size := _viewport_size()
 	_phone_panel.set_anchors_preset(Control.PRESET_BOTTOM_RIGHT)
 	if expanded:
-		var phone_width := minf(464.0, maxf(286.0, viewport_size.x - 220.0))
-		var phone_height := minf(696.0, maxf(452.0, minf(viewport_size.y - 18.0, phone_width * 1.50)))
+		var safe_left := 176.0
+		if _hud_panel != null:
+			safe_left = _hud_panel.offset_right + 18.0
+		var max_height := minf(824.0, viewport_size.y - 32.0)
+		var max_width := minf(480.0, viewport_size.x - safe_left - 28.0)
+		var phone_width := maxf(286.0, minf(max_width, max_height / 1.72))
+		var phone_height := phone_width * 1.72
 		_phone_panel.offset_right = -24
 		_phone_panel.offset_bottom = -18
 		if viewport_size.x < 720.0:
@@ -1283,7 +1308,7 @@ func _apply_meme_bank_popup_layout(mode: String) -> void:
 	var viewport_size := _viewport_size()
 	if mode == "open":
 		_meme_bank_window.set_anchors_preset(Control.PRESET_BOTTOM_LEFT)
-		var safe_left := 190.0
+		var safe_left := viewport_size.x * 0.30
 		if _hud_panel != null:
 			safe_left = maxf(safe_left, _hud_panel.offset_right + 22.0)
 		var min_bank_width := 180.0 if viewport_size.x < 560.0 else 296.0
@@ -1295,7 +1320,7 @@ func _apply_meme_bank_popup_layout(mode: String) -> void:
 		_meme_bank_window.offset_bottom = -120
 	elif mode == "collapsed":
 		_meme_bank_window.set_anchors_preset(Control.PRESET_BOTTOM_LEFT)
-		var collapsed_left := 190.0
+		var collapsed_left := viewport_size.x * 0.30
 		if _hud_panel != null:
 			collapsed_left = maxf(collapsed_left, _hud_panel.offset_right + 22.0)
 		var collapsed_width := 112.0
@@ -1306,7 +1331,7 @@ func _apply_meme_bank_popup_layout(mode: String) -> void:
 		_meme_bank_window.offset_bottom = -22
 	else:
 		_meme_bank_window.set_anchors_preset(Control.PRESET_BOTTOM_LEFT)
-		var peek_left := 190.0
+		var peek_left := viewport_size.x * 0.30
 		if _hud_panel != null:
 			peek_left = maxf(peek_left, _hud_panel.offset_right + 22.0)
 		var peek_size := 44.0
@@ -1483,7 +1508,7 @@ func _render_social_app() -> void:
 
 	var status_bar := HBoxContainer.new()
 	status_bar.name = "SocialPhoneStatusBar"
-	status_bar.custom_minimum_size.y = 68
+	status_bar.custom_minimum_size.y = 64
 	status_bar.mouse_filter = Control.MOUSE_FILTER_STOP
 	status_bar.add_theme_constant_override("separation", 6)
 	phone_box.add_child(status_bar)
@@ -1523,7 +1548,7 @@ func _render_social_app() -> void:
 	var close_social := Button.new()
 	close_social.name = "SocialAppInlineCloseButton"
 	close_social.text = "X"
-	close_social.custom_minimum_size = Vector2(60, 60)
+	close_social.custom_minimum_size = Vector2(64, 64)
 	close_social.pressed.connect(_close_app_window.bind("social"))
 	status_bar.add_child(close_social)
 
@@ -1555,6 +1580,7 @@ func _render_social_app() -> void:
 
 	var page_host := VBoxContainer.new()
 	page_host.name = "SocialPageHost"
+	page_host.clip_contents = true
 	page_host.size_flags_vertical = Control.SIZE_EXPAND_FILL
 	page_host.add_theme_constant_override("separation", 8)
 	phone_box.add_child(page_host)
@@ -1653,7 +1679,9 @@ func _render_social_card_poster(parent: VBoxContainer, post_index: int, post: Di
 
 	var poster_texture := TextureRect.new()
 	poster_texture.name = "SocialPostTexture%d" % post_index
-	poster_texture.texture = _load_runtime_texture(_social_poster_texture_path(post_index))
+	poster_texture.texture = _social_poster_texture(post_index)
+	poster_texture.set_meta("poster_sheet_path", SOCIAL_POSTER_SHEET_PATH)
+	poster_texture.set_meta("poster_sheet_cell", post_index % SOCIAL_POSTER_COUNT)
 	poster_texture.custom_minimum_size = Vector2(0, poster.custom_minimum_size.y)
 	poster_texture.size_flags_horizontal = Control.SIZE_EXPAND_FILL
 	poster_texture.size_flags_vertical = Control.SIZE_EXPAND_FILL
@@ -1685,7 +1713,7 @@ func _social_fragment(post: Dictionary) -> String:
 
 
 func _social_caption(_post: Dictionary, post_index: int) -> String:
-	return str(SOCIAL_HOME_CAPTIONS[post_index % SOCIAL_HOME_CAPTIONS.size()]).substr(0, 24)
+	return str(SOCIAL_HOME_CAPTIONS[post_index % SOCIAL_HOME_CAPTIONS.size()]).substr(0, 12)
 
 
 func _render_social_detail_page(parent: VBoxContainer) -> void:
@@ -1728,7 +1756,9 @@ func _render_social_detail_page(parent: VBoxContainer) -> void:
 	detail_box.add_child(media)
 	var media_texture := TextureRect.new()
 	media_texture.name = "SocialDetailPostTexture"
-	media_texture.texture = _load_runtime_texture(_social_poster_texture_path(_social_detail_post_index))
+	media_texture.texture = _social_poster_texture(_social_detail_post_index)
+	media_texture.set_meta("poster_sheet_path", SOCIAL_POSTER_SHEET_PATH)
+	media_texture.set_meta("poster_sheet_cell", _social_detail_post_index % SOCIAL_POSTER_COUNT)
 	media_texture.custom_minimum_size = Vector2(300, 274)
 	media_texture.size_flags_horizontal = Control.SIZE_EXPAND_FILL
 	media_texture.size_flags_vertical = Control.SIZE_EXPAND_FILL
@@ -1790,6 +1820,16 @@ func _render_social_publish_page(parent: VBoxContainer) -> void:
 	_publish_blank.dropped.connect(_on_dialogue_meme_dropped)
 	_publish_blank.pressed.connect(_on_dialogue_blank_pressed)
 	composer_box.add_child(_publish_blank)
+	var score_breakdown := _panel()
+	score_breakdown.name = "SocialPublishScoreBreakdown"
+	score_breakdown.set_meta("soft_panel", true)
+	publish_content.add_child(score_breakdown)
+	var score_text := _label("", 16, _theme_color("ink"))
+	score_text.name = "SocialPublishScoreText"
+	var placed_meme := _placed_meme()
+	var breakdown: Dictionary = game.get_publish_breakdown(placed_meme) if not placed_meme.is_empty() else game.last_publish_breakdown
+	score_text.text = _publish_breakdown_text(breakdown, not placed_meme.is_empty())
+	score_breakdown.add_child(score_text)
 	var hint := _label("发布会消耗 1 次行动。浏览、切页和拖拽预览不扣行动。", 15, _theme_color("accent"))
 	hint.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
 	publish_content.add_child(hint)
@@ -2028,6 +2068,21 @@ func _render_publish() -> void:
 	_confirm_publish_button.disabled = meme.is_empty() or game.actions_remaining <= 0
 
 
+func _publish_breakdown_text(breakdown: Dictionary, is_preview: bool) -> String:
+	if breakdown.is_empty():
+		return "传播基础  --\n共鸣倍率  ×--\n预计传播  --"
+	var prefix := "预计传播" if is_preview else "本次传播"
+	var repeated := int(breakdown.get("repeat_count", 0))
+	var repeat_note := "\n重复衰减  ×%.2f" % float(breakdown.get("repeat_multiplier", 1.0)) if repeated > 0 else ""
+	return "传播基础  %d\n共鸣倍率  ×%.2f%s\n%s  %d" % [
+		int(breakdown.get("base_value", 0)),
+		float(breakdown.get("total_multiplier", 1.0)),
+		repeat_note,
+		prefix,
+		int(breakdown.get("score", 0)),
+	]
+
+
 func _render_bank() -> void:
 	if _meme_bank_tab != null:
 		if _meme_bank_open:
@@ -2107,17 +2162,13 @@ func _render_reality() -> void:
 
 func _update_visibility() -> void:
 	var in_phone: bool = game.view_state == "phone_down"
-	var has_open_app := false
-	for app_open_key in _open_app_windows.keys():
-		if bool(_open_app_windows.get(app_open_key, false)):
-			has_open_app = true
-			break
-	if _phone_popup_expanded != in_phone:
-		_phone_popup_expanded = in_phone
-		_apply_phone_popup_layout(in_phone)
-	_phone_panel.visible = (not in_phone) or not has_open_app
-	_phone_tab.visible = not in_phone
-	_phone_content.visible = in_phone and _phone_panel.visible
+	var show_phone_home := in_phone and _phone_launcher_open
+	if _phone_popup_expanded != show_phone_home:
+		_phone_popup_expanded = show_phone_home
+		_apply_phone_popup_layout(show_phone_home)
+	_phone_panel.visible = _game_started
+	_phone_tab.visible = not show_phone_home
+	_phone_content.visible = show_phone_home
 	if in_phone and not game.active_app_window.is_empty():
 		_open_app_windows[game.active_app_window] = true
 	for app_id in _app_windows.keys():
@@ -2181,16 +2232,12 @@ func _animate_world(delta: float) -> void:
 	if _phone_rig != null:
 		_phone_rig.position = _phone_rig.position.lerp(phone_target, minf(1.0, delta * 6.0))
 		_phone_rig.rotation_degrees = Vector3(68.0, 0.0, 0.0)
-	if _hand_phone_image != null:
-		var target_alpha := 1.0 if game.view_state == "phone_down" else 0.0
-		_phone_art_alpha = lerpf(_phone_art_alpha, target_alpha, minf(1.0, delta * 3.4))
-		if _phone_down_backdrop_image != null:
-			_phone_down_backdrop_image.visible = game.view_state == "phone_down" or _phone_art_alpha > 0.03
-			_phone_down_backdrop_image.modulate.a = _phone_art_alpha
-			_phone_down_backdrop_image.position = Vector2(0.0, lerpf(28.0, 0.0, _phone_art_alpha))
-		_hand_phone_image.visible = game.view_state == "phone_down" or _phone_art_alpha > 0.03
-		_hand_phone_image.modulate.a = _phone_art_alpha
-		_hand_phone_image.position = Vector2(0.0, lerpf(150.0, 18.0, _phone_art_alpha))
+	var target_alpha := 1.0 if game.view_state == "phone_down" else 0.0
+	_phone_art_alpha = lerpf(_phone_art_alpha, target_alpha, minf(1.0, delta * 3.4))
+	if _phone_down_backdrop_image != null:
+		_phone_down_backdrop_image.visible = game.view_state == "phone_down" or _phone_art_alpha > 0.03
+		_phone_down_backdrop_image.modulate.a = _phone_art_alpha
+		_phone_down_backdrop_image.position = Vector2(0.0, lerpf(70.0, 0.0, _phone_art_alpha))
 	if _road != null:
 		_road_scroll += delta * 1.4
 		for index in _road.get_child_count():
@@ -2227,7 +2274,10 @@ func _theme_color(key: String) -> Color:
 func _viewport_size() -> Vector2:
 	if get_viewport() != null:
 		return get_viewport().get_visible_rect().size
-	return Vector2(1280, 720)
+	return Vector2(
+		float(ProjectSettings.get_setting("display/window/size/viewport_width", 1600)),
+		float(ProjectSettings.get_setting("display/window/size/viewport_height", 900))
+	)
 
 
 func _load_runtime_texture(path: String) -> Texture2D:
@@ -2255,7 +2305,30 @@ func _load_runtime_texture(path: String) -> Texture2D:
 
 
 func _social_poster_texture_path(post_index: int) -> String:
-	return "res://assets/generated/social/poster_%02d.png" % (post_index % SOCIAL_POSTER_COUNT)
+	return SOCIAL_POSTER_SHEET_PATH
+
+
+func _social_poster_texture(post_index: int) -> Texture2D:
+	var cell_index := posmod(post_index, SOCIAL_POSTER_COUNT)
+	var cache_key := "%s#cell-%d" % [SOCIAL_POSTER_SHEET_PATH, cell_index]
+	if _texture_cache.has(cache_key):
+		return _texture_cache[cache_key]
+	var sheet := _load_runtime_texture(SOCIAL_POSTER_SHEET_PATH)
+	if sheet == null:
+		return null
+	var cell_size := Vector2(
+		floorf(float(sheet.get_width()) / SOCIAL_POSTER_COLUMNS),
+		floorf(float(sheet.get_height()) / SOCIAL_POSTER_ROWS)
+	)
+	var atlas := AtlasTexture.new()
+	atlas.atlas = sheet
+	var row := floori(float(cell_index) / SOCIAL_POSTER_COLUMNS)
+	atlas.region = Rect2(
+		Vector2(cell_index % SOCIAL_POSTER_COLUMNS, row) * cell_size,
+		cell_size
+	)
+	_texture_cache[cache_key] = atlas
+	return atlas
 
 
 func _social_post_for_index(post_index: int) -> Dictionary:
@@ -2292,7 +2365,24 @@ func _close_app_window(app_id: String) -> void:
 				game.active_app = candidate
 				game.active_app_window = candidate
 				break
+	var any_open := false
+	for open_value in _open_app_windows.values():
+		if bool(open_value):
+			any_open = true
+			break
+	_phone_launcher_open = not any_open
 	log_text = "关闭 %s 窗口。" % app_id
+	_render()
+
+
+func _open_phone_launcher() -> void:
+	if _input_locked:
+		return
+	game.set_view_state("phone_down")
+	_phone_launcher_open = true
+	if _phone_panel != null:
+		_phone_panel.move_to_front()
+	log_text = "展开手机主页。"
 	_render()
 
 
@@ -2456,12 +2546,30 @@ func _on_window_handle_gui_input(event: InputEvent, _window_id: String, window: 
 		_clamp_window_to_viewport(window)
 		if not (handle is Button):
 			handle.accept_event()
+	elif event is InputEventScreenTouch:
+		if event.pressed:
+			_dragged_window = window
+			_drag_offset = _event_pointer_position(event) - window.global_position
+			window.move_to_front()
+		else:
+			if _dragged_window == _meme_bank_window:
+				_avoid_meme_bank_overlaps()
+			_dragged_window = null
+		handle.accept_event()
+	elif event is InputEventScreenDrag and _dragged_window == window:
+		window.global_position = _event_pointer_position(event) - _drag_offset
+		_clamp_window_to_viewport(window)
+		handle.accept_event()
 
 
 func _event_pointer_position(event: InputEvent) -> Vector2:
 	if event is InputEventMouse:
 		var mouse_event := event as InputEventMouse
 		return mouse_event.global_position
+	if event is InputEventScreenTouch:
+		return (event as InputEventScreenTouch).position
+	if event is InputEventScreenDrag:
+		return (event as InputEventScreenDrag).position
 	if get_viewport() != null:
 		return get_viewport().get_mouse_position()
 	return Vector2.ZERO
@@ -2469,9 +2577,13 @@ func _event_pointer_position(event: InputEvent) -> Vector2:
 
 func _clamp_window_to_viewport(window: Control) -> void:
 	var viewport_size := _viewport_size()
-	var max_x := maxf(0.0, viewport_size.x - maxf(80.0, window.size.x))
-	var max_y := maxf(0.0, viewport_size.y - maxf(80.0, window.size.y))
-	window.position = Vector2(clampf(window.position.x, 0.0, max_x), clampf(window.position.y, 0.0, max_y))
+	var visible_edge := 88.0
+	var min_x := -maxf(0.0, window.size.x - visible_edge)
+	if window == _meme_bank_window and _hud_panel != null:
+		min_x = _hud_panel.get_global_rect().end.x + 12.0
+	var max_x := viewport_size.x - visible_edge
+	var max_y := viewport_size.y - 56.0
+	window.position = Vector2(clampf(window.position.x, min_x, max_x), clampf(window.position.y, 0.0, max_y))
 
 
 func _build_player_portrait() -> Control:
@@ -2858,7 +2970,7 @@ func _render_ending() -> void:
 	var restart := Button.new()
 	restart.text = "重开"
 	restart.custom_minimum_size.y = 54
-	restart.pressed.connect(new_game)
+	restart.pressed.connect(new_game, CONNECT_DEFERRED)
 	center.add_child(restart)
 
 
@@ -2868,6 +2980,7 @@ func _on_app_pressed(app_id: String) -> void:
 	game.set_view_state("phone_down")
 	game.set_active_app(app_id)
 	_open_app_windows[app_id] = true
+	_phone_launcher_open = false
 	if _app_windows.has(app_id):
 		var window := _app_windows[app_id] as Control
 		if window != null:

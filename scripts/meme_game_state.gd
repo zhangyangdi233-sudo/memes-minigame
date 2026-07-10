@@ -5,6 +5,15 @@ const MAX_TOWER_FLOOR := 5
 const TOWER_THRESHOLDS := [0, 36, 64, 94, 120, 150]
 const POLLUTION_LOCK_THRESHOLD := 70
 const POLLUTION_FLASHBACK_THRESHOLD := 60
+const FLOOR_DEADLINES := {3: 2, 6: 3, 9: 4, 12: 5}
+const ACCEPTED_TAG_ROTATION := [
+	["哈吉米", "追问", "日常"],
+	["空位", "沉默", "哈吉米"],
+	["巴别塔", "信徒", "刷新"],
+	["反问", "禁问", "哈吉米"],
+	["圣歌", "信徒", "巴别塔"],
+	["空位", "沉默", "巴别塔"],
+]
 
 const EMOTION_SLOTS := {
 	"anxiety": {"id": "anxiety", "label": "焦虑", "price": 5, "default_text": "我不是那个意思", "tags": ["焦虑"], "pollution_bias": 2, "clarity_bias": -4},
@@ -51,6 +60,7 @@ var draft_slots: Dictionary = {}
 var completed_memes: Array = []
 var dialogue_blanks: Dictionary = {}
 var published_memes: Array = []
+var last_publish_breakdown: Dictionary = {}
 var event_log: Array[String] = []
 
 var owned_emotion_slots: Array = []
@@ -90,6 +100,7 @@ func new_run() -> void:
 	completed_memes = []
 	dialogue_blanks = {}
 	published_memes = []
+	last_publish_breakdown = {}
 	event_log = []
 	owned_emotion_slots = []
 	emotion_slot_texts = {}
@@ -337,11 +348,13 @@ func confirm_dialogue() -> bool:
 	if meme.is_empty():
 		return false
 	var matching_tags: Array = _intersect(meme.get("tags", []), _current_accepted_tags())
-	var score := _score_meme_publish(meme, matching_tags)
+	var breakdown := _calculate_publish_breakdown(meme, matching_tags)
+	var score := int(breakdown.get("score", 1))
 	var heat_gain := maxi(6, int(round(float(score) * 0.42)))
 	var pollution_gain := 4 + matching_tags.size() * 2 + int(meme.get("pollution_bias", 0))
 	if not spend_action("confirm-dialogue"):
 		return false
+	last_publish_breakdown = breakdown.duplicate(true)
 	heat = clampi(heat + heat_gain, 0, 999)
 	var previous_pollution := pollution
 	pollution = clampi(pollution + pollution_gain, 0, 100)
@@ -351,6 +364,7 @@ func confirm_dialogue() -> bool:
 	var record: Dictionary = meme.duplicate(true)
 	record["floor"] = tower_floor
 	record["score"] = score
+	record["score_breakdown"] = breakdown.duplicate(true)
 	record["heat_gain"] = heat_gain
 	record["published_day"] = day
 	published_memes.push_front(record)
@@ -513,24 +527,44 @@ func _find_token_tags(token_id: String) -> Array:
 
 
 func _current_accepted_tags() -> Array:
-	match ((day - 1) % 4) + 1:
-		1:
-			return ["哈吉米", "追问", "日常"]
-		2:
-			return ["沉默", "空位", "圣歌", "追问"]
-		3:
-			return ["巴别塔", "信徒", "刷新"]
-		_:
-			return ["反问", "禁问", "清晰"]
+	return ACCEPTED_TAG_ROTATION[(day - 1) % ACCEPTED_TAG_ROTATION.size()].duplicate()
+
+
+func get_publish_breakdown(meme: Dictionary) -> Dictionary:
+	if meme.is_empty():
+		return {}
+	var matching_tags := _intersect(meme.get("tags", []), _current_accepted_tags())
+	return _calculate_publish_breakdown(meme, matching_tags)
 
 
 func _score_meme_publish(meme: Dictionary, matching_tags: Array) -> int:
+	return int(_calculate_publish_breakdown(meme, matching_tags).get("score", 1))
+
+
+func _calculate_publish_breakdown(meme: Dictionary, matching_tags: Array) -> Dictionary:
 	var rarity := int(meme.get("rarity", 1))
-	var repeat_penalty := 0
+	var repeat_count := 0
 	for record in published_memes:
 		if str(record.get("text", "")) == str(meme.get("text", "")):
-			repeat_penalty += 10
-	return maxi(1, 18 + matching_tags.size() * 20 + rarity * 8 + int(floor(float(pollution) * 0.28)) + int(meme.get("pollution_bias", 0)) * 4 - repeat_penalty)
+			repeat_count += 1
+	var base_value := 12 + rarity * 6 + matching_tags.size() * 8
+	var synergy_multiplier := 1.0 + matching_tags.size() * 0.25
+	var pollution_multiplier := 1.0 + float(pollution) / 100.0 * 0.65
+	var emotion_multiplier := 1.0 + minf(0.60, float(maxi(0, int(meme.get("pollution_bias", 0)))) * 0.04)
+	var repeat_multiplier := maxf(0.28, 1.0 - repeat_count * 0.18)
+	var total_multiplier := synergy_multiplier * pollution_multiplier * emotion_multiplier * repeat_multiplier
+	var score := maxi(1, int(round(base_value * total_multiplier)))
+	return {
+		"base_value": base_value,
+		"matching_tags": matching_tags.duplicate(),
+		"synergy_multiplier": snappedf(synergy_multiplier, 0.01),
+		"pollution_multiplier": snappedf(pollution_multiplier, 0.01),
+		"emotion_multiplier": snappedf(emotion_multiplier, 0.01),
+		"repeat_multiplier": snappedf(repeat_multiplier, 0.01),
+		"total_multiplier": snappedf(total_multiplier, 0.01),
+		"repeat_count": repeat_count,
+		"score": score,
+	}
 
 
 func _hottest_published_meme_for_floor(floor: int) -> Dictionary:
@@ -584,6 +618,12 @@ func _resolve_tower_step() -> void:
 	else:
 		threshold_discount = clampi(threshold_discount + 6, 0, 70)
 		event_log.push_front("第二天，塔没有移动，只是把门槛悄悄放低。")
+	var guaranteed_floor := _minimum_floor_for_day(day)
+	while tower_floor < guaranteed_floor:
+		var catchup_floor := tower_floor
+		tower_floor += 1
+		register_legacy_rule_for_ascent(catchup_floor)
+		event_log.push_front("第 %d 天，塔强制收录你到第 %d 层。" % [day, tower_floor])
 	next_threshold = _tower_threshold(tower_floor)
 	if tower_floor >= MAX_TOWER_FLOOR:
 		ending_unlocked = true
@@ -596,6 +636,14 @@ func _tower_threshold(floor: int) -> int:
 
 func _progress_score() -> int:
 	return int(round(float(heat) + float(pollution) * 0.55 + float(100 - clarity) * 0.18))
+
+
+func _minimum_floor_for_day(current_day: int) -> int:
+	var result := 1
+	for deadline in FLOOR_DEADLINES.keys():
+		if current_day >= int(deadline):
+			result = maxi(result, int(FLOOR_DEADLINES[deadline]))
+	return result
 
 
 func _emotion_slot_for_day(value: int) -> String:
