@@ -332,7 +332,7 @@ func _input(event: InputEvent) -> void:
 	if _dragged_window == null:
 		return
 	if event is InputEventMouseMotion:
-		_dragged_window.global_position = get_viewport().get_mouse_position() - _drag_offset
+		_dragged_window.global_position = _event_pointer_position(event) - _drag_offset
 		_clamp_window_to_viewport(_dragged_window)
 	elif event is InputEventMouseButton and event.button_index == MOUSE_BUTTON_LEFT and not event.pressed:
 		_dragged_window = null
@@ -1428,6 +1428,13 @@ func _render_social_app() -> void:
 	top_spacer.mouse_filter = Control.MOUSE_FILTER_IGNORE
 	top_spacer.size_flags_horizontal = Control.SIZE_EXPAND_FILL
 	status_bar.add_child(top_spacer)
+	var drag_grip := ColorRect.new()
+	drag_grip.name = "SocialStatusDragGrip"
+	drag_grip.color = _theme_color("accent")
+	drag_grip.modulate.a = 0.45
+	drag_grip.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	drag_grip.custom_minimum_size = Vector2(68, 4)
+	status_bar.add_child(drag_grip)
 	var close_social := Button.new()
 	close_social.name = "SocialAppInlineCloseButton"
 	close_social.text = "X"
@@ -2344,7 +2351,7 @@ func _on_window_handle_gui_input(event: InputEvent, _window_id: String, window: 
 	if event is InputEventMouseButton and event.button_index == MOUSE_BUTTON_LEFT:
 		if event.pressed:
 			_dragged_window = window
-			_drag_offset = get_viewport().get_mouse_position() - window.global_position
+			_drag_offset = _event_pointer_position(event) - window.global_position
 			window.move_to_front()
 			if window is CanvasItem:
 				(window as CanvasItem).z_index = maxi((window as CanvasItem).z_index, 24)
@@ -2353,10 +2360,19 @@ func _on_window_handle_gui_input(event: InputEvent, _window_id: String, window: 
 		if not (handle is Button):
 			handle.accept_event()
 	elif event is InputEventMouseMotion and _dragged_window == window:
-		window.global_position = get_viewport().get_mouse_position() - _drag_offset
+		window.global_position = _event_pointer_position(event) - _drag_offset
 		_clamp_window_to_viewport(window)
 		if not (handle is Button):
 			handle.accept_event()
+
+
+func _event_pointer_position(event: InputEvent) -> Vector2:
+	if event is InputEventMouse:
+		var mouse_event := event as InputEventMouse
+		return mouse_event.global_position
+	if get_viewport() != null:
+		return get_viewport().get_mouse_position()
+	return Vector2.ZERO
 
 
 func _clamp_window_to_viewport(window: Control) -> void:

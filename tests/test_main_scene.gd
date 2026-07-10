@@ -123,6 +123,7 @@ func _run() -> void:
 		var babel_app_window := _find_node_by_name(root, "BabelAppWindow") as PanelContainer
 		var social_app_window := _find_node_by_name(root, "SocialAppWindow") as PanelContainer
 		var social_drag_bar := _find_node_by_name(root, "SocialWindowDragBar") as HBoxContainer
+		var social_drag_grip := _find_node_by_name(root, "SocialStatusDragGrip") as ColorRect
 		var shop_app_window := _find_node_by_name(root, "ShopAppWindow") as PanelContainer
 		var notebook_app_window := _find_node_by_name(root, "NotebookAppWindow") as PanelContainer
 		var phone_handle := _find_node_by_name(root, "PhoneWindowHandle") as Label
@@ -388,6 +389,7 @@ func _run() -> void:
 			babel_handle = _find_node_by_name(root, "BabelAppWindowHandle") as Label
 			shop_handle = _find_node_by_name(root, "ShopAppWindowHandle") as Label
 			notebook_handle = _find_node_by_name(root, "NotebookAppWindowHandle") as Label
+			social_drag_grip = _find_node_by_name(root, "SocialStatusDragGrip") as ColorRect
 			babel_close = _find_node_by_name(root, "BabelAppWindowCloseButton") as Button
 			social_close = _find_node_by_name(root, "SocialAppWindowCloseButton") as Button
 			shop_close = _find_node_by_name(root, "ShopAppWindowCloseButton") as Button
@@ -458,6 +460,9 @@ func _run() -> void:
 		if social_status_bar != null:
 			_assert_true(social_status_bar.has_meta("drag_handle"), "social phone status bar should be the visible drag handle")
 			_assert_true(social_status_bar.custom_minimum_size.y >= 60.0, "social phone status bar should leave enough draggable area beside the close button")
+		_assert_true(social_drag_grip != null, "social phone status bar should include a visible drag grip")
+		if social_drag_grip != null:
+			_assert_true(social_drag_grip.mouse_filter == Control.MOUSE_FILTER_IGNORE, "social drag grip should not steal phone status-bar dragging")
 		_assert_true(social_inline_close != null, "social app should expose a visible in-phone close button")
 		if social_inline_close != null:
 			_assert_true(social_inline_close.custom_minimum_size.x >= 44.0 and social_inline_close.custom_minimum_size.y >= 44.0, "social in-phone close button should be easy to click")
@@ -847,6 +852,27 @@ func _run() -> void:
 				root._move_window_for_test("app:social", Vector2(-190, 0))
 				root._render()
 				_assert_true(not _controls_overlap(meme_bank_popup, social_app_window), "meme bank corner should avoid a dragged social phone")
+		if social_app_window != null and social_status_bar != null and root.has_method("_on_window_handle_gui_input"):
+			var pointer_start := social_status_bar.global_position + Vector2(36, 24)
+			var pointer_end := pointer_start + Vector2(52, 34)
+			var direct_drag_start := social_app_window.position
+			var drag_press := InputEventMouseButton.new()
+			drag_press.button_index = MOUSE_BUTTON_LEFT
+			drag_press.pressed = true
+			drag_press.global_position = pointer_start
+			root._on_window_handle_gui_input(drag_press, "app:social", social_app_window, social_status_bar)
+			var drag_motion := InputEventMouseMotion.new()
+			drag_motion.global_position = pointer_end
+			root._input(drag_motion)
+			var drag_release := InputEventMouseButton.new()
+			drag_release.button_index = MOUSE_BUTTON_LEFT
+			drag_release.pressed = false
+			drag_release.global_position = pointer_end
+			root._input(drag_release)
+			_assert_true(social_app_window.position != direct_drag_start, "real mouse-event dragging should move the social phone window")
+			var direct_drag_end := social_app_window.position
+			root._render()
+			_assert_eq(social_app_window.position, direct_drag_end, "real mouse-event dragged social phone position should survive render")
 		_assert_true(_has_node_with_method(root, "set_drag_payload"), "notebook and bank items should expose drag payloads")
 		_assert_true(_has_node_with_method(root, "configure_drop_target"), "slots and dialogue blank should expose drop targets")
 		root._on_slot_token_dropped({"kind": "token", "id": "n1"}, "object")
