@@ -301,7 +301,7 @@ var _action_spend_after_actions := -1
 var _action_spend_should_settle := false
 var _meme_bank_open := false
 var _phone_popup_expanded := true
-var _meme_bank_layout_open := false
+var _meme_bank_layout_mode := ""
 var _open_app_windows: Dictionary = {}
 var _social_screen := "home"
 var _social_channel := "发现"
@@ -349,7 +349,7 @@ func new_game() -> void:
 	selected_reality_tile_id = ""
 	_meme_bank_open = false
 	_phone_popup_expanded = true
-	_meme_bank_layout_open = false
+	_meme_bank_layout_mode = ""
 	_open_app_windows = {"social": true}
 	_social_screen = "home"
 	_social_channel = "发现"
@@ -848,7 +848,7 @@ func _build_ui() -> void:
 	_meme_bank_window.set_meta("meme_bank_popup", true)
 	_meme_bank_window.z_index = 18
 	_ui_root.add_child(_meme_bank_window)
-	_apply_meme_bank_popup_layout(false)
+	_apply_meme_bank_popup_layout("peek")
 	var bank_box := VBoxContainer.new()
 	bank_box.name = "MemeBankShell"
 	bank_box.add_theme_constant_override("separation", 8)
@@ -1269,11 +1269,11 @@ func _apply_phone_popup_layout(expanded: bool) -> void:
 		_phone_panel.offset_bottom = -94
 
 
-func _apply_meme_bank_popup_layout(open: bool) -> void:
+func _apply_meme_bank_popup_layout(mode: String) -> void:
 	if _meme_bank_window == null:
 		return
 	var viewport_size := _viewport_size()
-	if open:
+	if mode == "open":
 		_meme_bank_window.set_anchors_preset(Control.PRESET_BOTTOM_LEFT)
 		var safe_left := 190.0
 		if _hud_panel != null:
@@ -1285,12 +1285,28 @@ func _apply_meme_bank_popup_layout(open: bool) -> void:
 		_meme_bank_window.offset_top = -324
 		_meme_bank_window.offset_right = safe_left + bank_width
 		_meme_bank_window.offset_bottom = -120
+	elif mode == "collapsed":
+		_meme_bank_window.set_anchors_preset(Control.PRESET_BOTTOM_LEFT)
+		var collapsed_left := 190.0
+		if _hud_panel != null:
+			collapsed_left = maxf(collapsed_left, _hud_panel.offset_right + 22.0)
+		var collapsed_width := 112.0
+		collapsed_left = clampf(collapsed_left, 12.0, maxf(12.0, viewport_size.x - collapsed_width - 12.0))
+		_meme_bank_window.offset_left = collapsed_left
+		_meme_bank_window.offset_top = -82
+		_meme_bank_window.offset_right = collapsed_left + collapsed_width
+		_meme_bank_window.offset_bottom = -22
 	else:
-		_meme_bank_window.set_anchors_preset(Control.PRESET_BOTTOM_RIGHT)
-		_meme_bank_window.offset_left = -82
-		_meme_bank_window.offset_top = -88
-		_meme_bank_window.offset_right = -22
-		_meme_bank_window.offset_bottom = -28
+		_meme_bank_window.set_anchors_preset(Control.PRESET_BOTTOM_LEFT)
+		var peek_left := 190.0
+		if _hud_panel != null:
+			peek_left = maxf(peek_left, _hud_panel.offset_right + 22.0)
+		var peek_size := 44.0
+		peek_left = clampf(peek_left, 12.0, maxf(12.0, viewport_size.x - peek_size - 12.0))
+		_meme_bank_window.offset_left = peek_left
+		_meme_bank_window.offset_top = -66
+		_meme_bank_window.offset_right = peek_left + peek_size
+		_meme_bank_window.offset_bottom = -22
 
 
 func _render() -> void:
@@ -1947,13 +1963,16 @@ func _render_bank() -> void:
 	if _meme_bank_tab != null:
 		if _meme_bank_open:
 			_meme_bank_tab.text = "梗仓库 ▾"
+			_meme_bank_tab.set_meta("meme_bank_peek", false)
 			_meme_bank_tab.custom_minimum_size = Vector2(142, 48)
 		elif _should_show_meme_bank():
 			_meme_bank_tab.text = "梗库"
+			_meme_bank_tab.set_meta("meme_bank_peek", false)
 			_meme_bank_tab.custom_minimum_size = Vector2(94, 52)
 		else:
 			_meme_bank_tab.text = "◢"
-			_meme_bank_tab.custom_minimum_size = Vector2(52, 52)
+			_meme_bank_tab.set_meta("meme_bank_peek", true)
+			_meme_bank_tab.custom_minimum_size = Vector2(44, 44)
 	_clear(_bank_list)
 	if game.completed_memes.is_empty():
 		_bank_list.add_child(_label("还没有完整梗。", 15, _theme_color("accent")))
@@ -2040,9 +2059,10 @@ func _update_visibility() -> void:
 	_meme_bank_window.visible = show_meme_bank or peek_meme_bank
 	if not show_meme_bank:
 		_meme_bank_open = false
-	if _meme_bank_layout_open != _meme_bank_open:
-		_meme_bank_layout_open = _meme_bank_open
-		_apply_meme_bank_popup_layout(_meme_bank_open)
+	var desired_bank_layout := "open" if _meme_bank_open else ("collapsed" if show_meme_bank else "peek")
+	if _meme_bank_layout_mode != desired_bank_layout:
+		_meme_bank_layout_mode = desired_bank_layout
+		_apply_meme_bank_popup_layout(desired_bank_layout)
 	if _meme_bank_content != null:
 		_meme_bank_content.visible = show_meme_bank and _meme_bank_open
 	_avoid_meme_bank_overlaps()
@@ -2444,13 +2464,20 @@ func _apply_ui_theme(node: Node = null) -> void:
 			button.add_theme_stylebox_override("normal", empty)
 			button.add_theme_stylebox_override("hover", _style(Color(_theme_color("muted"), 0.18), Color(_theme_color("muted"), 0.20)))
 			button.add_theme_stylebox_override("pressed", _style(Color(_theme_color("muted"), 0.32), Color(_theme_color("muted"), 0.32)))
+		elif button.has_meta("meme_bank_tab") and bool(button.get_meta("meme_bank_peek", false)):
+			button.add_theme_color_override("font_color", _theme_color("muted"))
+			button.add_theme_color_override("font_hover_color", _theme_color("surface"))
+			button.add_theme_color_override("font_pressed_color", _theme_color("surface"))
+			button.add_theme_stylebox_override("normal", _file_corner_style(Color(_theme_color("ink"), 0.72), Color(_theme_color("muted"), 0.28)))
+			button.add_theme_stylebox_override("hover", _file_corner_style(Color(_theme_color("ink"), 0.88), Color(_theme_color("muted"), 0.46)))
+			button.add_theme_stylebox_override("pressed", _file_corner_style(_theme_color("ink"), _theme_color("muted")))
 		elif button.has_meta("meme_bank_tab") and not _meme_bank_open:
 			button.add_theme_color_override("font_color", _theme_color("muted"))
 			button.add_theme_color_override("font_hover_color", _theme_color("surface"))
 			button.add_theme_color_override("font_pressed_color", _theme_color("surface"))
-			button.add_theme_stylebox_override("normal", _circle_button_style(Color(_theme_color("ink"), 0.68), Color(_theme_color("muted"), 0.18)))
-			button.add_theme_stylebox_override("hover", _circle_button_style(Color(_theme_color("ink"), 0.88), Color(_theme_color("muted"), 0.36)))
-			button.add_theme_stylebox_override("pressed", _circle_button_style(_theme_color("ink"), _theme_color("muted")))
+			button.add_theme_stylebox_override("normal", _style(Color(_theme_color("ink"), 0.78), Color(_theme_color("muted"), 0.24)))
+			button.add_theme_stylebox_override("hover", _style(Color(_theme_color("ink"), 0.92), Color(_theme_color("muted"), 0.42)))
+			button.add_theme_stylebox_override("pressed", _style(_theme_color("ink"), _theme_color("muted")))
 		elif button.has_meta("flat_phone_button"):
 			var flat := StyleBoxEmpty.new()
 			button.add_theme_color_override("font_color", _theme_color("ink"))
@@ -3136,13 +3163,16 @@ func _flat_button_state_style(bg: Color) -> StyleBoxFlat:
 	return style
 
 
-func _circle_button_style(bg: Color, border: Color) -> StyleBoxFlat:
+func _file_corner_style(bg: Color, border: Color) -> StyleBoxFlat:
 	var style := StyleBoxFlat.new()
 	style.bg_color = bg
 	style.border_color = border
 	style.set_border_width_all(1)
-	style.set_corner_radius_all(28)
-	style.set_content_margin_all(10)
+	style.corner_radius_top_left = 2
+	style.corner_radius_top_right = 18
+	style.corner_radius_bottom_left = 2
+	style.corner_radius_bottom_right = 2
+	style.set_content_margin_all(6)
 	return style
 
 

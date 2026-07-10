@@ -750,6 +750,9 @@ func _run() -> void:
 		if meme_bank_popup != null and meme_bank_tab != null and meme_bank_content != null:
 			_assert_true(meme_bank_popup.visible, "meme bank should still peek from the bottom during passive social browsing")
 			_assert_true(str(meme_bank_tab.text).contains("◢"), "passive meme bank should only expose a corner")
+			_assert_true(bool(meme_bank_tab.get_meta("meme_bank_peek", false)), "passive meme bank tab should use the small file-corner mode")
+			_assert_true(meme_bank_popup.size.x <= 48.0 and meme_bank_popup.size.y <= 48.0, "passive meme bank corner should stay visually small")
+			_assert_true(meme_bank_tab.custom_minimum_size.x <= 44.0 and meme_bank_tab.custom_minimum_size.y <= 44.0, "passive meme bank touch corner should not become a large floating button")
 			if social_app_window != null:
 				_assert_true(not _controls_overlap(meme_bank_popup, social_app_window), "passive meme bank corner should not cover the social phone")
 			if social_bottom_nav != null:
@@ -775,6 +778,9 @@ func _run() -> void:
 		meme_bank_content = _find_node_by_name(root, "MemeBankContent") as Control
 		if meme_bank_popup != null:
 			_assert_true(meme_bank_popup.visible, "meme bank should appear as a contextual drawer on the social publish page")
+			if meme_bank_tab != null:
+				_assert_true(not bool(meme_bank_tab.get_meta("meme_bank_peek", true)), "publish meme bank tab should leave peek mode")
+				_assert_true(meme_bank_popup.size.x >= meme_bank_tab.custom_minimum_size.x, "collapsed publish meme bank should be wide enough for its tab text")
 			if social_app_window != null:
 				_assert_true(not _controls_overlap(meme_bank_popup, social_app_window), "collapsed publish meme bank should not cover the social phone")
 			if social_bottom_nav != null:
@@ -806,6 +812,7 @@ func _run() -> void:
 		if meme_bank_tab != null and meme_bank_popup != null and meme_bank_content != null:
 			_assert_true(_is_descendant_of(meme_bank_tab, meme_bank_popup), "meme bank tab and drawer should be one popup object")
 			_assert_true(meme_bank_popup.visible, "notebook view should show the integrated meme bank popup")
+			_assert_true(meme_bank_popup.size.x >= meme_bank_tab.custom_minimum_size.x, "collapsed notebook meme bank should be wide enough for its tab text")
 			if social_app_window != null:
 				_assert_true(not _controls_overlap(meme_bank_popup, social_app_window), "collapsed notebook meme bank should not cover the social phone")
 			if notebook_app_window != null:
@@ -908,6 +915,7 @@ func _run() -> void:
 		if meme_bank_popup != null and meme_bank_tab != null and meme_bank_content != null:
 			_assert_true(meme_bank_popup.visible, "meme bank should still peek from the bottom during NPC speaking")
 			_assert_true(str(meme_bank_tab.text).contains("◢"), "NPC speaking meme bank should only expose a corner")
+			_assert_true(meme_bank_popup.size.x <= 48.0 and meme_bank_popup.size.y <= 48.0, "NPC speaking meme bank peek should stay visually small")
 			_assert_true(not meme_bank_content.visible, "NPC speaking meme bank peek should not reveal drawer content")
 			if root.has_method("_meme_bank_overlap_targets"):
 				var hidden_nav_targets: Array = root._meme_bank_overlap_targets()
