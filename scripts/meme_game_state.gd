@@ -25,6 +25,16 @@ const EMOTION_SLOTS := {
 }
 
 const EMOTION_ROTATION := ["anxiety", "please", "counter", "silence", "anger", "prayer"]
+const MAX_EQUIPPED_EMOTION_SLOTS := 2
+const ASCENT_REWARDS := [
+	{"id": "echo_amplifier", "label": "回声增幅", "description": "每个命中风向让共鸣倍率额外 +0.08。", "effect": "synergy_step", "value": 0.08},
+	{"id": "pollution_dividend", "label": "污染分红", "description": "污染传播倍率固定额外 +0.15。", "effect": "pollution_bonus", "value": 0.15},
+	{"id": "repeat_license", "label": "复读许可", "description": "第一次复用相同表达不触发衰减。", "effect": "repeat_grace", "value": 1.0},
+	{"id": "legacy_fold", "label": "遗产折叠", "description": "每条遗产造成的理解惩罚减少 4。", "effect": "legacy_relief", "value": 4.0},
+	{"id": "quiet_subsidy", "label": "沉默补贴", "description": "现实沟通造成的资金损失减少 2。", "effect": "relationship_shield", "value": 2.0},
+	{"id": "empty_slot_bonus", "label": "空位加码", "description": "带有空位或沉默标签时，传播基础 +8。", "effect": "empty_base", "value": 8.0},
+	{"id": "emotion_afterimage", "label": "情绪余像", "description": "每个装备情绪让情绪倍率额外 +0.03。", "effect": "emotion_step", "value": 0.03},
+]
 const CLEAN_WORDS := ["我", "想", "正常", "说明", "这件事", "不是", "那个意思", "请", "听我", "说完"]
 const FALLBACK_LEGACY_TEXTS := {
 	1: {"text": "哈吉米，必须补票", "tags": ["哈吉米", "追问"]},
@@ -64,8 +74,15 @@ var last_publish_breakdown: Dictionary = {}
 var event_log: Array[String] = []
 
 var owned_emotion_slots: Array = []
+var equipped_emotion_slots: Array = []
 var emotion_slot_texts: Dictionary = {}
 var daily_emotion_slot_id: String = "anxiety"
+
+var permanent_modifiers: Array = []
+var pending_ascent_reward_choices: Array = []
+var pending_ascent_reward_floor: int = 0
+var queued_ascent_reward_floors: Array = []
+var rewarded_ascent_floors: Array = []
 
 var reality_sentence_slots: Dictionary = {}
 var legacy_rules: Array = []
@@ -73,6 +90,10 @@ var last_clean_sentence: String = ""
 var last_polluted_sentence: String = ""
 var npc_understanding: int = 100
 var reality_phase: String = "npc_speaking"
+var relationship_residue: int = 0
+var last_relationship_residue_gain: int = 0
+var last_relationship_money_loss: int = 0
+var reality_dialogue_count: int = 0
 
 
 func new_run() -> void:
@@ -103,14 +124,24 @@ func new_run() -> void:
 	last_publish_breakdown = {}
 	event_log = []
 	owned_emotion_slots = []
+	equipped_emotion_slots = []
 	emotion_slot_texts = {}
 	daily_emotion_slot_id = _emotion_slot_for_day(day)
+	permanent_modifiers = []
+	pending_ascent_reward_choices = []
+	pending_ascent_reward_floor = 0
+	queued_ascent_reward_floors = []
+	rewarded_ascent_floors = []
 	reality_sentence_slots = {}
 	legacy_rules = []
 	last_clean_sentence = ""
 	last_polluted_sentence = ""
 	npc_understanding = 100
 	reality_phase = "npc_speaking"
+	relationship_residue = 0
+	last_relationship_residue_gain = 0
+	last_relationship_money_loss = 0
+	reality_dialogue_count = 0
 
 
 func set_phone_open(value: bool) -> void:
@@ -144,6 +175,8 @@ func set_active_app(app_id: String) -> void:
 
 
 func spend_action(action_type: String) -> bool:
+	if not pending_ascent_reward_choices.is_empty():
+		return false
 	if actions_remaining <= 0:
 		actions_remaining = 0
 		needs_day_settlement = true
@@ -154,6 +187,10 @@ func spend_action(action_type: String) -> bool:
 		needs_day_settlement = true
 		day_ended_reason = action_type
 	return true
+
+
+func can_spend_action() -> bool:
+	return actions_remaining > 0 and pending_ascent_reward_choices.is_empty()
 
 
 func check_pollution_flashback(previous_pollution: int) -> bool:
@@ -244,6 +281,8 @@ func buy_daily_emotion_slot() -> bool:
 	money -= price
 	owned_emotion_slots.append(slot_id)
 	emotion_slot_texts[slot_id] = str(slot.get("default_text", ""))
+	if equipped_emotion_slots.size() < MAX_EQUIPPED_EMOTION_SLOTS:
+		equipped_emotion_slots.append(slot_id)
 	return true
 
 
@@ -266,12 +305,32 @@ func get_owned_emotion_slot_data() -> Array:
 	return result
 
 
+func get_equipped_emotion_slot_data() -> Array:
+	var result: Array = []
+	for slot_id in equipped_emotion_slots:
+		if slot_id in owned_emotion_slots and EMOTION_SLOTS.has(slot_id):
+			result.append(EMOTION_SLOTS[slot_id])
+	return result
+
+
+func toggle_equipped_emotion_slot(slot_id: String) -> bool:
+	if slot_id not in owned_emotion_slots:
+		return false
+	if slot_id in equipped_emotion_slots:
+		equipped_emotion_slots.erase(slot_id)
+		return true
+	if equipped_emotion_slots.size() >= MAX_EQUIPPED_EMOTION_SLOTS:
+		return false
+	equipped_emotion_slots.append(slot_id)
+	return true
+
+
 func get_craft_slots() -> Array:
 	var slots: Array = [
 		{"id": "object", "label": "对象", "placeholder": "哈吉米", "required": true},
 		{"id": "saying", "label": "说法", "placeholder": "到底是什么意思", "required": true},
 	]
-	for slot_id in owned_emotion_slots:
+	for slot_id in equipped_emotion_slots:
 		var slot: Dictionary = EMOTION_SLOTS.get(slot_id, {})
 		if slot.is_empty():
 			continue
@@ -304,7 +363,7 @@ func confirm_craft_with_emotions() -> bool:
 	var pollution_bias := 0
 	var clarity_bias := 0
 	var emotion_parts: Array[String] = []
-	for slot_id in owned_emotion_slots:
+	for slot_id in equipped_emotion_slots:
 		var slot: Dictionary = EMOTION_SLOTS.get(slot_id, {})
 		if slot.is_empty():
 			continue
@@ -327,6 +386,7 @@ func confirm_craft_with_emotions() -> bool:
 		"rarity": _meme_rarity_from_tags(tags),
 		"pollution_bias": pollution_bias,
 		"clarity_bias": clarity_bias,
+		"emotion_count": emotion_parts.size(),
 		"created_day": day,
 	}
 	completed_memes.push_front(meme)
@@ -359,7 +419,8 @@ func confirm_dialogue() -> bool:
 	var previous_pollution := pollution
 	pollution = clampi(pollution + pollution_gain, 0, 100)
 	check_pollution_flashback(previous_pollution)
-	clarity = clampi(clarity - maxi(1, int(round(float(pollution_gain) * 0.35))), 0, 100)
+	var clarity_loss := maxi(1, int(round(float(pollution_gain) * 0.35))) + maxi(0, -int(meme.get("clarity_bias", 0)))
+	clarity = clampi(clarity - clarity_loss, 0, 100)
 	money += maxi(3, int(floor(float(heat_gain) * 0.22)))
 	var record: Dictionary = meme.duplicate(true)
 	record["floor"] = tower_floor
@@ -429,7 +490,7 @@ func get_reality_tile_options() -> Array:
 	var result: Array = []
 	for word in CLEAN_WORDS:
 		result.append({"id": "clean:%s" % word, "text": word, "kind": "clean"})
-	for slot_id in owned_emotion_slots:
+	for slot_id in equipped_emotion_slots:
 		var slot: Dictionary = EMOTION_SLOTS.get(slot_id, {})
 		var text := str(emotion_slot_texts.get(slot_id, slot.get("default_text", ""))).strip_edges()
 		if text.is_empty():
@@ -476,12 +537,56 @@ func confirm_reality_dialogue() -> bool:
 	last_clean_sentence = " ".join(clean_parts)
 	last_polluted_sentence = pollute_reality_sentence(last_clean_sentence, pollution, legacy_rules)
 	var pollution_penalty := int(round(float(pollution) * 0.45))
-	var legacy_penalty := legacy_rules.size() * 12
+	var legacy_strength := 0
+	for rule in legacy_rules:
+		legacy_strength += maxi(1, int(rule.get("strength", 1)))
+	var legacy_relief := int(round(_modifier_total("legacy_relief")))
+	var legacy_penalty_per_rule := maxi(4, 12 - legacy_relief)
+	var legacy_penalty := legacy_strength * legacy_penalty_per_rule
 	var distortion_penalty := 8 if last_clean_sentence != last_polluted_sentence else 0
 	npc_understanding = clampi(100 - pollution_penalty - legacy_penalty - distortion_penalty, 0, 100)
 	clarity = clampi(clarity - maxi(1, int(round(float(legacy_penalty + pollution_penalty) * 0.12))), 0, 100)
+	reality_dialogue_count += 1
+	last_relationship_residue_gain = maxi(0, int(ceil(float(maxi(0, 80 - npc_understanding)) / 12.0)) + legacy_rules.size())
+	relationship_residue = clampi(relationship_residue + last_relationship_residue_gain, 0, 100)
+	var raw_money_loss := maxi(0, int(ceil(float(maxi(0, 70 - npc_understanding)) / 18.0)))
+	var relationship_shield := int(round(_modifier_total("relationship_shield")))
+	last_relationship_money_loss = maxi(0, raw_money_loss - relationship_shield)
+	money = maxi(0, money - last_relationship_money_loss)
 	reality_sentence_slots.clear()
 	reality_phase = "reality_result"
+	return true
+
+
+func get_relationship_state_label() -> String:
+	if relationship_residue < 20:
+		return "仍能认出你"
+	if relationship_residue < 45:
+		return "句子留下裂痕"
+	if relationship_residue < 70:
+		return "只剩熟悉的语气"
+	return "彼此已无法确认"
+
+
+func get_pending_ascent_reward_choices() -> Array:
+	return pending_ascent_reward_choices.duplicate(true)
+
+
+func choose_ascent_reward(reward_id: String) -> bool:
+	var selected: Dictionary = {}
+	for reward in pending_ascent_reward_choices:
+		if str(reward.get("id", "")) == reward_id:
+			selected = reward
+			break
+	if selected.is_empty():
+		return false
+	permanent_modifiers.append(selected.duplicate(true))
+	event_log.push_front("第 %d 层许可：%s" % [pending_ascent_reward_floor, str(selected.get("label", "永久修正"))])
+	pending_ascent_reward_choices.clear()
+	pending_ascent_reward_floor = 0
+	if not queued_ascent_reward_floors.is_empty():
+		var next_floor := int(queued_ascent_reward_floors.pop_front())
+		_set_pending_ascent_reward(next_floor)
 	return true
 
 
@@ -547,13 +652,29 @@ func _calculate_publish_breakdown(meme: Dictionary, matching_tags: Array) -> Dic
 	for record in published_memes:
 		if str(record.get("text", "")) == str(meme.get("text", "")):
 			repeat_count += 1
-	var base_value := 12 + rarity * 6 + matching_tags.size() * 8
-	var synergy_multiplier := 1.0 + matching_tags.size() * 0.25
-	var pollution_multiplier := 1.0 + float(pollution) / 100.0 * 0.65
-	var emotion_multiplier := 1.0 + minf(0.60, float(maxi(0, int(meme.get("pollution_bias", 0)))) * 0.04)
-	var repeat_multiplier := maxf(0.28, 1.0 - repeat_count * 0.18)
+	var tags: Array = meme.get("tags", [])
+	var empty_base_bonus := int(round(_modifier_total("empty_base"))) if ("空位" in tags or "沉默" in tags) else 0
+	var base_value := 12 + rarity * 6 + matching_tags.size() * 8 + empty_base_bonus
+	var synergy_step := 0.25 + _modifier_total("synergy_step")
+	var synergy_multiplier := 1.0 + matching_tags.size() * synergy_step
+	var pollution_multiplier := 1.0 + float(pollution) / 100.0 * 0.65 + _modifier_total("pollution_bonus")
+	var emotion_bonus := minf(0.60, float(maxi(0, int(meme.get("pollution_bias", 0)))) * 0.04)
+	emotion_bonus += float(maxi(0, int(meme.get("emotion_count", 0)))) * _modifier_total("emotion_step")
+	var emotion_multiplier := 1.0 + emotion_bonus
+	var effective_repeat_count := maxi(0, repeat_count - int(round(_modifier_total("repeat_grace"))))
+	var repeat_multiplier := maxf(0.28, 1.0 - effective_repeat_count * 0.18)
 	var total_multiplier := synergy_multiplier * pollution_multiplier * emotion_multiplier * repeat_multiplier
 	var score := maxi(1, int(round(base_value * total_multiplier)))
+	var active_modifier_labels: Array[String] = []
+	for modifier in permanent_modifiers:
+		var effect_id := str(modifier.get("effect", ""))
+		var is_active := effect_id == "pollution_bonus"
+		is_active = is_active or (effect_id == "synergy_step" and not matching_tags.is_empty())
+		is_active = is_active or (effect_id == "repeat_grace" and repeat_count > 0)
+		is_active = is_active or (effect_id == "empty_base" and empty_base_bonus > 0)
+		is_active = is_active or (effect_id == "emotion_step" and int(meme.get("emotion_count", 0)) > 0)
+		if is_active:
+			active_modifier_labels.append(str(modifier.get("label", "永久许可")))
 	return {
 		"base_value": base_value,
 		"matching_tags": matching_tags.duplicate(),
@@ -563,6 +684,9 @@ func _calculate_publish_breakdown(meme: Dictionary, matching_tags: Array) -> Dic
 		"repeat_multiplier": snappedf(repeat_multiplier, 0.01),
 		"total_multiplier": snappedf(total_multiplier, 0.01),
 		"repeat_count": repeat_count,
+		"effective_repeat_count": effective_repeat_count,
+		"modifier_base_bonus": empty_base_bonus,
+		"active_modifier_labels": active_modifier_labels,
 		"score": score,
 	}
 
@@ -609,6 +733,7 @@ func _resolve_tower_step() -> void:
 		tower_floor = clampi(tower_floor + 1, 1, MAX_TOWER_FLOOR)
 		if tower_floor > previous_floor:
 			register_legacy_rule_for_ascent(previous_floor)
+			_queue_ascent_reward(previous_floor)
 		threshold_discount = maxi(0, threshold_discount - 8)
 		event_log.push_front("第二天，巴别塔把你标记到第 %d 层。" % tower_floor)
 	elif tower_floor > 1 and progress < int(float(threshold) * 0.62):
@@ -623,10 +748,51 @@ func _resolve_tower_step() -> void:
 		var catchup_floor := tower_floor
 		tower_floor += 1
 		register_legacy_rule_for_ascent(catchup_floor)
+		_queue_ascent_reward(catchup_floor)
 		event_log.push_front("第 %d 天，塔强制收录你到第 %d 层。" % [day, tower_floor])
 	next_threshold = _tower_threshold(tower_floor)
 	if tower_floor >= MAX_TOWER_FLOOR:
 		ending_unlocked = true
+
+
+func _queue_ascent_reward(previous_floor: int) -> void:
+	# The final ascent immediately enters the ending, so rewards live on floors 2-4.
+	if previous_floor < 1 or previous_floor >= MAX_TOWER_FLOOR - 1:
+		return
+	if previous_floor in rewarded_ascent_floors:
+		return
+	rewarded_ascent_floors.append(previous_floor)
+	if pending_ascent_reward_choices.is_empty():
+		_set_pending_ascent_reward(previous_floor)
+	elif previous_floor not in queued_ascent_reward_floors:
+		queued_ascent_reward_floors.append(previous_floor)
+
+
+func _set_pending_ascent_reward(previous_floor: int) -> void:
+	pending_ascent_reward_floor = previous_floor + 1
+	pending_ascent_reward_choices.clear()
+	var owned_ids: Array[String] = []
+	for modifier in permanent_modifiers:
+		owned_ids.append(str(modifier.get("id", "")))
+	var start_index := (previous_floor * 2 + day) % ASCENT_REWARDS.size()
+	for offset in ASCENT_REWARDS.size():
+		var reward: Dictionary = ASCENT_REWARDS[(start_index + offset) % ASCENT_REWARDS.size()]
+		var reward_id := str(reward.get("id", ""))
+		if reward_id in owned_ids:
+			continue
+		pending_ascent_reward_choices.append(reward.duplicate(true))
+		if pending_ascent_reward_choices.size() == 3:
+			break
+	if not pending_ascent_reward_choices.is_empty():
+		event_log.push_front("第 %d 层开放三项许可，必须保留其中一项。" % pending_ascent_reward_floor)
+
+
+func _modifier_total(effect_id: String) -> float:
+	var total := 0.0
+	for modifier in permanent_modifiers:
+		if str(modifier.get("effect", "")) == effect_id:
+			total += float(modifier.get("value", 0.0))
+	return total
 
 
 func _tower_threshold(floor: int) -> int:

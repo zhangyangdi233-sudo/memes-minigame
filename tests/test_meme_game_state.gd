@@ -24,11 +24,16 @@ func _run() -> void:
 	test_pick_token_costs_action_and_adds_notebook_token()
 	test_buy_emotion_slot_costs_action_and_editing_is_free()
 	test_craft_uses_two_core_slots_and_optional_emotion_text()
+	test_emotion_loadout_limits_crafting_to_two_equipped_slots()
+	test_ascent_offers_three_permanent_reward_choices()
+	test_ascent_reward_blocks_actions_and_cannot_be_farmed()
+	test_reward_modifier_changes_publish_scoring()
 	test_published_memes_make_legacy_rules_on_ascent()
 	test_fallback_legacy_rule_is_used_without_published_memes()
 	test_reality_dialogue_requires_all_legacy_tiles()
 	test_high_pollution_locks_legacy_tiles_and_pollutes_sentence()
 	test_reality_phase_moves_from_npc_to_player_to_result()
+	test_reality_dialogue_leaves_irreversible_relationship_residue()
 	test_first_crossing_sixty_triggers_flashback_and_forces_day_end()
 	test_flashback_trigger_is_once_per_run()
 	test_place_meme_is_free_and_confirm_dialogue_costs_action()
@@ -74,6 +79,7 @@ func test_buy_emotion_slot_costs_action_and_editing_is_free() -> void:
 	_assert_true(bought, "buy_daily_emotion_slot should buy today's emotion")
 	_assert_eq(game.actions_remaining, 4, "buying an emotion slot should cost one action")
 	_assert_true(slot_id in game.owned_emotion_slots, "bought emotion slot should be owned")
+	_assert_true(slot_id in game.equipped_emotion_slots, "the first purchased emotion should auto equip")
 	game.set_emotion_slot_text(slot_id, "我不是那个意思")
 	_assert_eq(game.actions_remaining, 4, "editing emotion text should be free")
 	_assert_eq(game.emotion_slot_texts.get(slot_id, ""), "我不是那个意思", "emotion slot text should save player wording")
@@ -87,6 +93,7 @@ func test_craft_uses_two_core_slots_and_optional_emotion_text() -> void:
 		{"id": "n2", "text": "到底是什么意思", "tags": ["追问"], "rarity": 1},
 	]
 	game.owned_emotion_slots = ["anxiety"]
+	game.equipped_emotion_slots = ["anxiety"]
 	game.set_emotion_slot_text("anxiety", "我不是那个意思")
 	game.place_token_in_slot("object", "n1")
 	game.place_token_in_slot("saying", "n2")
@@ -98,6 +105,92 @@ func test_craft_uses_two_core_slots_and_optional_emotion_text() -> void:
 	_assert_true(game.completed_memes[0]["text"].contains("哈吉米"), "crafted meme should include slot text")
 	_assert_true(game.completed_memes[0]["text"].contains("我不是那个意思"), "crafted meme should include edited emotion text")
 	_assert_true("焦虑" in game.completed_memes[0]["tags"], "emotion hidden tag should enter crafted meme")
+
+
+func test_emotion_loadout_limits_crafting_to_two_equipped_slots() -> void:
+	var game: RefCounted = _state_script.new()
+	game.new_run()
+	game.owned_emotion_slots = ["anxiety", "please", "counter"]
+	game.equipped_emotion_slots = ["anxiety", "please"]
+	game.emotion_slot_texts = {
+		"anxiety": "我不是那个意思",
+		"please": "你说得也有道理",
+		"counter": "难道不是这样吗",
+	}
+	_assert_true(not game.toggle_equipped_emotion_slot("counter"), "a third emotion should not equip while two slots are occupied")
+	_assert_eq(game.equipped_emotion_slots.size(), 2, "failed third equip should preserve the two-slot loadout")
+	_assert_true(game.toggle_equipped_emotion_slot("please"), "an equipped emotion should be removable for free")
+	_assert_true(game.toggle_equipped_emotion_slot("counter"), "a different emotion should equip after a slot is freed")
+	_assert_eq(game.actions_remaining, 5, "changing the emotion loadout should not cost an action")
+	game.notebook_tokens = [
+		{"id": "n1", "text": "哈吉米", "tags": ["哈吉米"], "rarity": 1},
+		{"id": "n2", "text": "到底是什么意思", "tags": ["追问"], "rarity": 1},
+	]
+	game.place_token_in_slot("object", "n1")
+	game.place_token_in_slot("saying", "n2")
+	_assert_true(game.confirm_craft_with_emotions(), "the selected two-slot loadout should craft normally")
+	var crafted: Dictionary = game.completed_memes[0]
+	_assert_true(str(crafted["text"]).contains("我不是那个意思"), "equipped anxiety text should enter the crafted meme")
+	_assert_true(str(crafted["text"]).contains("难道不是这样吗"), "equipped counter text should enter the crafted meme")
+	_assert_true(not str(crafted["text"]).contains("你说得也有道理"), "unequipped emotion text should stay out of the crafted meme")
+	_assert_eq(int(crafted.get("emotion_count", 0)), 2, "crafted meme should record exactly two equipped emotions")
+
+
+func test_ascent_offers_three_permanent_reward_choices() -> void:
+	var game: RefCounted = _state_script.new()
+	game.new_run()
+	game.heat = 220
+	for index in 5:
+		game.spend_action("ascent-%d" % index)
+	_assert_true(game.settle_day_if_needed(), "a completed high-progress day should settle")
+	_assert_eq(game.tower_floor, 2, "high progress should ascend to floor two")
+	var choices: Array = game.get_pending_ascent_reward_choices()
+	_assert_eq(choices.size(), 3, "an ascent should present exactly three permanent rewards")
+	var ids: Array[String] = []
+	for choice in choices:
+		ids.append(str(choice.get("id", "")))
+	_assert_eq(ids.duplicate().size(), 3, "reward choices should expose three identifiers")
+	_assert_true(ids[0] != ids[1] and ids[0] != ids[2] and ids[1] != ids[2], "the three reward choices should be unique")
+	var actions_before: int = game.actions_remaining
+	_assert_true(game.choose_ascent_reward(ids[0]), "one offered reward should be selectable")
+	_assert_eq(game.actions_remaining, actions_before, "choosing a permanent reward should be free")
+	_assert_eq(game.permanent_modifiers.size(), 1, "chosen reward should persist in the run")
+	_assert_true(game.get_pending_ascent_reward_choices().is_empty(), "choosing should clear the current offer")
+	_assert_true(not game.choose_ascent_reward(ids[1]), "a reward outside the current offer should not be selectable")
+
+
+func test_ascent_reward_blocks_actions_and_cannot_be_farmed() -> void:
+	var game: RefCounted = _state_script.new()
+	game.new_run()
+	game._queue_ascent_reward(1)
+	_assert_true(not game.spend_action("blocked-by-reward"), "pending ascent reward should block the next effective action")
+	_assert_eq(game.actions_remaining, 5, "a blocked action should not consume today's action budget")
+	var reward_id := str(game.get_pending_ascent_reward_choices()[0].get("id", ""))
+	_assert_true(game.choose_ascent_reward(reward_id), "the queued ascent reward should be selectable")
+	_assert_true(game.spend_action("after-reward"), "effective actions should resume after the reward is chosen")
+	game._queue_ascent_reward(1)
+	_assert_true(game.get_pending_ascent_reward_choices().is_empty(), "dropping and reascending the same floor must not create another reward")
+	_assert_eq(game.permanent_modifiers.size(), 1, "the same departed floor should only grant one permanent modifier")
+
+
+func test_reward_modifier_changes_publish_scoring() -> void:
+	var baseline: RefCounted = _state_script.new()
+	baseline.new_run()
+	var modified: RefCounted = _state_script.new()
+	modified.new_run()
+	modified.permanent_modifiers = [{"id": "echo_amplifier", "label": "回声增幅", "effect": "synergy_step", "value": 0.08}]
+	var meme := {
+		"id": "m-reward",
+		"text": "哈吉米，今天必须解释",
+		"tags": ["哈吉米", "追问"],
+		"rarity": 2,
+		"pollution_bias": 0,
+	}
+	var baseline_score := int(baseline.get_publish_breakdown(meme).get("score", 0))
+	var modified_breakdown: Dictionary = modified.get_publish_breakdown(meme)
+	var modified_score := int(modified_breakdown.get("score", 0))
+	_assert_true(modified_score > baseline_score, "a permanent resonance reward should increase matching publish score")
+	_assert_true("回声增幅" in modified_breakdown.get("active_modifier_labels", []), "publish breakdown should name the permanent reward that changed the score")
 
 
 func test_published_memes_make_legacy_rules_on_ascent() -> void:
@@ -187,6 +280,31 @@ func test_reality_phase_moves_from_npc_to_player_to_result() -> void:
 	game.begin_reality_player_turn()
 	game.set_view_state("npc_up")
 	_assert_eq(game.get("reality_phase"), "npc_speaking", "entering NPC view should restart at NPC speaking phase")
+
+
+func test_reality_dialogue_leaves_irreversible_relationship_residue() -> void:
+	var game: RefCounted = _state_script.new()
+	game.new_run()
+	game.pollution = 88
+	game.legacy_rules = [{
+		"id": "legacy-1",
+		"floor": 1,
+		"required_text": "哈吉米，必须补票",
+		"tags": ["哈吉米"],
+		"strength": 2,
+	}]
+	var money_before: int = game.money
+	game.place_reality_tile("slot_0", "clean:我")
+	_assert_true(game.confirm_reality_dialogue(), "high-pollution dialogue should resolve with locked legacy text")
+	_assert_true(game.relationship_residue > 0, "misunderstanding should leave persistent relationship residue")
+	_assert_true(game.last_relationship_residue_gain > 0, "the result should expose this dialogue's residue gain")
+	_assert_true(game.money < money_before, "severe misunderstanding should cost money")
+	_assert_true(game.last_relationship_money_loss > 0, "the result should expose this dialogue's money loss")
+	var residue_before_settlement: int = game.relationship_residue
+	for index in 4:
+		game.spend_action("finish-day-%d" % index)
+	_assert_true(game.settle_day_if_needed(), "the relationship test day should settle")
+	_assert_eq(game.relationship_residue, residue_before_settlement, "day settlement must never repair relationship residue")
 
 
 func test_first_crossing_sixty_triggers_flashback_and_forces_day_end() -> void:
@@ -304,6 +422,9 @@ func test_twelve_day_catchup_guarantees_tower_ending() -> void:
 	var game: RefCounted = _state_script.new()
 	game.new_run()
 	for _day_index in 12:
+		while not game.get_pending_ascent_reward_choices().is_empty():
+			var reward_id := str(game.get_pending_ascent_reward_choices()[0].get("id", ""))
+			_assert_true(game.choose_ascent_reward(reward_id), "catchup rewards should be consumed before the next day")
 		for action_index in 5:
 			_assert_true(game.spend_action("no-progress-%d" % action_index), "five empty progress actions should still be valid daily actions")
 		_assert_true(game.settle_day_if_needed(), "forced no-progress day should still settle")

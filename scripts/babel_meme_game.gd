@@ -865,6 +865,7 @@ func _build_ui() -> void:
 	_confirm_reality_button.pressed.connect(_on_confirm_reality_pressed)
 	reality_box.add_child(_confirm_reality_button)
 	_reality_result = _label("", 16, _theme_color("accent"))
+	_reality_result.name = "RealityResultLabel"
 	_reality_result.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
 	reality_box.add_child(_reality_result)
 
@@ -1483,6 +1484,25 @@ func _render_babel_app() -> void:
 	_clear(_app_body)
 	_app_body.add_child(_label("第 %d 层 / %d" % [game.tower_floor, MemeGameStateScript.MAX_TOWER_FLOOR], 24, _theme_color("ink")))
 	_app_body.add_child(_label("下一门槛：%d" % game.next_threshold, 17, _theme_color("accent")))
+	var reward_choices: Array = game.get_pending_ascent_reward_choices()
+	if not reward_choices.is_empty():
+		_app_body.add_child(_label("第 %d 层许可 / 三选一" % game.pending_ascent_reward_floor, 18, _theme_color("accent")))
+		for index in reward_choices.size():
+			var reward: Dictionary = reward_choices[index]
+			var choice := Button.new()
+			choice.name = "AscentRewardChoice%d" % index
+			choice.text = "%s\n%s" % [str(reward.get("label", "永久修正")), str(reward.get("description", ""))]
+			choice.custom_minimum_size.y = 72
+			choice.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+			choice.alignment = HORIZONTAL_ALIGNMENT_LEFT
+			choice.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
+			choice.pressed.connect(_on_ascent_reward_pressed.bind(str(reward.get("id", ""))))
+			_app_body.add_child(choice)
+		_app_body.add_child(_label("选择许可不消耗今日行动。", 14, _theme_color("accent")))
+	if not game.permanent_modifiers.is_empty():
+		_app_body.add_child(_label("已保留许可", 18, _theme_color("accent")))
+		for modifier in game.permanent_modifiers:
+			_app_body.add_child(_label("%s  /  %s" % [str(modifier.get("label", "许可")), str(modifier.get("description", ""))], 15, _theme_color("ink")))
 	_app_body.add_child(_label("遗产规则", 18, _theme_color("accent")))
 	if game.legacy_rules.is_empty():
 		_app_body.add_child(_label("还没有上一层语言留下来。", 16, _theme_color("accent")))
@@ -1778,7 +1798,7 @@ func _render_social_detail_page(parent: VBoxContainer) -> void:
 		var btn := Button.new()
 		btn.text = str(token["text"])
 		btn.clip_text = true
-		btn.disabled = game.actions_remaining <= 0
+		btn.disabled = not game.can_spend_action()
 		btn.custom_minimum_size = Vector2(120, 44)
 		btn.size_flags_horizontal = Control.SIZE_EXPAND_FILL
 		btn.pressed.connect(_on_token_pressed.bind(post["id"], token))
@@ -1965,13 +1985,15 @@ func _render_shop_app() -> void:
 	_app_body.add_child(_label("今日情绪槽", 18, _theme_color("accent")))
 	var bought: bool = str(slot["id"]) in game.owned_emotion_slots
 	var buy := Button.new()
+	buy.name = "DailyEmotionBuyButton"
 	buy.text = "%s  %d 热币" % [slot["label"], slot["price"]]
-	buy.disabled = bought or game.money < int(slot["price"]) or game.actions_remaining <= 0
+	buy.custom_minimum_size.y = 56
+	buy.disabled = bought or game.money < int(slot["price"]) or not game.can_spend_action()
 	buy.pressed.connect(_on_buy_emotion_slot_pressed)
 	_app_body.add_child(buy)
-	_app_body.add_child(_label("购买后可以自由改写这个情绪的显示文字。", 15, _theme_color("accent")))
+	_app_body.add_child(_label("购买后在笔记本改写文字并决定是否装备。前两个槽位会自动装备。", 15, _theme_color("accent")))
 	if bought:
-		_app_body.add_child(_label("已购买：%s" % game.emotion_slot_texts.get(slot["id"], ""), 16, _theme_color("ink")))
+		_app_body.add_child(_label("已拥有：%s" % game.emotion_slot_texts.get(slot["id"], ""), 16, _theme_color("ink")))
 
 
 func _render_notebook_app() -> void:
@@ -2023,21 +2045,39 @@ func _render_notebook_app() -> void:
 		btn_slot.pressed.connect(_on_slot_pressed.bind(slot_id))
 		notebook_content.add_child(btn_slot)
 
-	notebook_content.add_child(_label("情绪槽文字", 18, _theme_color("accent")))
+	notebook_content.add_child(_label("情绪构筑  %d/%d" % [game.equipped_emotion_slots.size(), MemeGameStateScript.MAX_EQUIPPED_EMOTION_SLOTS], 18, _theme_color("accent")))
+	notebook_content.add_child(_label("只有装备中的情绪会进入合成和现实词块。", 14, _theme_color("accent")))
 	if game.owned_emotion_slots.is_empty():
 		notebook_content.add_child(_label("去商店购买一个情绪槽。", 15, _theme_color("accent")))
 	for emotion in game.get_owned_emotion_slot_data():
 		var slot_id := str(emotion["id"])
+		var item := VBoxContainer.new()
+		item.name = "EmotionLoadoutItem_%s" % slot_id
+		item.add_theme_constant_override("separation", 4)
 		var row := HBoxContainer.new()
-		row.add_theme_constant_override("separation", 6)
-		row.add_child(_label(str(emotion["label"]), 16, _theme_color("ink")))
+		row.add_theme_constant_override("separation", 8)
+		var emotion_label := _label(str(emotion["label"]), 16, _theme_color("ink"))
+		emotion_label.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+		row.add_child(emotion_label)
+		var equipped: bool = slot_id in game.equipped_emotion_slots
+		var equip := Button.new()
+		equip.name = "EmotionEquipButton_%s" % slot_id
+		equip.text = "已装备" if equipped else "装备"
+		equip.custom_minimum_size = Vector2(92, 44)
+		equip.disabled = not equipped and game.equipped_emotion_slots.size() >= MemeGameStateScript.MAX_EQUIPPED_EMOTION_SLOTS
+		if equip.disabled:
+			equip.tooltip_text = "先卸下一个已装备情绪"
+		equip.pressed.connect(_on_emotion_equip_pressed.bind(slot_id))
+		row.add_child(equip)
+		item.add_child(row)
 		var edit := LineEdit.new()
+		edit.name = "EmotionTextEdit_%s" % slot_id
 		edit.text = str(game.emotion_slot_texts.get(slot_id, emotion.get("default_text", "")))
 		edit.custom_minimum_size.y = 44
 		edit.size_flags_horizontal = Control.SIZE_EXPAND_FILL
 		edit.text_changed.connect(_on_emotion_text_changed.bind(slot_id))
-		row.add_child(edit)
-		notebook_content.add_child(row)
+		item.add_child(edit)
+		notebook_content.add_child(item)
 
 	var preview := _label("预览：%s" % _craft_preview_text(), 15, _theme_color("accent"))
 	preview.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
@@ -2055,7 +2095,7 @@ func _render_notebook_app() -> void:
 	craft.name = "NotebookCraftButton"
 	craft.text = "确认合成"
 	craft.custom_minimum_size.y = 56
-	craft.disabled = game.actions_remaining <= 0
+	craft.disabled = not game.can_spend_action()
 	craft.pressed.connect(_on_confirm_craft_pressed)
 	action_box.add_child(craft)
 
@@ -2065,7 +2105,7 @@ func _render_publish() -> void:
 		return
 	var meme := _placed_meme()
 	_publish_blank.text = "发布空格：%s" % (meme.get("title", "等待完整梗") if not meme.is_empty() else "等待完整梗")
-	_confirm_publish_button.disabled = meme.is_empty() or game.actions_remaining <= 0
+	_confirm_publish_button.disabled = meme.is_empty() or not game.can_spend_action()
 
 
 func _publish_breakdown_text(breakdown: Dictionary, is_preview: bool) -> String:
@@ -2074,10 +2114,13 @@ func _publish_breakdown_text(breakdown: Dictionary, is_preview: bool) -> String:
 	var prefix := "预计传播" if is_preview else "本次传播"
 	var repeated := int(breakdown.get("repeat_count", 0))
 	var repeat_note := "\n重复衰减  ×%.2f" % float(breakdown.get("repeat_multiplier", 1.0)) if repeated > 0 else ""
-	return "传播基础  %d\n共鸣倍率  ×%.2f%s\n%s  %d" % [
+	var active_modifiers: Array = breakdown.get("active_modifier_labels", [])
+	var modifier_note := "\n永久许可  %s" % " / ".join(active_modifiers) if not active_modifiers.is_empty() else ""
+	return "传播基础  %d\n共鸣倍率  ×%.2f%s%s\n%s  %d" % [
 		int(breakdown.get("base_value", 0)),
 		float(breakdown.get("total_multiplier", 1.0)),
 		repeat_note,
+		modifier_note,
 		prefix,
 		int(breakdown.get("score", 0)),
 	]
@@ -2152,12 +2195,16 @@ func _render_reality() -> void:
 	else:
 		_reality_result.text = "必须进入句子的遗产：%s" % " / ".join(required_texts)
 	if game.reality_phase == "reality_result":
-		_reality_result.text = "清洁原句：%s\n现实出口：%s\nNPC理解：%d%%" % [
+		_reality_result.text = "清洁原句：%s\n现实出口：%s\nNPC理解：%d%%\n关系残留：+%d / %d · %s\n沟通代价：-%d 资金" % [
 			game.last_clean_sentence,
 			game.last_polluted_sentence,
 			game.npc_understanding,
+			game.last_relationship_residue_gain,
+			game.relationship_residue,
+			game.get_relationship_state_label(),
+			game.last_relationship_money_loss,
 		]
-	_confirm_reality_button.disabled = game.actions_remaining <= 0 or game.reality_phase == "reality_result"
+	_confirm_reality_button.disabled = not game.can_spend_action() or game.reality_phase == "reality_result"
 
 
 func _update_visibility() -> void:
@@ -2775,7 +2822,7 @@ func _finish_action_spend_animation() -> void:
 	_set_input_locked(false)
 
 	var settled := false
-	if _action_spend_should_settle and game.settle_day_if_needed():
+	if _action_spend_should_settle and _settle_day_and_present_rewards():
 		selected_token_id = ""
 		selected_meme_id = ""
 		selected_reality_tile_id = ""
@@ -2893,7 +2940,7 @@ func _finish_pollution_flashback() -> void:
 		_flashback_blackout.visible = false
 	_set_input_locked(false)
 	var should_settle := game.consume_pollution_flashback()
-	if should_settle and game.settle_day_if_needed():
+	if should_settle and _settle_day_and_present_rewards():
 		selected_token_id = ""
 		selected_meme_id = ""
 		selected_reality_tile_id = ""
@@ -2963,7 +3010,7 @@ func _render_ending() -> void:
 	var title := _label("塔顶没有人", 40, _theme_color("surface"))
 	title.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
 	center.add_child(title)
-	var body := _label("所有遗产规则都说智者在这里。\n你想说一句普通的话，但每一层都先替你开口。\n\n哈吉米    ■    ……    沉默", 22, _theme_color("muted"))
+	var body := _label("所有遗产规则都说智者在这里。\n你想说一句普通的话，但每一层都先替你开口。\n\n哈吉米    ■    ……    沉默\n\n关系残留 %d / 100 · %s" % [game.relationship_residue, game.get_relationship_state_label()], 22, _theme_color("muted"))
 	body.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
 	body.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
 	center.add_child(body)
@@ -3021,6 +3068,26 @@ func _on_emotion_text_changed(text: String, slot_id: String) -> void:
 	game.set_emotion_slot_text(slot_id, text)
 	log_text = "情绪槽文字已改写。"
 	_render_status()
+
+
+func _on_emotion_equip_pressed(slot_id: String) -> void:
+	if _input_locked:
+		return
+	if game.toggle_equipped_emotion_slot(slot_id):
+		log_text = "情绪构筑已更新。"
+	else:
+		log_text = "最多只能装备两个情绪。"
+	_render()
+
+
+func _on_ascent_reward_pressed(reward_id: String) -> void:
+	if _input_locked:
+		return
+	if game.choose_ascent_reward(reward_id):
+		log_text = "永久许可已写入本层。"
+	else:
+		log_text = "这项许可已经关闭。"
+	_render()
 
 
 func _on_note_token_pressed(token_id: String) -> void:
@@ -3165,13 +3232,27 @@ func _after_effective_action(actions_before: int = -1) -> void:
 			_hud_actions_label.text = _action_text(actions_before)
 		_play_action_spend_animation(actions_before, game.actions_remaining)
 		return
-	if game.settle_day_if_needed():
+	if _settle_day_and_present_rewards():
 		selected_token_id = ""
 		selected_meme_id = ""
 		selected_reality_tile_id = ""
 		if not game.event_log.is_empty():
 			log_text = game.event_log[0]
 	_render()
+
+
+func _settle_day_and_present_rewards() -> bool:
+	if not game.settle_day_if_needed():
+		return false
+	selected_token_id = ""
+	selected_meme_id = ""
+	selected_reality_tile_id = ""
+	if not game.pending_ascent_reward_choices.is_empty():
+		game.set_view_state("phone_down")
+		game.set_active_app("babel")
+		_open_app_windows["babel"] = true
+		_phone_launcher_open = false
+	return true
 
 
 func _day_plan() -> Dictionary:
@@ -3191,7 +3272,7 @@ func _craft_preview_text() -> String:
 	var pieces: Array[String] = []
 	pieces.append(_slot_text("object", "对象"))
 	pieces.append(_slot_text("saying", "说法"))
-	for emotion in game.get_owned_emotion_slot_data():
+	for emotion in game.get_equipped_emotion_slot_data():
 		var slot_id := str(emotion["id"])
 		var text := str(game.emotion_slot_texts.get(slot_id, emotion.get("default_text", "")))
 		if not text.strip_edges().is_empty():

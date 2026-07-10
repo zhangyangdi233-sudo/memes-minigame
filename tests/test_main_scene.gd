@@ -740,6 +740,7 @@ func _run() -> void:
 			{"id": "n6", "text": "沉默", "tags": ["沉默"], "rarity": 1},
 		]
 		root.game.owned_emotion_slots = ["anxiety", "please", "counter", "silence", "anger", "prayer"]
+		root.game.equipped_emotion_slots = ["anxiety", "please"]
 		root.game.emotion_slot_texts = {
 			"anxiety": "我不是那个意思",
 			"please": "你说得也有道理",
@@ -804,12 +805,19 @@ func _run() -> void:
 		var notebook_action_bar := _find_node_by_name(root, "NotebookCraftActionBar") as PanelContainer
 		var notebook_craft_button := _find_node_by_name(root, "NotebookCraftButton") as Button
 		var notebook_token_flow := _find_node_by_name(root, "NotebookTokenFlow") as HFlowContainer
+		var anxiety_equip := _find_node_by_name(root, "EmotionEquipButton_anxiety") as Button
+		var counter_equip := _find_node_by_name(root, "EmotionEquipButton_counter") as Button
 		if notebook_app_window != null:
 			_assert_eq(notebook_app_window.size, notebook_size_before_render, "opening notebook crafting should not stretch the notebook app window")
 		_assert_true(notebook_scroll != null, "notebook crafting should put expandable content inside an internal scroll area")
 		_assert_true(notebook_content != null, "notebook crafting should expose a scroll content container")
 		_assert_true(notebook_token_flow != null, "notebook tokens should wrap instead of forcing horizontal overflow")
 		_assert_true(notebook_action_bar != null, "notebook crafting should expose a fixed action bar")
+		_assert_true(_has_text(root, "情绪构筑  2/2"), "notebook should expose the two-slot emotion loadout count")
+		_assert_true(anxiety_equip != null and str(anxiety_equip.text) == "已装备", "an equipped emotion should be visibly marked in the notebook")
+		_assert_true(counter_equip != null and counter_equip.disabled, "a third emotion should stay disabled until one of two equipped slots is freed")
+		if anxiety_equip != null:
+			_assert_true(anxiety_equip.custom_minimum_size.y >= 44.0, "emotion loadout controls should meet the minimum touch target")
 		if notebook_content != null and notebook_scroll != null:
 			_assert_true(_is_descendant_of(notebook_content, notebook_scroll), "notebook dynamic content should scroll inside the notebook window")
 		if notebook_craft_button != null and notebook_action_bar != null and notebook_scroll != null:
@@ -839,6 +847,21 @@ func _run() -> void:
 				_assert_true(not _controls_overlap(meme_bank_popup, hud_actions_label), "opened meme bank drawer should not cover today's actions")
 			root._toggle_meme_bank()
 			_assert_true(not meme_bank_content.visible, "toggling meme bank again should collapse the drawer content")
+		root.game._queue_ascent_reward(1)
+		root.game.set_active_app("babel")
+		root._render()
+		var reward_choice_0 := _find_node_by_name(root, "AscentRewardChoice0") as Button
+		var reward_choice_1 := _find_node_by_name(root, "AscentRewardChoice1") as Button
+		var reward_choice_2 := _find_node_by_name(root, "AscentRewardChoice2") as Button
+		_assert_true(reward_choice_0 != null and reward_choice_1 != null and reward_choice_2 != null, "Babel app should expose three ascent reward choices")
+		if reward_choice_0 != null:
+			_assert_true(reward_choice_0.custom_minimum_size.y >= 72.0, "ascent reward choices should be large enough to scan and tap")
+			var actions_before_reward: int = root.game.actions_remaining
+			reward_choice_0.pressed.emit()
+			_assert_eq(root.game.actions_remaining, actions_before_reward, "choosing an ascent reward should not spend an action")
+			_assert_eq(root.game.permanent_modifiers.size(), 1, "chosen ascent reward should persist in the run")
+		root.game.set_active_app("notebook")
+		root._render()
 		if social_app_window != null and root.has_method("_move_window_for_test"):
 			var before_pos := social_app_window.position
 			root._move_window_for_test("app:social", Vector2(36, 28))
@@ -1013,6 +1036,12 @@ func _run() -> void:
 			var first_reality_slot := _find_node_by_text(root, "1\n%s" % str(first_tile.get("text", ""))) as Button
 			_assert_true(first_reality_slot != null, "click fallback should place the selected reality word into the language puzzle slot")
 			_assert_eq(root.game.actions_remaining, actions_before_puzzle, "placing reality puzzle words should not spend an action")
+			root.game.place_reality_tile("slot_1", "legacy:legacy-1")
+			_assert_true(root.game.confirm_reality_dialogue(), "reality dialogue should resolve after its required legacy tile is placed")
+			root._render()
+			var reality_result := _find_node_by_name(root, "RealityResultLabel") as Label
+			_assert_true(reality_result != null and str(reality_result.text).contains("关系残留"), "reality result should show irreversible relationship residue")
+			_assert_true(reality_result != null and str(reality_result.text).contains("沟通代价"), "reality result should show the money cost of misunderstanding")
 	root.queue_free()
 
 

@@ -49,6 +49,11 @@ func test_five_action_phone_day_creates_next_day_legacy_reality_prompt() -> void
 	_assert_eq(game.tower_floor, 2, "strong first-day post should raise the tower to floor two")
 	_assert_eq(game.legacy_rules.size(), 1, "ascent should convert previous floor hot meme into a legacy rule")
 	_assert_true(str(game.legacy_rules[0]["required_text"]).contains("哈吉米"), "legacy rule should preserve the published meme language")
+	_assert_eq(game.get_pending_ascent_reward_choices().size(), 3, "reaching floor two should pause on a three-choice permanent reward")
+	_assert_true(not game.spend_action("blocked-before-reward"), "effective actions should wait until the ascent reward is chosen")
+	var reward_id := str(game.get_pending_ascent_reward_choices()[0].get("id", ""))
+	_assert_true(game.choose_ascent_reward(reward_id), "the playthrough should choose one ascent reward before continuing")
+	_assert_eq(game.actions_remaining, 5, "choosing the reward should not spend an action")
 
 	game.place_reality_tile("slot_0", "clean:我")
 	game.place_reality_tile("slot_1", "clean:想")
