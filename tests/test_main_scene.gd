@@ -475,6 +475,8 @@ func _run() -> void:
 			_assert_true(social_channel_tabs != null, "social app should include mobile channel tabs")
 			_assert_true(social_channel_tab_discover != null, "social app should expose a Discover channel tab")
 			_assert_true(social_channel_tab_tower != null, "social app should expose a Tower channel tab")
+			_assert_true(not _has_text(root, "关注"), "social app should not restore the removed Follow channel")
+			_assert_true(not _has_text(root, "附近"), "social app should not restore the removed Nearby channel")
 			if social_channel_tab_discover != null:
 				_assert_true(social_channel_tab_discover.custom_minimum_size.y >= 44.0, "Discover tab should meet minimum touch target height")
 			if social_channel_tab_tower != null:
@@ -589,13 +591,13 @@ func _run() -> void:
 				_assert_true(current_social_feed_masonry != null and _is_descendant_of(current_social_feed_masonry, social_app_window), "social feed grid should live inside the social app window")
 		if social_bottom_nav != null and social_feed_scroll != null:
 			_assert_true(not _is_descendant_of(social_bottom_nav, social_feed_scroll), "bottom nav should not scroll away with the feed")
-			_assert_true(int(social_feed_scroll.get_meta("slow_scroll_step", 0)) <= 3, "social feed wheel scroll should be slower for phone-style browsing")
+			_assert_true(int(social_feed_scroll.get_meta("slow_scroll_step", 0)) <= 2, "social feed wheel scroll should be deliberately slow for phone-style browsing")
 			var wheel_event := InputEventMouseButton.new()
 			wheel_event.button_index = MOUSE_BUTTON_WHEEL_DOWN
 			wheel_event.pressed = true
 			social_feed_scroll.scroll_vertical = 0
 			root._on_social_feed_scroll_gui_input(wheel_event, social_feed_scroll)
-			_assert_true(social_feed_scroll.scroll_vertical <= 3, "one wheel notch should move the masonry feed only a small amount")
+			_assert_true(social_feed_scroll.scroll_vertical <= 2, "one wheel notch should move the masonry feed only a small amount")
 			if social_feed_masonry != null:
 				_assert_eq(social_feed_masonry.get_child_count(), 2, "mobile social feed should keep a two-column discovery layout")
 		if social_post_card != null and social_post_card_1 != null:

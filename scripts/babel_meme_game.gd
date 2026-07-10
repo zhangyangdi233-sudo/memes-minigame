@@ -38,7 +38,7 @@ const HUD_POLLUTION_ICON_PATH := "res://assets/generated/ui/hud_pollution_icon.p
 const HUD_MONEY_ICON_PATH := "res://assets/generated/ui/hud_money_icon.png"
 const HUD_SETTINGS_ICON_PATH := "res://assets/generated/ui/hud_settings_icon.png"
 const SOCIAL_POSTER_COUNT := 12
-const SOCIAL_FEED_WHEEL_STEP := 3
+const SOCIAL_FEED_WHEEL_STEP := 2
 const SOCIAL_HOME_CAPTIONS := [
 	"路面一直复制自己",
 	"塔下截图，没有信号",
