@@ -1725,7 +1725,7 @@ func _render_social_profile_page(parent: VBoxContainer) -> void:
 	parent.add_child(profile_page)
 	profile_page.add_child(_label("我的", 22, _theme_color("accent")))
 	profile_page.add_child(_label("已合成梗：%d" % game.completed_memes.size(), 17, _theme_color("ink")))
-	profile_page.add_child(_label("污染：%d%%   清晰：%d%%" % [game.pollution, game.clarity], 17, _theme_color("ink")))
+	profile_page.add_child(_label("污染：%d%%" % game.pollution, 17, _theme_color("ink")))
 	var note := _label("你的语言档案会随着塔层上升变窄。", 16, _theme_color("accent"))
 	note.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
 	profile_page.add_child(note)

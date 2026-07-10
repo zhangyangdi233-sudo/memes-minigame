@@ -658,6 +658,9 @@ func _run() -> void:
 				mine_nav_after_home.pressed.emit()
 			var profile_page_after_nav := _find_node_by_name(root, "SocialProfilePage") as VBoxContainer
 			_assert_true(profile_page_after_nav != null, "profile nav should open a dedicated profile page")
+			if profile_page_after_nav != null:
+				_assert_true(_has_text(profile_page_after_nav, "污染："), "profile page should keep pollution visible as the core language-health stat")
+				_assert_true(not _has_text(profile_page_after_nav, "清晰"), "profile page should not restore the removed clarity stat")
 			var home_nav_after_profile := _find_node_by_name(root, "SocialNavHome") as Button
 			if home_nav_after_profile != null:
 				home_nav_after_profile.pressed.emit()
