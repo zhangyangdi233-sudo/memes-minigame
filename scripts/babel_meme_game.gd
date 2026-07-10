@@ -279,7 +279,7 @@ var _meme_bank_content: Control
 var _bank_list: HBoxContainer
 var _reality_panel: PanelContainer
 var _reality_tile_row: Container
-var _reality_slot_box: HBoxContainer
+var _reality_slot_box: GridContainer
 var _reality_result: Label
 var _confirm_reality_button: Button
 var _npc_chat_bubble: PanelContainer
@@ -309,6 +309,7 @@ var _social_detail_post_index := 0
 var _draggable_windows: Dictionary = {}
 var _dragged_window: Control
 var _drag_offset := Vector2.ZERO
+var _last_responsive_layout_size := Vector2.ZERO
 var _game_started := false
 var _settings_open := false
 var _vhs_enabled := true
@@ -323,6 +324,8 @@ func _ready() -> void:
 func _process(delta: float) -> void:
 	if _camera == null:
 		return
+	if _game_started:
+		_apply_responsive_layouts_if_needed()
 	_animate_world(delta)
 
 
@@ -362,6 +365,7 @@ func new_game() -> void:
 	_draggable_windows = {}
 	_dragged_window = null
 	_drag_offset = Vector2.ZERO
+	_last_responsive_layout_size = Vector2.ZERO
 	log_text = "你低头，手机边框从视野下方亮起来。"
 	_build_world()
 	_build_ui()
@@ -831,8 +835,11 @@ func _build_ui() -> void:
 	reality_title.mouse_filter = Control.MOUSE_FILTER_STOP
 	reality_box.add_child(reality_title)
 	_make_draggable_window(_reality_panel, "reality", reality_title)
-	_reality_slot_box = HBoxContainer.new()
+	_reality_slot_box = GridContainer.new()
+	_reality_slot_box.columns = 4
 	_reality_slot_box.add_theme_constant_override("separation", 8)
+	_reality_slot_box.add_theme_constant_override("h_separation", 8)
+	_reality_slot_box.add_theme_constant_override("v_separation", 8)
 	reality_box.add_child(_reality_slot_box)
 	_confirm_reality_button = Button.new()
 	_confirm_reality_button.text = "尽量正常地说出口"
@@ -899,6 +906,7 @@ func _build_ui() -> void:
 	_build_action_spend_overlay()
 	_build_settings_window()
 	_build_flashback_overlay()
+	_apply_responsive_layouts_if_needed(true)
 
 
 func _build_apple_hud() -> void:
@@ -1263,8 +1271,8 @@ func _apply_phone_popup_layout(expanded: bool) -> void:
 		_phone_panel.offset_left = _phone_panel.offset_right - phone_width
 		_phone_panel.offset_top = _phone_panel.offset_bottom - phone_height
 	else:
-		_phone_panel.offset_left = -82
 		_phone_panel.offset_top = -306
+		_phone_panel.offset_left = -112
 		_phone_panel.offset_right = -12
 		_phone_panel.offset_bottom = -94
 
@@ -1307,6 +1315,67 @@ func _apply_meme_bank_popup_layout(mode: String) -> void:
 		_meme_bank_window.offset_top = -66
 		_meme_bank_window.offset_right = peek_left + peek_size
 		_meme_bank_window.offset_bottom = -22
+
+
+func _apply_reality_layout() -> void:
+	var viewport_size := _viewport_size()
+	var hud_right := 0.0
+	if _hud_panel != null:
+		hud_right = _hud_panel.offset_right
+	var compact := viewport_size.x < 760.0
+	var safe_left := maxf(18.0, hud_right + (18.0 if compact else 48.0))
+	var phone_affordance_width := 104.0
+	var right_margin := phone_affordance_width + 16.0
+	var portrait_width := 132.0 if compact else 206.0
+	var portrait_height := 188.0 if compact else 276.0
+	var portrait_left := safe_left
+	if _player_portrait != null:
+		_player_portrait.set_anchors_preset(Control.PRESET_BOTTOM_LEFT)
+		_player_portrait.offset_left = portrait_left
+		_player_portrait.offset_top = -portrait_height - 24.0
+		_player_portrait.offset_right = portrait_left + portrait_width
+		_player_portrait.offset_bottom = -24.0
+		var portrait_image := _player_portrait.get_node_or_null("PlayerPortraitImage") as TextureRect
+		if portrait_image != null:
+			portrait_image.custom_minimum_size = Vector2(maxf(80.0, portrait_width - 20.0), maxf(120.0, portrait_height - 20.0))
+	var puzzle_left := portrait_left + portrait_width + 18.0
+	var available_right := viewport_size.x - right_margin
+	if available_right - puzzle_left < 180.0:
+		puzzle_left = minf(maxf(safe_left, viewport_size.x * 0.42), maxf(safe_left, available_right - 180.0))
+	if _reality_panel != null:
+		_reality_panel.set_anchors_preset(Control.PRESET_BOTTOM_WIDE)
+		_reality_panel.offset_left = puzzle_left
+		_reality_panel.offset_top = -326.0 if compact else -214.0
+		_reality_panel.offset_right = -right_margin
+		_reality_panel.offset_bottom = -24.0
+	if _thought_word_layer != null:
+		_thought_word_layer.set_anchors_preset(Control.PRESET_TOP_WIDE)
+		_thought_word_layer.offset_left = puzzle_left
+		_thought_word_layer.offset_top = 286.0 if compact else 344.0
+		_thought_word_layer.offset_right = -right_margin
+		_thought_word_layer.offset_bottom = 386.0 if compact else 584.0
+	if _npc_chat_bubble != null:
+		var bubble_width := minf(430.0, maxf(280.0, viewport_size.x - safe_left - right_margin - 12.0))
+		_npc_chat_bubble.set_anchors_preset(Control.PRESET_TOP_RIGHT)
+		_npc_chat_bubble.offset_left = -bubble_width - right_margin
+		_npc_chat_bubble.offset_top = 112.0
+		_npc_chat_bubble.offset_right = -right_margin
+		_npc_chat_bubble.offset_bottom = 270.0
+
+
+func _apply_responsive_layouts_if_needed(force: bool = false) -> void:
+	var viewport_size := _viewport_size()
+	if not force and viewport_size == _last_responsive_layout_size:
+		return
+	_last_responsive_layout_size = viewport_size
+	if _phone_panel != null and game != null:
+		_apply_phone_popup_layout(game.view_state == "phone_down")
+	if _meme_bank_window != null:
+		var show_meme_bank := _should_show_meme_bank()
+		var desired_bank_layout := "open" if _meme_bank_open else ("collapsed" if show_meme_bank else "peek")
+		_meme_bank_layout_mode = desired_bank_layout
+		_apply_meme_bank_popup_layout(desired_bank_layout)
+	_apply_reality_layout()
 
 
 func _render() -> void:
@@ -1989,6 +2058,9 @@ func _render_bank() -> void:
 func _render_reality() -> void:
 	_clear(_reality_tile_row)
 	_clear(_reality_slot_box)
+	var compact_reality := _viewport_size().x < 760.0
+	if _reality_slot_box != null:
+		_reality_slot_box.columns = 2 if compact_reality else 4
 
 	var plan := _day_plan()
 	if _npc_chat_label != null:
@@ -2008,7 +2080,7 @@ func _render_reality() -> void:
 	for index in maxi(4, game.legacy_rules.size() + 3):
 		var slot_id := "slot_%d" % index
 		var drop = DropButtonScript.new()
-		drop.custom_minimum_size = Vector2(132, 60)
+		drop.custom_minimum_size = Vector2(88, 54) if compact_reality else Vector2(132, 60)
 		drop.text = "%d\n%s" % [index + 1, _reality_slot_text(slot_id)]
 		drop.configure_drop_target("reality", slot_id)
 		drop.dropped.connect(_on_reality_tile_dropped)

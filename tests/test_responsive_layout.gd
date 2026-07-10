@@ -72,6 +72,34 @@ func _run() -> void:
 	_assert_true(phone_content != null and phone_content.visible, "small-view phone home should expose app icons")
 	if phone_social_icon != null:
 		_assert_true(_inside_rect(phone_social_icon, viewport_rect), "small-view phone app icons should stay reachable")
+	if game_root.has_method("set_view_state"):
+		game_root.set_view_state("npc_up")
+	await process_frame
+	var npc_bubble := _find_node_by_name(game_root, "NPCChatBubble") as PanelContainer
+	var phone_tab := _find_node_by_name(game_root, "PhoneTab") as Button
+	_assert_true(npc_bubble != null and npc_bubble.visible, "small-view NPC mode should show the NPC chat bubble")
+	if npc_bubble != null:
+		_assert_true(_inside_rect(npc_bubble, viewport_rect), "small-view NPC chat bubble should stay inside the viewport")
+	if game_root.has_method("begin_reality_player_turn"):
+		game_root.begin_reality_player_turn()
+	await process_frame
+	var dim_overlay := _find_node_by_name(game_root, "RealityDimOverlay") as ColorRect
+	var player_portrait := _find_node_by_name(game_root, "PlayerPortrait") as Control
+	var thought_layer := _find_node_by_name(game_root, "ThoughtWordLayer") as Control
+	var puzzle_frame := _find_node_by_name(game_root, "LanguagePuzzleFrame") as PanelContainer
+	_assert_true(dim_overlay != null and dim_overlay.visible, "small-view player turn should show the dim overlay")
+	_assert_true(player_portrait != null and player_portrait.visible, "small-view player turn should show the player portrait")
+	_assert_true(thought_layer != null and thought_layer.visible, "small-view player turn should show thought words")
+	_assert_true(puzzle_frame != null and puzzle_frame.visible, "small-view player turn should show the language puzzle")
+	for control in [player_portrait, thought_layer, puzzle_frame, phone_tab]:
+		if control != null and control.visible:
+			_assert_true(_inside_rect(control, viewport_rect), "small-view reality control should stay inside the viewport: %s" % control.name)
+	if hud != null and player_portrait != null:
+		_assert_true(player_portrait.get_global_rect().position.x >= hud.get_global_rect().end.x + 8.0, "small-view player portrait should not cover the HUD rail")
+	if player_portrait != null and puzzle_frame != null:
+		_assert_true(not player_portrait.get_global_rect().intersects(puzzle_frame.get_global_rect()), "small-view player portrait should not overlap the language puzzle")
+	if player_portrait != null and thought_layer != null:
+		_assert_true(not player_portrait.get_global_rect().intersects(thought_layer.get_global_rect()), "small-view player portrait should not overlap thought words")
 	game_root.queue_free()
 
 

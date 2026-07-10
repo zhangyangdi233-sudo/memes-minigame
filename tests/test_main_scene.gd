@@ -980,8 +980,10 @@ func _run() -> void:
 			_assert_true(player_portrait.z_index > dim_overlay.z_index, "player portrait should remain bright above the dim overlay")
 			if international_hud != null:
 				_assert_true(player_portrait.offset_left >= international_hud.offset_right + 48.0, "player portrait should keep a clear safety gap from the HUD rail and today's actions")
+			_assert_true(not _controls_overlap(player_portrait, puzzle_frame), "player portrait should not overlap the language puzzle frame")
 			_assert_true(thought_layer.visible, "player composing phase should show thought words")
 			_assert_true(thought_layer.z_index > dim_overlay.z_index, "thought words should remain bright above the dim overlay")
+			_assert_true(not _controls_overlap(player_portrait, thought_layer), "player portrait should not overlap floating thought words")
 			_assert_true(puzzle_frame.visible, "player composing phase should show the language puzzle frame")
 			_assert_true(puzzle_frame.z_index > dim_overlay.z_index, "language puzzle frame should remain bright above the dim overlay")
 			confirm_reality_button = _find_node_by_text(root, "尽量正常地说出口") as Button
