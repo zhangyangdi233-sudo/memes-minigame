@@ -1810,9 +1810,18 @@ func _on_social_feed_scroll_gui_input(event: InputEvent, feed_scroll: ScrollCont
 		elif event.button_index == MOUSE_BUTTON_WHEEL_UP:
 			direction = -1
 		if direction != 0:
-			var max_scroll := int(feed_scroll.get_v_scroll_bar().max_value)
-			feed_scroll.scroll_vertical = clampi(feed_scroll.scroll_vertical + direction * SOCIAL_FEED_WHEEL_STEP, 0, max_scroll)
+			_scroll_social_feed(feed_scroll, direction * SOCIAL_FEED_WHEEL_STEP)
 			feed_scroll.accept_event()
+	elif event is InputEventPanGesture:
+		var vertical_delta := int(round((event as InputEventPanGesture).delta.y * float(SOCIAL_FEED_WHEEL_STEP)))
+		if vertical_delta != 0:
+			_scroll_social_feed(feed_scroll, vertical_delta)
+			feed_scroll.accept_event()
+
+
+func _scroll_social_feed(feed_scroll: ScrollContainer, delta: int) -> void:
+	var max_scroll := int(feed_scroll.get_v_scroll_bar().max_value)
+	feed_scroll.scroll_vertical = clampi(feed_scroll.scroll_vertical + delta, 0, max_scroll)
 
 
 func _render_shop_app() -> void:

@@ -598,6 +598,13 @@ func _run() -> void:
 			social_feed_scroll.scroll_vertical = 0
 			root._on_social_feed_scroll_gui_input(wheel_event, social_feed_scroll)
 			_assert_true(social_feed_scroll.scroll_vertical <= 2, "one wheel notch should move the masonry feed only a small amount")
+			var pan_event := InputEventPanGesture.new()
+			pan_event.delta = Vector2(0, 1)
+			var actions_before_pan: int = root.game.actions_remaining
+			social_feed_scroll.scroll_vertical = 0
+			root._on_social_feed_scroll_gui_input(pan_event, social_feed_scroll)
+			_assert_true(social_feed_scroll.scroll_vertical <= 2, "one pan gesture unit should use the same slow phone-feed step")
+			_assert_eq(root.game.actions_remaining, actions_before_pan, "touchpad-style social feed browsing should not spend an action")
 			if social_feed_masonry != null:
 				_assert_eq(social_feed_masonry.get_child_count(), 2, "mobile social feed should keep a two-column discovery layout")
 		if social_post_card != null and social_post_card_1 != null:
