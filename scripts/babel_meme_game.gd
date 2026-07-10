@@ -39,83 +39,115 @@ const SOCIAL_POSTER_COLUMNS := 4
 const SOCIAL_POSTER_ROWS := 3
 const SOCIAL_POSTER_COUNT := SOCIAL_POSTER_COLUMNS * SOCIAL_POSTER_ROWS
 const SOCIAL_FEED_WHEEL_STEP := 2
-const SOCIAL_HOME_CAPTIONS := [
-	"末班电梯多了一层",
-	"凌晨三点有人按门铃",
-	"最后一班车没有终点",
-	"监控里我晚到一分钟",
-	"无信号时收到自己来电",
-	"楼道声控灯跟着我走",
-	"地图删掉了这条小路",
-	"旧群聊每天多一个人",
-	"便利店店员没有影子",
-	"照片里窗外多了一层",
-	"回家后门牌变成空白",
-	"电梯镜子比我先眨眼",
-	"楼上空房每天拖椅子",
-	"停电后广播还在报站",
-	"小区群里有人发未来",
-	"废站台昨晚重新亮灯",
-	"门禁记录显示我没回家",
-	"凌晨外卖写着不要开门",
-	"同一张票刷出两个名字",
-	"失物招领里有我的手机",
-	"不存在的楼层正在施工",
-	"下雨时路牌会换方向",
-	"我在旧帖里看见今天",
-	"塔下每晚少一个窗口",
-]
-const SOCIAL_DETAIL_TEXTS := [
-	"实拍：末班电梯停在不存在的十三层。",
-	"求证：凌晨三点，楼道监控会少一帧。",
-	"旧帖：最后一班车从来没有终点站。",
-	"监控里的人，比我早一分钟回到家。",
-	"无信号时，手机收到我的来电。",
-	"楼道灯一盏盏亮，身后却没有人。",
-	"地图更新后，那条回家小路消失了。",
-	"退了三年的群，每晚仍多一个成员。",
-	"便利店整夜开着，店员却没有影子。",
-	"同一扇窗，照片里比现实多一层。",
-	"门牌一到午夜，就会变成空白。",
-	"别看镜子，它总比你先眨一次眼。",
-	"楼上没人住，凌晨却总在拖椅子。",
-	"停电以后，废站广播仍准时报站。",
-	"小区群有人发来明天的失踪通知。",
-	"封了十年的站台，昨晚重新亮灯。",
-	"门禁说我没回来，可我一直在屋里。",
-	"外卖备注只有一句：听见也别开门。",
-	"同一张旧车票，刷出了两个名字。",
-	"失物招领照片里，是我正在用的手机。",
-	"施工公告写着一层不存在的楼层。",
-	"每次下雨，路牌都会指向另一边。",
-	"十年前的旧帖，拍到了今天的我。",
-	"塔下每到午夜，就少一扇亮着的窗。",
-]
-const SOCIAL_DETAIL_HANDLES := [
-	"夜路相册",
-	"塔下便利店",
-	"无信号通勤",
-	"空房间before",
-	"绿色路线图",
-	"晚班小票",
-	"旧词穿搭",
-	"错字路牌",
-	"草稿箱便当",
-	"黑屏排版课",
-	"失焦散步",
-	"塔顶空号",
-	"早八路人",
-	"口袋库存",
-	"夜市灯箱",
-	"桌面清空",
-	"雨天样本",
-	"静音衣柜",
-	"半份便当",
-	"红灯存档",
-	"电梯空格",
-	"卧室低电量",
-	"花坛噪点",
-	"周末别解释",
+const SOCIAL_POST_CARDS := [
+	{
+		"id": "floor_13", "poster_cell": 0, "caption": "不存在的楼层正在施工", "handle": "塔下施工档案",
+		"text": "实拍：末班电梯停在不存在的十三层。", "tags": ["巴别塔", "空位"], "rarity": 2, "passive": {"id": "floor_draft", "label": "空层底稿", "description": "传播基础 +4", "effect": "base_bonus", "value": 4.0},
+		"tokens": [
+			{"id": "floor", "text": "不存在的十三层", "tags": ["巴别塔", "空位"], "rarity": 2},
+			{"id": "last_lift", "text": "末班电梯", "tags": ["日常", "巴别塔"], "rarity": 1},
+			{"id": "still_building", "text": "还在施工", "tags": ["刷新", "追问"], "rarity": 2},
+		],
+	},
+	{
+		"id": "self_call", "poster_cell": 1, "caption": "无信号时收到自己来电", "handle": "无信号通勤",
+		"text": "求证：断网后，我收到自己发来的哈吉米。", "tags": ["哈吉米", "刷新", "追问"], "rarity": 3, "passive": {"id": "callback_resonance", "label": "回拨共鸣", "description": "每个命中风向额外 +0.10", "effect": "synergy_step", "value": 0.10},
+		"tokens": [
+			{"id": "no_signal", "text": "无信号", "tags": ["沉默", "空位"], "rarity": 1},
+			{"id": "self_call", "text": "自己发来的", "tags": ["追问", "反问"], "rarity": 2},
+			{"id": "hajimi", "text": "哈吉米", "tags": ["哈吉米", "刷新"], "rarity": 2},
+		],
+	},
+	{
+		"id": "missing_window", "poster_cell": 2, "caption": "塔下每晚少一个窗口", "handle": "塔下夜巡",
+		"text": "记录：塔下每到午夜，就少一扇亮着的窗。", "tags": ["巴别塔", "沉默"], "rarity": 2, "passive": {"id": "blackout_dividend", "label": "熄灯增益", "description": "污染倍率额外 +0.08", "effect": "pollution_bonus", "value": 0.08},
+		"tokens": [
+			{"id": "midnight", "text": "每到午夜", "tags": ["日常", "刷新"], "rarity": 1},
+			{"id": "one_less", "text": "少一扇窗", "tags": ["沉默", "空位"], "rarity": 2},
+			{"id": "under_tower", "text": "塔下", "tags": ["巴别塔", "信徒"], "rarity": 1},
+		],
+	},
+	{
+		"id": "extra_moon", "poster_cell": 3, "caption": "照片里月亮多了一颗", "handle": "夜空误差簿",
+		"text": "对照：昨晚的照片里，月亮比现实多一颗。", "tags": ["信徒", "圣歌", "追问"], "rarity": 2, "passive": {"id": "moon_buffer", "label": "月相缓冲", "description": "复读衰减减轻 0.12", "effect": "repeat_relief", "value": 0.12},
+		"tokens": [
+			{"id": "extra_moon", "text": "多一颗月亮", "tags": ["圣歌", "信徒"], "rarity": 2},
+			{"id": "than_reality", "text": "比现实更多", "tags": ["追问", "反问"], "rarity": 2},
+			{"id": "last_night", "text": "昨晚的照片", "tags": ["日常"], "rarity": 1},
+		],
+	},
+	{
+		"id": "last_bus", "poster_cell": 4, "caption": "最后一班车没有终点", "handle": "末班路线图",
+		"text": "旧帖：最后一班车从来没有终点站。", "tags": ["日常", "空位"], "rarity": 2, "passive": {"id": "last_bus_draft", "label": "末班底稿", "description": "传播基础 +5", "effect": "base_bonus", "value": 5.0},
+		"tokens": [
+			{"id": "last_bus", "text": "最后一班车", "tags": ["日常"], "rarity": 1},
+			{"id": "no_terminal", "text": "没有终点", "tags": ["空位", "沉默"], "rarity": 2},
+			{"id": "old_post", "text": "旧帖", "tags": ["刷新", "哈吉米"], "rarity": 1},
+		],
+	},
+	{
+		"id": "blackout_broadcast", "poster_cell": 5, "caption": "停电后广播还在报站", "handle": "废站收音机",
+		"text": "录音：停电以后，废站广播仍准时报站。", "tags": ["圣歌", "刷新", "沉默"], "rarity": 3, "passive": {"id": "broadcast_resonance", "label": "广播共鸣", "description": "每个命中风向额外 +0.08", "effect": "synergy_step", "value": 0.08},
+		"tokens": [
+			{"id": "blackout", "text": "停电以后", "tags": ["沉默", "空位"], "rarity": 1},
+			{"id": "broadcast", "text": "广播仍在报站", "tags": ["圣歌", "刷新"], "rarity": 2},
+			{"id": "dead_station", "text": "废站", "tags": ["巴别塔", "日常"], "rarity": 2},
+		],
+	},
+	{
+		"id": "station_lit", "poster_cell": 6, "caption": "废站台昨晚重新亮灯", "handle": "封站观察员",
+		"text": "目击：封了十年的站台，昨晚重新亮灯。", "tags": ["巴别塔", "刷新"], "rarity": 2, "passive": {"id": "restart_dividend", "label": "重启增益", "description": "污染倍率额外 +0.10", "effect": "pollution_bonus", "value": 0.10},
+		"tokens": [
+			{"id": "ten_years", "text": "封了十年", "tags": ["禁问", "沉默"], "rarity": 2},
+			{"id": "lit_again", "text": "重新亮灯", "tags": ["刷新", "巴别塔"], "rarity": 2},
+			{"id": "platform", "text": "站台", "tags": ["日常", "空位"], "rarity": 1},
+		],
+	},
+	{
+		"id": "no_shadow", "poster_cell": 7, "caption": "便利店店员没有影子", "handle": "凌晨便利店",
+		"text": "路过：店整夜开着，店员却没有影子。", "tags": ["日常", "沉默", "追问"], "rarity": 2, "passive": {"id": "shadow_buffer", "label": "无影缓冲", "description": "复读衰减减轻 0.10", "effect": "repeat_relief", "value": 0.10},
+		"tokens": [
+			{"id": "all_night", "text": "整夜开着", "tags": ["日常"], "rarity": 1},
+			{"id": "no_shadow", "text": "没有影子", "tags": ["沉默", "空位"], "rarity": 2},
+			{"id": "clerk", "text": "店员", "tags": ["追问", "反问"], "rarity": 1},
+		],
+	},
+	{
+		"id": "future_notice", "poster_cell": 8, "caption": "小区群里有人发未来", "handle": "明日群公告",
+		"text": "截图：小区群有人发来明天的失踪通知。", "tags": ["刷新", "禁问", "反问"], "rarity": 3, "passive": {"id": "tomorrow_draft", "label": "明日底稿", "description": "传播基础 +6", "effect": "base_bonus", "value": 6.0},
+		"tokens": [
+			{"id": "tomorrow", "text": "明天的通知", "tags": ["刷新", "反问"], "rarity": 2},
+			{"id": "missing", "text": "失踪", "tags": ["禁问", "沉默"], "rarity": 3},
+			{"id": "group", "text": "小区群", "tags": ["日常"], "rarity": 1},
+		],
+	},
+	{
+		"id": "old_post_today", "poster_cell": 9, "caption": "我在旧帖里看见今天", "handle": "旧帖考古队",
+		"text": "考古：十年前的旧帖，拍到了今天的我。", "tags": ["刷新", "哈吉米", "反问"], "rarity": 3, "passive": {"id": "archive_resonance", "label": "旧帖共鸣", "description": "每个命中风向额外 +0.12", "effect": "synergy_step", "value": 0.12},
+		"tokens": [
+			{"id": "ten_year_post", "text": "十年前的旧帖", "tags": ["刷新", "哈吉米"], "rarity": 2},
+			{"id": "today_me", "text": "今天的我", "tags": ["日常", "追问"], "rarity": 2},
+			{"id": "archaeology", "text": "考古", "tags": ["信徒", "反问"], "rarity": 1},
+		],
+	},
+	{
+		"id": "deleted_road", "poster_cell": 10, "caption": "地图删掉了这条小路", "handle": "绿色路线图",
+		"text": "更新：地图删掉了我每天回家的那条路。", "tags": ["空位", "日常", "刷新"], "rarity": 2, "passive": {"id": "lost_road_dividend", "label": "迷路增益", "description": "污染倍率额外 +0.08", "effect": "pollution_bonus", "value": 0.08},
+		"tokens": [
+			{"id": "deleted", "text": "地图删掉了", "tags": ["刷新", "空位"], "rarity": 2},
+			{"id": "way_home", "text": "回家的路", "tags": ["日常"], "rarity": 1},
+			{"id": "this_road", "text": "这条小路", "tags": ["追问", "空位"], "rarity": 1},
+		],
+	},
+	{
+		"id": "access_record", "poster_cell": 11, "caption": "门禁记录显示我没回家", "handle": "门禁空号",
+		"text": "记录：门禁说我没回来，可我一直在屋里。", "tags": ["禁问", "追问", "日常"], "rarity": 2, "passive": {"id": "access_buffer", "label": "门禁缓冲", "description": "复读衰减减轻 0.12", "effect": "repeat_relief", "value": 0.12},
+		"tokens": [
+			{"id": "not_home", "text": "我没回来", "tags": ["禁问", "追问"], "rarity": 2},
+			{"id": "inside", "text": "一直在屋里", "tags": ["日常", "反问"], "rarity": 1},
+			{"id": "access", "text": "门禁记录", "tags": ["巴别塔", "刷新"], "rarity": 1},
+		],
+	},
 ]
 const REALITY_DIM_ALPHA := 0.24
 
@@ -661,6 +693,7 @@ func _build_ui() -> void:
 	_phone_down_backdrop_image.stretch_mode = TextureRect.STRETCH_KEEP_ASPECT_COVERED
 	_phone_down_backdrop_image.mouse_filter = Control.MOUSE_FILTER_IGNORE
 	_phone_down_backdrop_image.set_anchors_preset(Control.PRESET_FULL_RECT)
+	_phone_down_backdrop_image.set_meta("walking_bob_amplitude", 2.4)
 	_phone_down_backdrop_image.z_index = 1
 	_ui_root.add_child(_phone_down_backdrop_image)
 	_hand_phone_image = null
@@ -773,7 +806,7 @@ func _build_ui() -> void:
 	_view_toggle_button.pressed.connect(_toggle_view_state)
 	_ui_root.add_child(_view_toggle_button)
 
-	_build_app_window("social", "社交媒体 App", "SocialAppWindow", -514.0, 20.0, -24.0, 880.0)
+	_build_app_window("social", "社交媒体 App", "SocialAppWindow", -760.0, 20.0, -270.0, 880.0)
 	_build_app_window("babel", "巴别塔 App", "BabelAppWindow", -1032.0, 96.0, -592.0, 676.0)
 	_build_app_window("shop", "情绪槽商店", "ShopAppWindow", -1000.0, 124.0, -560.0, 704.0)
 	_build_app_window("notebook", "笔记本 App", "NotebookAppWindow", -968.0, 152.0, -528.0, 732.0)
@@ -1491,8 +1524,9 @@ func _render_babel_app() -> void:
 			var reward: Dictionary = reward_choices[index]
 			var choice := Button.new()
 			choice.name = "AscentRewardChoice%d" % index
-			choice.text = "%s\n%s" % [str(reward.get("label", "永久修正")), str(reward.get("description", ""))]
-			choice.custom_minimum_size.y = 72
+			choice.text = "0%d  /  %s\n%s" % [index + 1, str(reward.get("label", "永久修正")), str(reward.get("description", ""))]
+			choice.set_meta("ascent_reward_card", true)
+			choice.custom_minimum_size.y = 84
 			choice.size_flags_horizontal = Control.SIZE_EXPAND_FILL
 			choice.alignment = HORIZONTAL_ALIGNMENT_LEFT
 			choice.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
@@ -1575,9 +1609,9 @@ func _render_social_app() -> void:
 	var channel_tabs := HBoxContainer.new()
 	channel_tabs.name = "SocialChannelTabs"
 	channel_tabs.custom_minimum_size.y = 48
-	channel_tabs.add_theme_constant_override("separation", 6)
+	channel_tabs.add_theme_constant_override("separation", 2)
 	phone_box.add_child(channel_tabs)
-	for tab_text in ["发现", "塔下"]:
+	for tab_text in ["关注", "发现", "塔下", "附近"]:
 		var tab_item := VBoxContainer.new()
 		tab_item.name = "SocialChannelTabItem%s" % tab_text
 		tab_item.size_flags_horizontal = Control.SIZE_EXPAND_FILL
@@ -1587,7 +1621,7 @@ func _render_social_app() -> void:
 		tab.name = "SocialChannelTab%s" % tab_text
 		tab.text = tab_text
 		tab.set_meta("flat_phone_button", true)
-		tab.custom_minimum_size = Vector2(132, 48)
+		tab.custom_minimum_size = Vector2(88, 48)
 		tab.size_flags_horizontal = Control.SIZE_EXPAND_FILL
 		tab.pressed.connect(_on_social_channel_pressed.bind(tab_text))
 		tab_item.add_child(tab)
@@ -1653,8 +1687,7 @@ func _render_social_home_page(parent: VBoxContainer) -> void:
 		column.add_theme_constant_override("separation", 10)
 		masonry.add_child(column)
 		columns.append(column)
-	var feed: Array = _day_plan()["feed"]
-	var card_count: int = maxi(6, feed.size() * 4)
+	var card_count: int = SOCIAL_POST_CARDS.size()
 	for post_index in card_count:
 		var post := _social_post_for_index(post_index)
 		var card_panel := _panel()
@@ -1699,9 +1732,10 @@ func _render_social_card_poster(parent: VBoxContainer, post_index: int, post: Di
 
 	var poster_texture := TextureRect.new()
 	poster_texture.name = "SocialPostTexture%d" % post_index
-	poster_texture.texture = _social_poster_texture(post_index)
+	var poster_cell := int(post.get("poster_cell", post_index))
+	poster_texture.texture = _social_poster_texture(poster_cell)
 	poster_texture.set_meta("poster_sheet_path", SOCIAL_POSTER_SHEET_PATH)
-	poster_texture.set_meta("poster_sheet_cell", post_index % SOCIAL_POSTER_COUNT)
+	poster_texture.set_meta("poster_sheet_cell", poster_cell % SOCIAL_POSTER_COUNT)
 	poster_texture.custom_minimum_size = Vector2(0, poster.custom_minimum_size.y)
 	poster_texture.size_flags_horizontal = Control.SIZE_EXPAND_FILL
 	poster_texture.size_flags_vertical = Control.SIZE_EXPAND_FILL
@@ -1732,8 +1766,8 @@ func _social_fragment(post: Dictionary) -> String:
 	return text.substr(0, mini(12, text.length()))
 
 
-func _social_caption(_post: Dictionary, post_index: int) -> String:
-	return str(SOCIAL_HOME_CAPTIONS[post_index % SOCIAL_HOME_CAPTIONS.size()]).substr(0, 12)
+func _social_caption(post: Dictionary, _post_index: int) -> String:
+	return str(post.get("caption", "未命名信号")).substr(0, 12)
 
 
 func _render_social_detail_page(parent: VBoxContainer) -> void:
@@ -1776,9 +1810,10 @@ func _render_social_detail_page(parent: VBoxContainer) -> void:
 	detail_box.add_child(media)
 	var media_texture := TextureRect.new()
 	media_texture.name = "SocialDetailPostTexture"
-	media_texture.texture = _social_poster_texture(_social_detail_post_index)
+	var poster_cell := int(post.get("poster_cell", _social_detail_post_index))
+	media_texture.texture = _social_poster_texture(poster_cell)
 	media_texture.set_meta("poster_sheet_path", SOCIAL_POSTER_SHEET_PATH)
-	media_texture.set_meta("poster_sheet_cell", _social_detail_post_index % SOCIAL_POSTER_COUNT)
+	media_texture.set_meta("poster_sheet_cell", poster_cell % SOCIAL_POSTER_COUNT)
 	media_texture.custom_minimum_size = Vector2(300, 274)
 	media_texture.size_flags_horizontal = Control.SIZE_EXPAND_FILL
 	media_texture.size_flags_vertical = Control.SIZE_EXPAND_FILL
@@ -1789,6 +1824,12 @@ func _render_social_detail_page(parent: VBoxContainer) -> void:
 	post_text.set_meta("on_dark", true)
 	post_text.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
 	detail_box.add_child(post_text)
+	var passive: Dictionary = post.get("passive", {})
+	var signal_profile := _label("信号偏向 / %s · %s   稀有度 %d" % [str(passive.get("label", "无")), str(passive.get("description", "")), int(post.get("rarity", 1))], 13, _theme_color("muted"))
+	signal_profile.name = "SocialCardSignalProfile"
+	signal_profile.set_meta("on_dark", true)
+	signal_profile.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
+	detail_box.add_child(signal_profile)
 	var tokens := GridContainer.new()
 	tokens.columns = 2
 	tokens.add_theme_constant_override("h_separation", 6)
@@ -2024,9 +2065,13 @@ func _render_notebook_app() -> void:
 	token_row.add_theme_constant_override("v_separation", 6)
 	for token in game.notebook_tokens:
 		var btn_token = DraggableButtonScript.new()
+		btn_token.name = "NotebookToken_%s" % str(token.get("id", "token"))
+		var source_passive: Dictionary = token.get("source_passive", {})
 		btn_token.text = str(token["text"])
+		if not source_passive.is_empty():
+			btn_token.text = "%s\n%s" % [btn_token.text, str(source_passive.get("label", "来源被动"))]
 		btn_token.clip_text = true
-		btn_token.custom_minimum_size = Vector2(96, 44)
+		btn_token.custom_minimum_size = Vector2(112, 56 if not source_passive.is_empty() else 44)
 		btn_token.set_drag_payload("token", str(token["id"]), str(token["text"]))
 		btn_token.pressed.connect(_on_note_token_pressed.bind(str(token["id"])))
 		token_row.add_child(btn_token)
@@ -2044,6 +2089,15 @@ func _render_notebook_app() -> void:
 		btn_slot.dropped.connect(_on_slot_token_dropped)
 		btn_slot.pressed.connect(_on_slot_pressed.bind(slot_id))
 		notebook_content.add_child(btn_slot)
+	var draft_passives: Array = game.get_draft_source_passives()
+	if not draft_passives.is_empty():
+		var passive_labels: Array[String] = []
+		for passive in draft_passives:
+			passive_labels.append("%s · %s" % [str(passive.get("label", "来源被动")), str(passive.get("description", ""))])
+		var passive_strip := _label("来源被动 / %s" % "  +  ".join(passive_labels), 14, _theme_color("accent"))
+		passive_strip.name = "NotebookSourcePassiveStrip"
+		passive_strip.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
+		notebook_content.add_child(passive_strip)
 
 	notebook_content.add_child(_label("情绪构筑  %d/%d" % [game.equipped_emotion_slots.size(), MemeGameStateScript.MAX_EQUIPPED_EMOTION_SLOTS], 18, _theme_color("accent")))
 	notebook_content.add_child(_label("只有装备中的情绪会进入合成和现实词块。", 14, _theme_color("accent")))
@@ -2116,11 +2170,14 @@ func _publish_breakdown_text(breakdown: Dictionary, is_preview: bool) -> String:
 	var repeat_note := "\n重复衰减  ×%.2f" % float(breakdown.get("repeat_multiplier", 1.0)) if repeated > 0 else ""
 	var active_modifiers: Array = breakdown.get("active_modifier_labels", [])
 	var modifier_note := "\n永久许可  %s" % " / ".join(active_modifiers) if not active_modifiers.is_empty() else ""
-	return "传播基础  %d\n共鸣倍率  ×%.2f%s%s\n%s  %d" % [
+	var source_passives: Array = breakdown.get("active_source_passive_labels", [])
+	var source_note := "\n来源被动  %s" % " / ".join(source_passives) if not source_passives.is_empty() else ""
+	return "传播基础  %d\n共鸣倍率  ×%.2f%s%s%s\n%s  %d" % [
 		int(breakdown.get("base_value", 0)),
 		float(breakdown.get("total_multiplier", 1.0)),
 		repeat_note,
 		modifier_note,
+		source_note,
 		prefix,
 		int(breakdown.get("score", 0)),
 	]
@@ -2281,12 +2338,18 @@ func _animate_world(delta: float) -> void:
 		_phone_rig.rotation_degrees = Vector3(68.0, 0.0, 0.0)
 	var target_alpha := 1.0 if game.view_state == "phone_down" else 0.0
 	_phone_art_alpha = lerpf(_phone_art_alpha, target_alpha, minf(1.0, delta * 3.4))
+	_road_scroll += delta * 1.4
 	if _phone_down_backdrop_image != null:
 		_phone_down_backdrop_image.visible = game.view_state == "phone_down" or _phone_art_alpha > 0.03
 		_phone_down_backdrop_image.modulate.a = _phone_art_alpha
-		_phone_down_backdrop_image.position = Vector2(0.0, lerpf(70.0, 0.0, _phone_art_alpha))
+		var viewport_size := _viewport_size()
+		var bob := sin(_road_scroll * 2.2) * 2.4
+		var sway := sin(_road_scroll * 1.1) * 1.1
+		_phone_down_backdrop_image.pivot_offset = viewport_size * 0.5
+		_phone_down_backdrop_image.scale = Vector2(1.012, 1.012)
+		var settled_position := Vector2(-viewport_size.x * 0.006 + sway, -viewport_size.y * 0.006 + bob)
+		_phone_down_backdrop_image.position = Vector2(settled_position.x, lerpf(70.0, settled_position.y, _phone_art_alpha))
 	if _road != null:
-		_road_scroll += delta * 1.4
 		for index in _road.get_child_count():
 			var tile := _road.get_child(index) as Node3D
 			tile.position.z = -2.0 - index * 3.8 + fmod(_road_scroll, 3.8)
@@ -2379,12 +2442,20 @@ func _social_poster_texture(post_index: int) -> Texture2D:
 
 
 func _social_post_for_index(post_index: int) -> Dictionary:
-	var feed: Array = _day_plan()["feed"]
-	if feed.is_empty():
+	if SOCIAL_POST_CARDS.is_empty():
 		return {}
-	var post: Dictionary = (feed[post_index % feed.size()] as Dictionary).duplicate(true)
-	post["text"] = SOCIAL_DETAIL_TEXTS[post_index % SOCIAL_DETAIL_TEXTS.size()]
-	post["handle"] = SOCIAL_DETAIL_HANDLES[post_index % SOCIAL_DETAIL_HANDLES.size()]
+	var day_offset := 0 if game == null else maxi(0, game.day - 1) * 3
+	var card_index := posmod(post_index + day_offset, SOCIAL_POST_CARDS.size())
+	var post: Dictionary = (SOCIAL_POST_CARDS[card_index] as Dictionary).duplicate(true)
+	post["card_index"] = card_index
+	var source_passive: Dictionary = post.get("passive", {})
+	var prepared_tokens: Array = []
+	for token_data in post.get("tokens", []):
+		var token: Dictionary = (token_data as Dictionary).duplicate(true)
+		token["source_card_id"] = str(post.get("id", ""))
+		token["source_passive"] = source_passive.duplicate(true)
+		prepared_tokens.append(token)
+	post["tokens"] = prepared_tokens
 	return post
 
 
@@ -2635,6 +2706,7 @@ func _clamp_window_to_viewport(window: Control) -> void:
 
 func _build_player_portrait() -> Control:
 	var portrait := PanelContainer.new()
+	portrait.set_meta("portrait_panel", true)
 	portrait.set_anchors_preset(Control.PRESET_BOTTOM_LEFT)
 	portrait.offset_left = 224
 	portrait.offset_top = -300
@@ -2646,6 +2718,13 @@ func _build_player_portrait() -> Control:
 	image.expand_mode = TextureRect.EXPAND_IGNORE_SIZE
 	image.stretch_mode = TextureRect.STRETCH_KEEP_ASPECT_CENTERED
 	image.custom_minimum_size = Vector2(182, 248)
+	var portrait_shader := Shader.new()
+	portrait_shader.code = "shader_type canvas_item;\nuniform vec4 ink_color : source_color;\nuniform vec4 figure_color : source_color;\nvoid fragment() {\n\tvec4 source = texture(TEXTURE, UV);\n\tfloat green_key = smoothstep(0.08, 0.34, source.g - max(source.r, source.b));\n\tvec3 mapped = mix(ink_color.rgb, figure_color.rgb, green_key);\n\tCOLOR = vec4(mapped, source.a);\n}"
+	var portrait_material := ShaderMaterial.new()
+	portrait_material.shader = portrait_shader
+	portrait_material.set_shader_parameter("ink_color", _theme_color("ink"))
+	portrait_material.set_shader_parameter("figure_color", _theme_color("muted"))
+	image.material = portrait_material
 	portrait.add_child(image)
 	return portrait
 
@@ -2674,6 +2753,12 @@ func _apply_world_theme() -> void:
 			var mat := npc_body.material_override as StandardMaterial3D
 			mat.albedo_color = Color.WHITE if mat.albedo_texture != null else _theme_color("surface")
 			mat.emission = _theme_color("muted")
+	if _player_portrait != null:
+		var portrait_image := _player_portrait.get_node_or_null("PlayerPortraitImage") as TextureRect
+		if portrait_image != null and portrait_image.material is ShaderMaterial:
+			var portrait_material := portrait_image.material as ShaderMaterial
+			portrait_material.set_shader_parameter("ink_color", _theme_color("ink"))
+			portrait_material.set_shader_parameter("figure_color", _theme_color("muted"))
 
 
 func _apply_ui_theme(node: Node = null) -> void:
@@ -2695,6 +2780,13 @@ func _apply_ui_theme(node: Node = null) -> void:
 			button.add_theme_stylebox_override("normal", empty)
 			button.add_theme_stylebox_override("hover", _style(Color(_theme_color("muted"), 0.18), Color(_theme_color("muted"), 0.20)))
 			button.add_theme_stylebox_override("pressed", _style(Color(_theme_color("muted"), 0.32), Color(_theme_color("muted"), 0.32)))
+		elif button.has_meta("ascent_reward_card"):
+			button.add_theme_color_override("font_color", _theme_color("surface"))
+			button.add_theme_color_override("font_hover_color", _theme_color("ink"))
+			button.add_theme_color_override("font_pressed_color", _theme_color("ink"))
+			button.add_theme_stylebox_override("normal", _reward_card_style(_theme_color("ink"), _theme_color("muted")))
+			button.add_theme_stylebox_override("hover", _reward_card_style(_theme_color("muted"), _theme_color("ink")))
+			button.add_theme_stylebox_override("pressed", _reward_card_style(_theme_color("accent"), _theme_color("ink")))
 		elif button.has_meta("meme_bank_tab") and bool(button.get_meta("meme_bank_peek", false)):
 			button.add_theme_color_override("font_color", _theme_color("muted"))
 			button.add_theme_color_override("font_hover_color", _theme_color("surface"))
@@ -2729,6 +2821,8 @@ func _apply_ui_theme(node: Node = null) -> void:
 	elif node is PanelContainer:
 		if node.has_meta("phone_shell"):
 			(node as PanelContainer).add_theme_stylebox_override("panel", _phone_shell_style())
+		elif node.has_meta("portrait_panel"):
+			(node as PanelContainer).add_theme_stylebox_override("panel", _reward_card_style(_theme_color("ink"), _theme_color("muted")))
 		elif node.has_meta("phone_surface"):
 			(node as PanelContainer).add_theme_stylebox_override("panel", _phone_surface_style())
 		elif node.has_meta("social_card"):
@@ -3376,6 +3470,16 @@ func _phone_surface_style() -> StyleBoxFlat:
 	style.set_border_width_all(0)
 	style.set_corner_radius_all(16)
 	style.set_content_margin_all(10)
+	return style
+
+
+func _reward_card_style(bg: Color, border: Color) -> StyleBoxFlat:
+	var style := StyleBoxFlat.new()
+	style.bg_color = bg
+	style.border_color = border
+	style.set_border_width_all(2)
+	style.set_corner_radius_all(6)
+	style.set_content_margin_all(12)
 	return style
 
 

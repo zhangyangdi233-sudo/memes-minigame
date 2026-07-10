@@ -253,6 +253,8 @@ func pick_token(post_id: String, token: Dictionary) -> bool:
 		"tags": token.get("tags", []),
 		"rarity": int(token.get("rarity", 1)),
 		"picked_day": day,
+		"source_card_id": str(token.get("source_card_id", "")),
+		"source_passive": token.get("source_passive", {}).duplicate(true),
 	}
 	for existing in notebook_tokens:
 		if existing.get("id", "") == note["id"]:
@@ -344,6 +346,23 @@ func get_craft_slots() -> Array:
 	return slots
 
 
+func get_draft_source_passives() -> Array:
+	var result: Array = []
+	for token_id in [str(draft_slots.get("object", "")), str(draft_slots.get("saying", ""))]:
+		var passive := _find_token_source_passive(token_id)
+		if passive.is_empty():
+			continue
+		var passive_id := str(passive.get("id", ""))
+		var already_added := false
+		for existing_passive in result:
+			if str(existing_passive.get("id", "")) == passive_id:
+				already_added = true
+				break
+		if not already_added:
+			result.append(passive)
+	return result
+
+
 func place_token_in_slot(slot_id: String, token_id: String) -> bool:
 	draft_slots[slot_id] = token_id
 	return true
@@ -362,6 +381,7 @@ func confirm_craft_with_emotions() -> bool:
 	tags = _unique(tags + _find_token_tags(str(draft_slots.get("saying", ""))))
 	var pollution_bias := 0
 	var clarity_bias := 0
+	var source_passives: Array = get_draft_source_passives()
 	var emotion_parts: Array[String] = []
 	for slot_id in equipped_emotion_slots:
 		var slot: Dictionary = EMOTION_SLOTS.get(slot_id, {})
@@ -387,6 +407,7 @@ func confirm_craft_with_emotions() -> bool:
 		"pollution_bias": pollution_bias,
 		"clarity_bias": clarity_bias,
 		"emotion_count": emotion_parts.size(),
+		"source_passives": source_passives,
 		"created_day": day,
 	}
 	completed_memes.push_front(meme)
@@ -631,6 +652,13 @@ func _find_token_tags(token_id: String) -> Array:
 	return []
 
 
+func _find_token_source_passive(token_id: String) -> Dictionary:
+	for token in notebook_tokens:
+		if str(token.get("id", "")) == token_id:
+			return (token.get("source_passive", {}) as Dictionary).duplicate(true)
+	return {}
+
+
 func _current_accepted_tags() -> Array:
 	return ACCEPTED_TAG_ROTATION[(day - 1) % ACCEPTED_TAG_ROTATION.size()].duplicate()
 
@@ -653,16 +681,35 @@ func _calculate_publish_breakdown(meme: Dictionary, matching_tags: Array) -> Dic
 		if str(record.get("text", "")) == str(meme.get("text", "")):
 			repeat_count += 1
 	var tags: Array = meme.get("tags", [])
+	var source_base_bonus := 0.0
+	var source_synergy_step := 0.0
+	var source_pollution_bonus := 0.0
+	var source_repeat_relief := 0.0
+	var active_source_passive_labels: Array[String] = []
+	for passive in meme.get("source_passives", []):
+		var effect_id := str(passive.get("effect", ""))
+		var value := float(passive.get("value", 0.0))
+		match effect_id:
+			"base_bonus":
+				source_base_bonus += value
+			"synergy_step":
+				source_synergy_step += value
+			"pollution_bonus":
+				source_pollution_bonus += value
+			"repeat_relief":
+				source_repeat_relief += value
+		if effect_id != "synergy_step" or not matching_tags.is_empty():
+			active_source_passive_labels.append(str(passive.get("label", "来源被动")))
 	var empty_base_bonus := int(round(_modifier_total("empty_base"))) if ("空位" in tags or "沉默" in tags) else 0
-	var base_value := 12 + rarity * 6 + matching_tags.size() * 8 + empty_base_bonus
-	var synergy_step := 0.25 + _modifier_total("synergy_step")
+	var base_value := 12 + rarity * 6 + matching_tags.size() * 8 + empty_base_bonus + int(round(source_base_bonus))
+	var synergy_step := 0.25 + _modifier_total("synergy_step") + source_synergy_step
 	var synergy_multiplier := 1.0 + matching_tags.size() * synergy_step
-	var pollution_multiplier := 1.0 + float(pollution) / 100.0 * 0.65 + _modifier_total("pollution_bonus")
+	var pollution_multiplier := 1.0 + float(pollution) / 100.0 * 0.65 + _modifier_total("pollution_bonus") + source_pollution_bonus
 	var emotion_bonus := minf(0.60, float(maxi(0, int(meme.get("pollution_bias", 0)))) * 0.04)
 	emotion_bonus += float(maxi(0, int(meme.get("emotion_count", 0)))) * _modifier_total("emotion_step")
 	var emotion_multiplier := 1.0 + emotion_bonus
 	var effective_repeat_count := maxi(0, repeat_count - int(round(_modifier_total("repeat_grace"))))
-	var repeat_multiplier := maxf(0.28, 1.0 - effective_repeat_count * 0.18)
+	var repeat_multiplier := minf(1.0, maxf(0.28, 1.0 - effective_repeat_count * 0.18 + source_repeat_relief))
 	var total_multiplier := synergy_multiplier * pollution_multiplier * emotion_multiplier * repeat_multiplier
 	var score := maxi(1, int(round(base_value * total_multiplier)))
 	var active_modifier_labels: Array[String] = []
@@ -687,6 +734,7 @@ func _calculate_publish_breakdown(meme: Dictionary, matching_tags: Array) -> Dic
 		"effective_repeat_count": effective_repeat_count,
 		"modifier_base_bonus": empty_base_bonus,
 		"active_modifier_labels": active_modifier_labels,
+		"active_source_passive_labels": active_source_passive_labels,
 		"score": score,
 	}
 

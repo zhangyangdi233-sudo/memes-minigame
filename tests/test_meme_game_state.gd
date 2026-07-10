@@ -28,6 +28,7 @@ func _run() -> void:
 	test_ascent_offers_three_permanent_reward_choices()
 	test_ascent_reward_blocks_actions_and_cannot_be_farmed()
 	test_reward_modifier_changes_publish_scoring()
+	test_source_card_passive_follows_tokens_into_publish_scoring()
 	test_published_memes_make_legacy_rules_on_ascent()
 	test_fallback_legacy_rule_is_used_without_published_memes()
 	test_reality_dialogue_requires_all_legacy_tiles()
@@ -191,6 +192,29 @@ func test_reward_modifier_changes_publish_scoring() -> void:
 	var modified_score := int(modified_breakdown.get("score", 0))
 	_assert_true(modified_score > baseline_score, "a permanent resonance reward should increase matching publish score")
 	_assert_true("回声增幅" in modified_breakdown.get("active_modifier_labels", []), "publish breakdown should name the permanent reward that changed the score")
+
+
+func test_source_card_passive_follows_tokens_into_publish_scoring() -> void:
+	var game: RefCounted = _state_script.new()
+	game.new_run()
+	game.notebook_tokens = [
+		{
+			"id": "card-object", "text": "不存在的十三层", "tags": ["巴别塔", "空位"], "rarity": 2,
+			"source_passive": {"id": "floor_draft", "label": "空层底稿", "effect": "base_bonus", "value": 4.0},
+		},
+		{"id": "card-saying", "text": "还在施工", "tags": ["刷新"], "rarity": 1, "source_passive": {}},
+	]
+	game.place_token_in_slot("object", "card-object")
+	game.place_token_in_slot("saying", "card-saying")
+	_assert_true(game.confirm_craft_with_emotions(), "card-sourced tokens should craft normally")
+	var crafted: Dictionary = game.completed_memes[0]
+	_assert_eq(crafted.get("source_passives", []).size(), 1, "crafted meme should keep the source card passive")
+	var boosted: Dictionary = game.get_publish_breakdown(crafted)
+	var plain_meme: Dictionary = crafted.duplicate(true)
+	plain_meme["source_passives"] = []
+	var plain: Dictionary = game.get_publish_breakdown(plain_meme)
+	_assert_true(int(boosted.get("base_value", 0)) == int(plain.get("base_value", 0)) + 4, "source base passive should change the visible additive score")
+	_assert_true("空层底稿" in boosted.get("active_source_passive_labels", []), "publish breakdown should name the active source card passive")
 
 
 func test_published_memes_make_legacy_rules_on_ascent() -> void:

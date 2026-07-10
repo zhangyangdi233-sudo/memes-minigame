@@ -64,6 +64,7 @@ func _run() -> void:
 		_assert_true(root.has_method("_toggle_settings_window"), "main scene should expose settings window toggle")
 		_assert_true(root.has_method("_on_vhs_toggled"), "main scene should expose VHS toggle handler")
 		for asset_path in [
+			"res://assets/generated/ASSET_PROVENANCE.md",
 			"res://assets/generated/world/phone_down_backdrop.png",
 			"res://assets/generated/ui/player_portrait.png",
 			"res://assets/generated/ui/no_signal_icon.png",
@@ -74,6 +75,13 @@ func _run() -> void:
 			"res://assets/generated/social/poster_sheet.png",
 		]:
 			_assert_true(FileAccess.file_exists(asset_path), "generated asset should exist: %s" % asset_path)
+		for retired_asset_path in [
+			"res://assets/generated/world/road_loop_green.png",
+			"res://assets/generated/world/hand_phone_down.png",
+			"res://assets/generated/world/npc_front.png",
+			"res://assets/generated/social/poster_00.png",
+		]:
+			_assert_true(not FileAccess.file_exists(retired_asset_path), "retired generated asset should stay deleted: %s" % retired_asset_path)
 		var camera := root.get_node_or_null("Camera3D") as Camera3D
 		var road_tile := root.get_node_or_null("Road/RoadTile0") as MeshInstance3D
 		var phone_rig := root.get_node_or_null("PhoneRig") as Node3D
@@ -142,6 +150,8 @@ func _run() -> void:
 		var social_channel_tabs := _find_node_by_name(root, "SocialChannelTabs") as HBoxContainer
 		var social_channel_tab_discover := _find_node_by_name(root, "SocialChannelTab发现") as Button
 		var social_channel_tab_tower := _find_node_by_name(root, "SocialChannelTab塔下") as Button
+		var social_channel_tab_follow := _find_node_by_name(root, "SocialChannelTab关注") as Button
+		var social_channel_tab_nearby := _find_node_by_name(root, "SocialChannelTab附近") as Button
 		var social_channel_tab_underline_discover := _find_node_by_name(root, "SocialChannelTabUnderline发现") as ColorRect
 		var social_home_page := _find_node_by_name(root, "SocialHomePage") as VBoxContainer
 		var social_feed_scroll := _find_node_by_name(root, "SocialFeedScroll") as ScrollContainer
@@ -313,6 +323,8 @@ func _run() -> void:
 					social_channel_tabs = _find_node_by_name(root, "SocialChannelTabs") as HBoxContainer
 					social_channel_tab_discover = _find_node_by_name(root, "SocialChannelTab发现") as Button
 					social_channel_tab_tower = _find_node_by_name(root, "SocialChannelTab塔下") as Button
+					social_channel_tab_follow = _find_node_by_name(root, "SocialChannelTab关注") as Button
+					social_channel_tab_nearby = _find_node_by_name(root, "SocialChannelTab附近") as Button
 					social_channel_tab_underline_discover = _find_node_by_name(root, "SocialChannelTabUnderline发现") as ColorRect
 					social_home_page = _find_node_by_name(root, "SocialHomePage") as VBoxContainer
 					social_feed_scroll = _find_node_by_name(root, "SocialFeedScroll") as ScrollContainer
@@ -398,6 +410,8 @@ func _run() -> void:
 			social_channel_tabs = _find_node_by_name(root, "SocialChannelTabs") as HBoxContainer
 			social_channel_tab_discover = _find_node_by_name(root, "SocialChannelTab发现") as Button
 			social_channel_tab_tower = _find_node_by_name(root, "SocialChannelTab塔下") as Button
+			social_channel_tab_follow = _find_node_by_name(root, "SocialChannelTab关注") as Button
+			social_channel_tab_nearby = _find_node_by_name(root, "SocialChannelTab附近") as Button
 			social_channel_tab_underline_discover = _find_node_by_name(root, "SocialChannelTabUnderline发现") as ColorRect
 			social_home_page = _find_node_by_name(root, "SocialHomePage") as VBoxContainer
 			social_feed_scroll = _find_node_by_name(root, "SocialFeedScroll") as ScrollContainer
@@ -473,12 +487,14 @@ func _run() -> void:
 			_assert_true(social_channel_tabs != null, "social app should include mobile channel tabs")
 			_assert_true(social_channel_tab_discover != null, "social app should expose a Discover channel tab")
 			_assert_true(social_channel_tab_tower != null, "social app should expose a Tower channel tab")
-			_assert_true(not _has_text(root, "关注"), "social app should not restore the removed Follow channel")
-			_assert_true(not _has_text(root, "附近"), "social app should not restore the removed Nearby channel")
+			_assert_true(social_channel_tab_follow != null, "social app should restore the reference Follow channel")
+			_assert_true(social_channel_tab_nearby != null, "social app should restore the reference Nearby channel")
 			if social_channel_tab_discover != null:
 				_assert_true(social_channel_tab_discover.custom_minimum_size.y >= 44.0, "Discover tab should meet minimum touch target height")
 			if social_channel_tab_tower != null:
 				_assert_true(social_channel_tab_tower.custom_minimum_size.y >= 44.0, "Tower tab should meet minimum touch target height")
+			if social_channel_tab_follow != null and social_channel_tab_nearby != null:
+				_assert_true(social_channel_tab_follow.custom_minimum_size.y >= 44.0 and social_channel_tab_nearby.custom_minimum_size.y >= 44.0, "all four phone channels should keep comfortable touch targets")
 			_assert_true(social_channel_tab_underline_discover != null and social_channel_tab_underline_discover.visible, "Discover tab should use a reference-like active underline")
 			_assert_true(social_home_page != null, "social app should default to a home page")
 			_assert_true(social_feed_scroll != null, "social app should include an internal feed scroll area")
@@ -543,6 +559,9 @@ func _run() -> void:
 		if dim_overlay != null:
 			_assert_true(dim_overlay.material is ShaderMaterial, "reality dim overlay should cut a bright opening around the centered NPC")
 		_assert_true(player_portrait != null, "scene should expose the player portrait")
+		if player_portrait != null:
+			var player_portrait_image := _find_node_by_name(player_portrait, "PlayerPortraitImage") as TextureRect
+			_assert_true(player_portrait_image != null and player_portrait_image.material is ShaderMaterial, "player portrait should be remapped into the active five-color palette at runtime")
 		_assert_true(thought_layer != null, "scene should expose the thought word layer")
 		_assert_true(thought_flow != null, "thought words should use a wrapping flow container")
 		_assert_true(puzzle_frame != null, "scene should expose the Florence-style language puzzle frame")
@@ -594,7 +613,8 @@ func _run() -> void:
 				_assert_true(social_height >= 840.0, "social app window should use the available vertical phone space")
 				_assert_true(social_height / maxf(1.0, social_width) >= 1.70, "social app window should keep a tall mobile composition")
 				var viewport_width := float(ProjectSettings.get_setting("display/window/size/viewport_width", 1600))
-				_assert_true(viewport_width + social_app_window.offset_left >= viewport_width * 0.55, "main social phone should sit in the right half like the reference layout")
+				var social_left := viewport_width + social_app_window.offset_left
+				_assert_true(social_left >= viewport_width * 0.50 and social_left <= viewport_width * 0.60, "main social phone should occupy the central-right reference position")
 				_assert_true(current_social_feed_masonry != null and _is_descendant_of(current_social_feed_masonry, social_app_window), "social feed grid should live inside the social app window")
 		if social_bottom_nav != null and social_feed_scroll != null:
 			_assert_true(not _is_descendant_of(social_bottom_nav, social_feed_scroll), "bottom nav should not scroll away with the feed")
@@ -626,9 +646,10 @@ func _run() -> void:
 			_assert_true(str(root._social_post_for_index(0).get("handle", "")) != str(root._social_post_for_index(1).get("handle", "")), "social post handles should vary across lifestyle-note styles")
 			_assert_true(_unique_social_values(root, "text", 12) >= 10, "first twelve social detail posts should be varied")
 			_assert_true(_unique_social_values(root, "handle", 12) >= 10, "first twelve social handles should be varied")
-			_assert_true(_unique_social_values(root, "text", 24) >= 20, "first twenty-four social detail posts should feel like a varied lifestyle-note feed")
-			_assert_true(_unique_social_values(root, "handle", 24) >= 20, "first twenty-four social handles should vary across note personas")
-			_assert_true(_unique_social_captions(root, 24) >= 20, "home feed captions should vary beyond the original small pool")
+			_assert_true(_unique_social_values(root, "text", 12) == 12, "all twelve generated poster cells should map to distinct detail posts")
+			_assert_true(_unique_social_values(root, "handle", 12) == 12, "all twelve generated poster cells should map to distinct note personas")
+			_assert_true(_unique_social_captions(root, 12) == 12, "all twelve generated poster cells should expose distinct short captions")
+			_assert_true(_social_cards_have_coherent_tokens(root, 12), "each generated poster should carry its own coherent token and tag data")
 			_assert_true(str(root._social_post_for_index(0).get("text", "")).contains("："), "social detail posts should read like compact image-note captions")
 		_assert_true(_generated_posters_are_varied(), "generated social poster images should not all be identical")
 		if social_nav_home != null and social_nav_create != null and social_nav_mine != null:
@@ -690,6 +711,7 @@ func _run() -> void:
 				var feed_on_detail := _find_node_by_name(root, "SocialFeedMasonry") as HBoxContainer
 				var detail_floor := _find_node_by_name(root, "SocialDetailTowerFloor") as Label
 				var detail_media_texture := _find_node_by_name(root, "SocialDetailPostTexture") as TextureRect
+				var detail_signal_profile := _find_node_by_name(root, "SocialCardSignalProfile") as Label
 				var detail_window_after_card := _find_node_by_name(root, "SocialDetailWindow") as PanelContainer
 				_assert_true(detail_window_after_card == null, "opening a post should not show a second phone window")
 				_assert_true(detail_after_card != null, "opening a post should show a dedicated post detail page inside the main social phone")
@@ -703,6 +725,7 @@ func _run() -> void:
 				if detail_floor != null:
 					_assert_true(str(detail_floor.text).contains("塔层"), "social detail page should label tower floor")
 				_assert_true(detail_media_texture != null and detail_media_texture.texture != null, "social detail should reuse generated post artwork")
+				_assert_true(detail_signal_profile != null and str(detail_signal_profile.text).contains("信号偏向"), "social detail should expose the card's build-facing signal profile")
 				if back_from_detail != null:
 					back_from_detail.pressed.emit()
 					_assert_true(_find_node_by_name(root, "SocialHomePage") != null, "closing detail should keep the home page available")
@@ -732,7 +755,7 @@ func _run() -> void:
 			_assert_eq(root.game.actions_remaining, 5, "flashback settlement should restore next-day actions")
 			_assert_true(not flashback_overlay.visible, "flashback overlay should hide after automatic settlement")
 		root.game.notebook_tokens = [
-			{"id": "n1", "text": "哈吉米", "tags": ["哈吉米"], "rarity": 1},
+			{"id": "n1", "text": "哈吉米", "tags": ["哈吉米"], "rarity": 1, "source_passive": {"id": "callback_resonance", "label": "回拨共鸣", "description": "每个命中风向额外 +0.10", "effect": "synergy_step", "value": 0.10}},
 			{"id": "n2", "text": "空位", "tags": ["空位"], "rarity": 1},
 			{"id": "n3", "text": "塔下", "tags": ["巴别塔"], "rarity": 1},
 			{"id": "n4", "text": "无信号", "tags": ["信号"], "rarity": 1},
@@ -805,6 +828,7 @@ func _run() -> void:
 		var notebook_action_bar := _find_node_by_name(root, "NotebookCraftActionBar") as PanelContainer
 		var notebook_craft_button := _find_node_by_name(root, "NotebookCraftButton") as Button
 		var notebook_token_flow := _find_node_by_name(root, "NotebookTokenFlow") as HFlowContainer
+		var sourced_notebook_token := _find_node_by_name(root, "NotebookToken_n1") as Button
 		var anxiety_equip := _find_node_by_name(root, "EmotionEquipButton_anxiety") as Button
 		var counter_equip := _find_node_by_name(root, "EmotionEquipButton_counter") as Button
 		if notebook_app_window != null:
@@ -812,6 +836,7 @@ func _run() -> void:
 		_assert_true(notebook_scroll != null, "notebook crafting should put expandable content inside an internal scroll area")
 		_assert_true(notebook_content != null, "notebook crafting should expose a scroll content container")
 		_assert_true(notebook_token_flow != null, "notebook tokens should wrap instead of forcing horizontal overflow")
+		_assert_true(sourced_notebook_token != null and str(sourced_notebook_token.text).contains("回拨共鸣"), "notebook token should retain and display its source card passive")
 		_assert_true(notebook_action_bar != null, "notebook crafting should expose a fixed action bar")
 		_assert_true(_has_text(root, "情绪构筑  2/2"), "notebook should expose the two-slot emotion loadout count")
 		_assert_true(anxiety_equip != null and str(anxiety_equip.text) == "已装备", "an equipped emotion should be visibly marked in the notebook")
@@ -915,6 +940,8 @@ func _run() -> void:
 		root._on_slot_token_dropped({"kind": "token", "id": "n1"}, "object")
 		_assert_eq(root.game.draft_slots.get("object", ""), "n1", "dropping token should place it in a craft slot")
 		_assert_eq(root.game.actions_remaining, 5, "dropping token should not spend an action")
+		var notebook_source_passive_strip := _find_node_by_name(root, "NotebookSourcePassiveStrip") as Label
+		_assert_true(notebook_source_passive_strip != null and str(notebook_source_passive_strip.text).contains("回拨共鸣"), "notebook draft should preview active source card passives before crafting")
 		root._on_dialogue_meme_dropped({"kind": "meme", "id": "m1"}, "blank_1")
 		_assert_eq(root.game.dialogue_blanks.get("blank_1", ""), "m1", "dropping meme should place it in dialogue blank")
 		_assert_eq(root.game.actions_remaining, 5, "dropping meme should not spend an action")
@@ -953,25 +980,30 @@ func _run() -> void:
 				var hidden_home_indicator := _find_node_by_name(root, "SocialHomeIndicator") as Control
 				_assert_true(hidden_bottom_nav == null or not hidden_nav_targets.has(hidden_bottom_nav), "hidden social bottom navigation should not steer the NPC-view meme bank corner")
 				_assert_true(hidden_home_indicator == null or not hidden_nav_targets.has(hidden_home_indicator), "hidden social home indicator should not steer the NPC-view meme bank corner")
-		if hand_phone_image != null and camera != null and root.has_method("_animate_world"):
-			var alpha_before_take := hand_phone_image.modulate.a
-			var backdrop_alpha_before_take := phone_down_backdrop_image.modulate.a if phone_down_backdrop_image != null else 0.0
-			var camera_before_take := camera.rotation_degrees.x
-			root.set_view_state("phone_down")
-			root._animate_world(0.05)
-			view_toggle_button = _find_node_by_name(root, "PhoneViewToggleButton") as Button
-			if view_toggle_button != null:
-				_assert_true(str(view_toggle_button.text).contains("放下手机"), "taking the phone should restore the put-phone button copy")
-			_assert_true(hand_phone_image.visible and hand_phone_image.modulate.a > alpha_before_take, "taking the phone should fade the hand-phone artwork back in")
-			if phone_down_backdrop_image != null:
-				_assert_true(phone_down_backdrop_image.visible and phone_down_backdrop_image.modulate.a > backdrop_alpha_before_take, "taking the phone should fade the phone-down backdrop back in")
-			_assert_true(hand_phone_image.modulate.a < 1.0, "taking the phone should fade in rather than snapping instantly")
-			_assert_true(camera.rotation_degrees.x < camera_before_take, "taking the phone should start tilting the camera downward")
-			_assert_true(camera.rotation_degrees.x > -54.0, "taking the phone should animate toward the low view before reaching the final angle")
-			root._animate_world(0.4)
-			_assert_true(camera.rotation_degrees.x < -35.0, "taking the phone should return the 3D camera to the downward phone view")
-			root.set_view_state("npc_up")
-			root._animate_world(1.0)
+			if hand_phone_image != null and camera != null and root.has_method("_animate_world"):
+				var alpha_before_take := hand_phone_image.modulate.a
+				var backdrop_alpha_before_take := phone_down_backdrop_image.modulate.a if phone_down_backdrop_image != null else 0.0
+				var camera_before_take := camera.rotation_degrees.x
+				root.set_view_state("phone_down")
+				root._animate_world(0.05)
+				view_toggle_button = _find_node_by_name(root, "PhoneViewToggleButton") as Button
+				if view_toggle_button != null:
+					_assert_true(str(view_toggle_button.text).contains("放下手机"), "taking the phone should restore the put-phone button copy")
+				_assert_true(hand_phone_image.visible and hand_phone_image.modulate.a > alpha_before_take, "taking the phone should fade the hand-phone artwork back in")
+				if phone_down_backdrop_image != null:
+					_assert_true(phone_down_backdrop_image.visible and phone_down_backdrop_image.modulate.a > backdrop_alpha_before_take, "taking the phone should fade the phone-down backdrop back in")
+				_assert_true(hand_phone_image.modulate.a < 1.0, "taking the phone should fade in rather than snapping instantly")
+				_assert_true(camera.rotation_degrees.x < camera_before_take, "taking the phone should start tilting the camera downward")
+				_assert_true(camera.rotation_degrees.x > -54.0, "taking the phone should animate toward the low view before reaching the final angle")
+				root._animate_world(0.4)
+				if phone_down_backdrop_image != null:
+					var walking_position_before := phone_down_backdrop_image.position
+					root._animate_world(0.18)
+					_assert_true(phone_down_backdrop_image.position != walking_position_before, "low-view generated backdrop should carry a subtle walking bob")
+					_assert_true(phone_down_backdrop_image.scale.x > 1.0, "walking bob should keep the generated backdrop overscanned without exposing edges")
+				_assert_true(camera.rotation_degrees.x < -35.0, "taking the phone should return the 3D camera to the downward phone view")
+				root.set_view_state("npc_up")
+				root._animate_world(1.0)
 		if social_app_window != null and babel_app_window != null and shop_app_window != null:
 			_assert_true(not social_app_window.visible, "NPC view should hide social app window")
 			_assert_true(not babel_app_window.visible, "NPC view should hide Babel app window")
@@ -1073,8 +1105,36 @@ func _unique_social_values(root: Node, key: String, count: int) -> int:
 func _unique_social_captions(root: Node, count: int) -> int:
 	var values := {}
 	for index in count:
-		values[str(root._social_caption({}, index))] = true
+		var post: Dictionary = root._social_post_for_index(index)
+		values[str(root._social_caption(post, index))] = true
 	return values.size()
+
+
+func _social_cards_have_coherent_tokens(root: Node, count: int) -> bool:
+	var poster_cells := {}
+	for index in count:
+		var post: Dictionary = root._social_post_for_index(index)
+		var tokens: Array = post.get("tokens", [])
+		var post_tags: Array = post.get("tags", [])
+		var passive: Dictionary = post.get("passive", {})
+		if tokens.size() < 3 or post_tags.is_empty() or passive.is_empty():
+			return false
+		poster_cells[int(post.get("poster_cell", -1))] = true
+		var has_text_match := false
+		var has_tag_match := false
+		for token in tokens:
+			var token_passive: Dictionary = token.get("source_passive", {})
+			if str(token_passive.get("id", "")) != str(passive.get("id", "")):
+				return false
+			var token_text := str(token.get("text", ""))
+			if not token_text.is_empty() and str(post.get("text", "")).contains(token_text):
+				has_text_match = true
+			for tag in token.get("tags", []):
+				if tag in post_tags:
+					has_tag_match = true
+		if not has_text_match or not has_tag_match:
+			return false
+	return poster_cells.size() == count
 
 
 func _generated_posters_are_varied() -> bool:
