@@ -15,8 +15,11 @@ Both images use the established five-color International Style direction: deep g
 
 `tools/generate_visual_assets.py` may recreate only the small HUD icons and player portrait. It intentionally does not regenerate retired road, hand-phone, NPC, or split social-poster files.
 
+`tools/generate_audio_assets.py` deterministically synthesizes four mono 22.05 kHz WAV files from oscillators and seeded noise: the phone-road loop, reality-room loop, pollution flashback burst, and action tick. No external recordings are used.
+
 Run the non-writing integrity check with:
 
 ```bash
 python3 tools/generate_visual_assets.py --verify
+python3 tools/generate_audio_assets.py --verify
 ```

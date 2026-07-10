@@ -35,6 +35,10 @@ const HUD_POLLUTION_ICON_PATH := "res://assets/generated/ui/hud_pollution_icon.p
 const HUD_MONEY_ICON_PATH := "res://assets/generated/ui/hud_money_icon.png"
 const HUD_SETTINGS_ICON_PATH := "res://assets/generated/ui/hud_settings_icon.png"
 const SOCIAL_POSTER_SHEET_PATH := "res://assets/generated/social/poster_sheet.png"
+const PHONE_AMBIENCE_PATH := "res://assets/generated/audio/phone_road_loop.wav"
+const REALITY_AMBIENCE_PATH := "res://assets/generated/audio/reality_room_loop.wav"
+const FLASHBACK_AUDIO_PATH := "res://assets/generated/audio/pollution_flashback.wav"
+const ACTION_TICK_AUDIO_PATH := "res://assets/generated/audio/action_tick.wav"
 const SOCIAL_POSTER_COLUMNS := 4
 const SOCIAL_POSTER_ROWS := 3
 const SOCIAL_POSTER_COUNT := SOCIAL_POSTER_COLUMNS * SOCIAL_POSTER_ROWS
@@ -325,6 +329,11 @@ var _flashback_noise: ColorRect
 var _flashback_blackout: ColorRect
 var _flashback_words: Array[Label] = []
 var _flashback_tween: Tween
+var _phone_ambience: AudioStreamPlayer
+var _reality_ambience: AudioStreamPlayer
+var _flashback_audio: AudioStreamPlayer
+var _action_tick_audio: AudioStreamPlayer
+var _audio_tween: Tween
 var _action_spend_overlay: Control
 var _action_spend_blackout: ColorRect
 var _action_spend_label: Label
@@ -413,6 +422,7 @@ func new_game() -> void:
 	_build_world()
 	_build_ui()
 	_render()
+	_sync_audio_state(true)
 
 
 func show_main_menu() -> void:
@@ -423,6 +433,7 @@ func show_main_menu() -> void:
 	_phone_launcher_open = false
 	_build_world()
 	_build_main_menu()
+	_sync_audio_state(true)
 
 
 func set_view_state(value: String) -> void:
@@ -441,6 +452,7 @@ func set_view_state(value: String) -> void:
 			if _phone_panel != null:
 				_phone_panel.move_to_front()
 		_render()
+		_sync_audio_state(false)
 
 
 func _toggle_view_state() -> void:
@@ -456,9 +468,13 @@ func begin_reality_player_turn() -> void:
 	if game.begin_reality_player_turn():
 		log_text = "你开始在脑内拼一句尽量普通的话。"
 	_render()
+	_sync_audio_state(false)
 
 
 func _build_world() -> void:
+	if _audio_tween != null and _audio_tween.is_valid():
+		_audio_tween.kill()
+	_audio_tween = null
 	for child in get_children():
 		remove_child(child)
 		child.free()
@@ -539,6 +555,95 @@ func _build_world() -> void:
 	_canvas = CanvasLayer.new()
 	_canvas.name = "CanvasLayer"
 	add_child(_canvas)
+	_build_audio_players()
+
+
+func _build_audio_players() -> void:
+	_phone_ambience = _make_audio_player("PhoneRoadAmbience", PHONE_AMBIENCE_PATH, true, -60.0)
+	_reality_ambience = _make_audio_player("RealityRoomAmbience", REALITY_AMBIENCE_PATH, true, -60.0)
+	_flashback_audio = _make_audio_player("PollutionFlashbackAudio", FLASHBACK_AUDIO_PATH, false, -8.0)
+	_action_tick_audio = _make_audio_player("ActionTickAudio", ACTION_TICK_AUDIO_PATH, false, -15.0)
+	_sync_audio_state(true)
+
+
+func _make_audio_player(node_name: String, path: String, looped: bool, volume_db: float) -> AudioStreamPlayer:
+	var player := AudioStreamPlayer.new()
+	player.name = node_name
+	player.stream = _load_generated_wav(path, looped)
+	player.volume_db = volume_db
+	player.set_meta("generated_audio_path", path)
+	player.set_meta("looped", looped)
+	add_child(player)
+	return player
+
+
+func _load_generated_wav(path: String, looped: bool) -> AudioStreamWAV:
+	var stream := AudioStreamWAV.load_from_file(path)
+	if stream == null:
+		return null
+	if looped:
+		stream.loop_mode = AudioStreamWAV.LOOP_FORWARD
+		stream.loop_begin = 0
+		var channel_count := 2 if stream.stereo else 1
+		var bytes_per_sample := 2 if stream.format == AudioStreamWAV.FORMAT_16_BITS else 1
+		stream.loop_end = int(stream.data.size() / maxi(1, channel_count * bytes_per_sample))
+	return stream
+
+
+func _sync_audio_state(immediate: bool = false) -> void:
+	if _phone_ambience == null or _reality_ambience == null:
+		return
+	if not _game_started or game == null:
+		_phone_ambience.set_meta("target_volume_db", -60.0)
+		_reality_ambience.set_meta("target_volume_db", -60.0)
+		if is_inside_tree():
+			_phone_ambience.stop()
+			_reality_ambience.stop()
+			if _flashback_audio != null:
+				_flashback_audio.stop()
+		return
+	var in_phone: bool = game.view_state == "phone_down"
+	var phone_target: float = -18.0 if in_phone else -48.0
+	var reality_target: float = -48.0 if in_phone else (-16.0 if game.reality_phase == "player_composing" else -21.0)
+	_phone_ambience.set_meta("target_volume_db", phone_target)
+	_reality_ambience.set_meta("target_volume_db", reality_target)
+	_phone_ambience.set_meta("flashback_ducked", false)
+	_reality_ambience.set_meta("flashback_ducked", false)
+	if _audio_tween != null and _audio_tween.is_valid():
+		_audio_tween.kill()
+	_audio_tween = null
+	if immediate:
+		_phone_ambience.volume_db = phone_target
+		_reality_ambience.volume_db = reality_target
+	if not is_inside_tree():
+		return
+	if not _phone_ambience.playing:
+		_phone_ambience.play()
+	if not _reality_ambience.playing:
+		_reality_ambience.play()
+	if immediate:
+		return
+	_audio_tween = create_tween().set_parallel(true)
+	_audio_tween.tween_property(_phone_ambience, "volume_db", phone_target, 0.55).set_trans(Tween.TRANS_QUINT).set_ease(Tween.EASE_IN_OUT)
+	_audio_tween.tween_property(_reality_ambience, "volume_db", reality_target, 0.55).set_trans(Tween.TRANS_QUINT).set_ease(Tween.EASE_IN_OUT)
+
+
+func _duck_ambience_for_flashback() -> void:
+	if _audio_tween != null and _audio_tween.is_valid():
+		_audio_tween.kill()
+	_audio_tween = null
+	for player in [_phone_ambience, _reality_ambience]:
+		if player != null:
+			player.set_meta("flashback_ducked", true)
+	if not is_inside_tree():
+		for player in [_phone_ambience, _reality_ambience]:
+			if player != null:
+				player.volume_db = -44.0
+		return
+	_audio_tween = create_tween().set_parallel(true)
+	for player in [_phone_ambience, _reality_ambience]:
+		if player != null:
+			_audio_tween.tween_property(player, "volume_db", -44.0, 0.10).set_trans(Tween.TRANS_QUINT).set_ease(Tween.EASE_OUT)
 
 
 func _build_main_menu() -> void:
@@ -2878,6 +2983,8 @@ func _build_action_spend_overlay() -> void:
 func _play_action_spend_animation(before_actions: int, after_actions: int) -> void:
 	if _hud_actions_label == null:
 		return
+	if _action_tick_audio != null and _action_tick_audio.stream != null and _action_tick_audio.is_inside_tree():
+		_action_tick_audio.play()
 	if _action_spend_tween != null and _action_spend_tween.is_valid():
 		_action_spend_tween.kill()
 	_action_spend_after_actions = after_actions
@@ -3010,6 +3117,9 @@ func _play_pollution_flashback() -> void:
 	_flashback_blackout.visible = false
 	_flashback_noise.visible = true
 	_scramble_flashback_words(0)
+	_duck_ambience_for_flashback()
+	if _flashback_audio != null and _flashback_audio.stream != null and _flashback_audio.is_inside_tree():
+		_flashback_audio.play()
 	if _flashback_tween != null and _flashback_tween.is_valid():
 		_flashback_tween.kill()
 	_flashback_tween = create_tween()
@@ -3032,6 +3142,8 @@ func _finish_pollution_flashback() -> void:
 		_flashback_overlay.visible = false
 	if _flashback_blackout != null:
 		_flashback_blackout.visible = false
+	if _flashback_audio != null:
+		_flashback_audio.stop()
 	_set_input_locked(false)
 	var should_settle := game.consume_pollution_flashback()
 	if should_settle and _settle_day_and_present_rewards():
@@ -3041,6 +3153,7 @@ func _finish_pollution_flashback() -> void:
 		log_text = "黑屏之后，已经是第二天。"
 		if not game.event_log.is_empty():
 			log_text = "%s\n%s" % [log_text, game.event_log[0]]
+	_sync_audio_state(false)
 	_render()
 
 
@@ -3346,6 +3459,7 @@ func _settle_day_and_present_rewards() -> bool:
 		game.set_active_app("babel")
 		_open_app_windows["babel"] = true
 		_phone_launcher_open = false
+	_sync_audio_state(false)
 	return true
 
 

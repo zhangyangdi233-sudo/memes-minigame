@@ -73,6 +73,10 @@ func _run() -> void:
 			"res://assets/generated/ui/hud_money_icon.png",
 			"res://assets/generated/ui/hud_settings_icon.png",
 			"res://assets/generated/social/poster_sheet.png",
+			"res://assets/generated/audio/phone_road_loop.wav",
+			"res://assets/generated/audio/reality_room_loop.wav",
+			"res://assets/generated/audio/pollution_flashback.wav",
+			"res://assets/generated/audio/action_tick.wav",
 		]:
 			_assert_true(FileAccess.file_exists(asset_path), "generated asset should exist: %s" % asset_path)
 		for retired_asset_path in [
@@ -86,6 +90,10 @@ func _run() -> void:
 		var road_tile := root.get_node_or_null("Road/RoadTile0") as MeshInstance3D
 		var phone_rig := root.get_node_or_null("PhoneRig") as Node3D
 		var npc_plane := root.get_node_or_null("NPC/NPCPlane") as MeshInstance3D
+		var phone_ambience := root.get_node_or_null("PhoneRoadAmbience") as AudioStreamPlayer
+		var reality_ambience := root.get_node_or_null("RealityRoomAmbience") as AudioStreamPlayer
+		var flashback_audio := root.get_node_or_null("PollutionFlashbackAudio") as AudioStreamPlayer
+		var action_tick_audio := root.get_node_or_null("ActionTickAudio") as AudioStreamPlayer
 		var phone_down_backdrop_image := root.get_node_or_null("CanvasLayer/UIRoot/PhoneDownBackdropImage") as TextureRect
 		var hand_phone_image := root.get_node_or_null("CanvasLayer/UIRoot/HandPhoneDownImage") as TextureRect
 		var legacy_status_bar := _find_node_by_name(root, "StatusBar")
@@ -219,6 +227,32 @@ func _run() -> void:
 		if npc_plane != null:
 			var npc_mat := npc_plane.material_override as StandardMaterial3D
 			_assert_true(npc_mat != null and npc_mat.albedo_texture == null, "NPC plane should use the procedural world material after removed assets stay deleted")
+		_assert_true(phone_ambience != null and phone_ambience.stream is AudioStreamWAV, "phone view should expose generated road ambience")
+		_assert_true(reality_ambience != null and reality_ambience.stream is AudioStreamWAV, "reality view should expose generated room ambience")
+		_assert_true(flashback_audio != null and flashback_audio.stream is AudioStreamWAV, "pollution flashback should expose generated signal audio")
+		_assert_true(action_tick_audio != null and action_tick_audio.stream is AudioStreamWAV, "action pulse should expose generated tick audio")
+		if phone_ambience != null and reality_ambience != null:
+			var phone_stream := phone_ambience.stream as AudioStreamWAV
+			var reality_stream := reality_ambience.stream as AudioStreamWAV
+			_assert_eq(phone_stream.loop_mode, AudioStreamWAV.LOOP_FORWARD, "phone ambience should loop continuously")
+			_assert_eq(reality_stream.loop_mode, AudioStreamWAV.LOOP_FORWARD, "reality ambience should loop continuously")
+			root.game.view_state = "phone_down"
+			root._sync_audio_state(true)
+			_assert_true(phone_ambience.volume_db > reality_ambience.volume_db, "phone view should foreground road ambience")
+			root.game.view_state = "npc_up"
+			root.game.reality_phase = "npc_speaking"
+			root._sync_audio_state(true)
+			_assert_true(reality_ambience.volume_db > phone_ambience.volume_db, "NPC view should foreground room ambience")
+			var npc_reality_volume := reality_ambience.volume_db
+			root.game.reality_phase = "player_composing"
+			root._sync_audio_state(true)
+			_assert_true(reality_ambience.volume_db > npc_reality_volume, "player composing should bring the room tone closer")
+			root._duck_ambience_for_flashback()
+			_assert_true(bool(phone_ambience.get_meta("flashback_ducked", false)), "flashback should mark phone ambience as ducked")
+			_assert_true(bool(reality_ambience.get_meta("flashback_ducked", false)), "flashback should mark reality ambience as ducked")
+			root.game.view_state = "phone_down"
+			root.game.reality_phase = "npc_speaking"
+			root._sync_audio_state(true)
 		_assert_true(apple_hud == null, "old Apple HUD panel should be removed")
 		_assert_true(international_hud != null, "scene should expose an International-style icon HUD rail")
 		_assert_true(hud_title == null, "HUD should not show the BABEL PHONE title")
