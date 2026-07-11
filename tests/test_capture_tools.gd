@@ -10,6 +10,7 @@ func _init() -> void:
 func _run() -> void:
 	for script_path in [
 		"res://tools/capture_main_scene.gd",
+		"res://tools/capture_publish_scene.gd",
 		"res://tools/capture_reality_scene.gd",
 		"res://tools/capture_main_menu.gd",
 	]:

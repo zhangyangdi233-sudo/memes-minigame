@@ -15,6 +15,70 @@ const ACCEPTED_TAG_ROTATION := [
 	["空位", "沉默", "巴别塔"],
 ]
 
+const SIGNAL_CONTRACTS := [
+	{
+		"id": "trend_pair",
+		"label": "双声回路",
+		"description": "命中至少 2 个今日风向",
+		"rule": "matching_tags",
+		"threshold": 2,
+		"base_bonus": 12,
+		"multiplier": 1.35,
+		"pollution_risk": 2,
+	},
+	{
+		"id": "wideband",
+		"label": "杂讯列阵",
+		"description": "成品含至少 4 种隐藏标签",
+		"rule": "tag_count",
+		"threshold": 4,
+		"base_bonus": 10,
+		"multiplier": 1.45,
+		"pollution_risk": 3,
+	},
+	{
+		"id": "emotion_flush",
+		"label": "情绪同花",
+		"description": "同时装入 2 个情绪槽",
+		"rule": "emotion_count",
+		"threshold": 2,
+		"base_bonus": 8,
+		"multiplier": 1.60,
+		"pollution_risk": 4,
+	},
+	{
+		"id": "empty_pair",
+		"label": "空位对子",
+		"description": "同时含有「空位」和「沉默」",
+		"rule": "all_tags",
+		"required_tags": ["空位", "沉默"],
+		"base_bonus": 18,
+		"multiplier": 1.45,
+		"pollution_risk": 3,
+	},
+	{
+		"id": "babel_straight",
+		"label": "巴别直线",
+		"description": "集齐「巴别塔」「信徒」「圣歌」",
+		"rule": "all_tags",
+		"required_tags": ["巴别塔", "信徒", "圣歌"],
+		"base_bonus": 22,
+		"multiplier": 1.65,
+		"pollution_risk": 5,
+	},
+	{
+		"id": "forbidden_loop",
+		"label": "禁问回环",
+		"description": "复读一次并带有反问或禁问",
+		"rule": "repeat_any_tag",
+		"threshold": 1,
+		"required_tags": ["反问", "禁问"],
+		"base_bonus": 26,
+		"multiplier": 1.75,
+		"pollution_risk": 6,
+	},
+]
+
 const EMOTION_SLOTS := {
 	"anxiety": {"id": "anxiety", "label": "焦虑", "price": 5, "default_text": "我不是那个意思", "tags": ["焦虑"], "pollution_bias": 2, "clarity_bias": -4},
 	"please": {"id": "please", "label": "讨好", "price": 5, "default_text": "你说得也有道理", "tags": ["讨好"], "pollution_bias": 1, "clarity_bias": -2},
@@ -433,9 +497,15 @@ func confirm_dialogue() -> bool:
 	var score := int(breakdown.get("score", 1))
 	var heat_gain := maxi(6, int(round(float(score) * 0.42)))
 	var pollution_gain := 4 + matching_tags.size() * 2 + int(meme.get("pollution_bias", 0))
+	pollution_gain += int(breakdown.get("contract_pollution_risk", 0))
 	if not spend_action("confirm-dialogue"):
 		return false
 	last_publish_breakdown = breakdown.duplicate(true)
+	if bool(breakdown.get("contract_matched", false)):
+		event_log.push_front("牌型完成：%s，传播倍率 ×%.2f。" % [
+			str(breakdown.get("contract_label", "未知牌型")),
+			float(breakdown.get("contract_multiplier", 1.0)),
+		])
 	heat = clampi(heat + heat_gain, 0, 999)
 	var previous_pollution := pollution
 	pollution = clampi(pollution + pollution_gain, 0, 100)
@@ -670,6 +740,10 @@ func get_publish_breakdown(meme: Dictionary) -> Dictionary:
 	return _calculate_publish_breakdown(meme, matching_tags)
 
 
+func get_daily_signal_contract() -> Dictionary:
+	return SIGNAL_CONTRACTS[(day - 1) % SIGNAL_CONTRACTS.size()].duplicate(true)
+
+
 func _score_meme_publish(meme: Dictionary, matching_tags: Array) -> int:
 	return int(_calculate_publish_breakdown(meme, matching_tags).get("score", 1))
 
@@ -681,6 +755,7 @@ func _calculate_publish_breakdown(meme: Dictionary, matching_tags: Array) -> Dic
 		if str(record.get("text", "")) == str(meme.get("text", "")):
 			repeat_count += 1
 	var tags: Array = meme.get("tags", [])
+	var contract_result := _evaluate_signal_contract(meme, matching_tags, repeat_count)
 	var source_base_bonus := 0.0
 	var source_synergy_step := 0.0
 	var source_pollution_bonus := 0.0
@@ -701,7 +776,8 @@ func _calculate_publish_breakdown(meme: Dictionary, matching_tags: Array) -> Dic
 		if effect_id != "synergy_step" or not matching_tags.is_empty():
 			active_source_passive_labels.append(str(passive.get("label", "来源被动")))
 	var empty_base_bonus := int(round(_modifier_total("empty_base"))) if ("空位" in tags or "沉默" in tags) else 0
-	var base_value := 12 + rarity * 6 + matching_tags.size() * 8 + empty_base_bonus + int(round(source_base_bonus))
+	var contract_base_bonus := int(contract_result.get("base_bonus", 0)) if bool(contract_result.get("matched", false)) else 0
+	var base_value := 12 + rarity * 6 + matching_tags.size() * 8 + empty_base_bonus + int(round(source_base_bonus)) + contract_base_bonus
 	var synergy_step := 0.25 + _modifier_total("synergy_step") + source_synergy_step
 	var synergy_multiplier := 1.0 + matching_tags.size() * synergy_step
 	var pollution_multiplier := 1.0 + float(pollution) / 100.0 * 0.65 + _modifier_total("pollution_bonus") + source_pollution_bonus
@@ -710,7 +786,8 @@ func _calculate_publish_breakdown(meme: Dictionary, matching_tags: Array) -> Dic
 	var emotion_multiplier := 1.0 + emotion_bonus
 	var effective_repeat_count := maxi(0, repeat_count - int(round(_modifier_total("repeat_grace"))))
 	var repeat_multiplier := minf(1.0, maxf(0.28, 1.0 - effective_repeat_count * 0.18 + source_repeat_relief))
-	var total_multiplier := synergy_multiplier * pollution_multiplier * emotion_multiplier * repeat_multiplier
+	var contract_multiplier := float(contract_result.get("multiplier", 1.0)) if bool(contract_result.get("matched", false)) else 1.0
+	var total_multiplier := snappedf(synergy_multiplier * pollution_multiplier * emotion_multiplier * repeat_multiplier * contract_multiplier, 0.01)
 	var score := maxi(1, int(round(base_value * total_multiplier)))
 	var active_modifier_labels: Array[String] = []
 	for modifier in permanent_modifiers:
@@ -729,7 +806,15 @@ func _calculate_publish_breakdown(meme: Dictionary, matching_tags: Array) -> Dic
 		"pollution_multiplier": snappedf(pollution_multiplier, 0.01),
 		"emotion_multiplier": snappedf(emotion_multiplier, 0.01),
 		"repeat_multiplier": snappedf(repeat_multiplier, 0.01),
-		"total_multiplier": snappedf(total_multiplier, 0.01),
+		"contract_id": str(contract_result.get("id", "")),
+		"contract_label": str(contract_result.get("label", "未命名牌型")),
+		"contract_description": str(contract_result.get("description", "")),
+		"contract_progress": str(contract_result.get("progress", "")),
+		"contract_matched": bool(contract_result.get("matched", false)),
+		"contract_base_bonus": contract_base_bonus,
+		"contract_multiplier": snappedf(contract_multiplier, 0.01),
+		"contract_pollution_risk": int(contract_result.get("pollution_risk", 0)) if bool(contract_result.get("matched", false)) else 0,
+		"total_multiplier": total_multiplier,
 		"repeat_count": repeat_count,
 		"effective_repeat_count": effective_repeat_count,
 		"modifier_base_bonus": empty_base_bonus,
@@ -737,6 +822,49 @@ func _calculate_publish_breakdown(meme: Dictionary, matching_tags: Array) -> Dic
 		"active_source_passive_labels": active_source_passive_labels,
 		"score": score,
 	}
+
+
+func _evaluate_signal_contract(meme: Dictionary, matching_tags: Array, repeat_count: int) -> Dictionary:
+	var contract := get_daily_signal_contract()
+	var tags: Array = meme.get("tags", [])
+	var rule := str(contract.get("rule", ""))
+	var threshold := int(contract.get("threshold", 0))
+	var current := 0
+	var matched := false
+	var progress := ""
+	match rule:
+		"matching_tags":
+			current = matching_tags.size()
+			matched = current >= threshold
+			progress = "%d/%d 今日风向" % [mini(current, threshold), threshold]
+		"tag_count":
+			current = tags.size()
+			matched = current >= threshold
+			progress = "%d/%d 隐藏标签" % [mini(current, threshold), threshold]
+		"emotion_count":
+			current = int(meme.get("emotion_count", 0))
+			matched = current >= threshold
+			progress = "%d/%d 情绪槽" % [mini(current, threshold), threshold]
+		"all_tags":
+			var required_tags: Array = contract.get("required_tags", [])
+			for required_tag in required_tags:
+				if required_tag in tags:
+					current += 1
+			matched = current >= required_tags.size()
+			progress = "%d/%d 必要标签" % [current, required_tags.size()]
+		"repeat_any_tag":
+			var required_tags: Array = contract.get("required_tags", [])
+			var has_required_tag := false
+			for required_tag in required_tags:
+				if required_tag in tags:
+					has_required_tag = true
+					break
+			current = repeat_count
+			matched = repeat_count >= threshold and has_required_tag
+			progress = "%d/%d 复读 · %s" % [mini(repeat_count, threshold), threshold, "标签命中" if has_required_tag else "缺反问/禁问"]
+	contract["matched"] = matched
+	contract["progress"] = progress
+	return contract
 
 
 func _hottest_published_meme_for_floor(floor: int) -> Dictionary:

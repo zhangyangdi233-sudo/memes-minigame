@@ -39,6 +39,8 @@ func _run() -> void:
 	test_flashback_trigger_is_once_per_run()
 	test_place_meme_is_free_and_confirm_dialogue_costs_action()
 	test_publish_breakdown_uses_base_times_multiplier_and_repeat_decay()
+	test_daily_signal_contract_matches_and_boosts_score()
+	test_signal_contract_risk_is_paid_on_publish()
 	test_visible_six_day_trends_match_scoring_rotation()
 	test_day_settlement_can_raise_tower_and_unlock_ending()
 	test_twelve_day_catchup_guarantees_tower_ending()
@@ -413,6 +415,47 @@ func test_publish_breakdown_uses_base_times_multiplier_and_repeat_decay() -> voi
 	var repeated: Dictionary = game.get_publish_breakdown(meme)
 	_assert_true(float(repeated.get("repeat_multiplier", 1.0)) < 1.0, "reusing the same meme should expose a repeat decay multiplier")
 	_assert_true(int(repeated.get("score", 0)) < int(first.get("score", 0)), "repeat decay should lower the final propagation score")
+
+
+func test_daily_signal_contract_matches_and_boosts_score() -> void:
+	var game: RefCounted = _state_script.new()
+	game.new_run()
+	var contract: Dictionary = game.get_daily_signal_contract()
+	_assert_eq(contract.get("id", ""), "trend_pair", "day one should begin with the readable two-trend signal hand")
+	var matching_meme := {
+		"id": "contract-match",
+		"text": "哈吉米，今天还要追问",
+		"tags": ["哈吉米", "追问"],
+		"rarity": 1,
+		"pollution_bias": 0,
+	}
+	var breakdown: Dictionary = game.get_publish_breakdown(matching_meme)
+	_assert_true(bool(breakdown.get("contract_matched", false)), "two day-one trend tags should complete the daily signal hand")
+	_assert_eq(breakdown.get("contract_label", ""), "双声回路", "the breakdown should expose the completed hand name")
+	_assert_true(int(breakdown.get("contract_base_bonus", 0)) > 0, "a completed hand should add visible propagation base")
+	_assert_true(float(breakdown.get("contract_multiplier", 1.0)) > 1.0, "a completed hand should add a visible multiplier")
+	_assert_eq(int(breakdown.get("score", 0)), int(round(float(breakdown.get("base_value", 0)) * float(breakdown.get("total_multiplier", 0.0)))), "signal hand scoring should remain legible as base times total multiplier")
+
+
+func test_signal_contract_risk_is_paid_on_publish() -> void:
+	var game: RefCounted = _state_script.new()
+	game.new_run()
+	var meme := {
+		"id": "contract-risk",
+		"title": "双声测试",
+		"text": "哈吉米，为什么还要追问",
+		"tags": ["哈吉米", "追问"],
+		"rarity": 1,
+		"pollution_bias": 0,
+	}
+	var preview: Dictionary = game.get_publish_breakdown(meme)
+	var risk := int(preview.get("contract_pollution_risk", 0))
+	_assert_true(risk > 0, "completed daily hands should reveal their pollution price before publishing")
+	game.completed_memes = [meme]
+	game.place_meme_in_blank("blank_1", "contract-risk")
+	_assert_true(game.confirm_dialogue(), "a matching signal hand should publish normally")
+	_assert_eq(game.pollution, 4 + 2 * 2 + risk, "publishing should pay the hand's explicit pollution risk")
+	_assert_true(str(game.event_log[0]).contains("双声回路"), "publishing a hand should record the named combo in the event log")
 
 
 func test_visible_six_day_trends_match_scoring_rotation() -> void:

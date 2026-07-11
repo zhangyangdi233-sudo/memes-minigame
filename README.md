@@ -1,6 +1,16 @@
 # Babel Meme Game
 
-Standalone Godot 4.6 prototype for the third-chapter meme minigame. It explores meme pollution, Babel-style language collapse, buying emotional slots, crafting memes, and using those memes in dialogue.
+Standalone Godot 4.6 game built from the third-chapter meme prototype. It combines a phone-based urban-legend feed with emotion-slot crafting, Balatro-like propagation scoring, permanent ascent modifiers, inherited meme rules, and reality dialogue that becomes less understandable as pollution rises.
+
+## Current Loop
+
+1. Browse the social feed and collect language fragments.
+2. Buy and edit emotion slots, then craft a complete meme from two core fragments.
+3. Build around the day's signal hand for extra propagation base and multiplier.
+4. Publish for heat and money while accepting the hand's pollution risk.
+5. Ascend the tower, keep one permanent modifier, and carry the previous floor's hottest meme into reality as a legacy rule.
+
+Each day has five effective actions. Navigation, window movement, preview placement, and editing do not spend actions.
 
 ## Run
 
@@ -21,6 +31,7 @@ On this machine, the project can be launched with:
 Run the headless state tests with:
 
 ```sh
-/Users/zhang/Documents/游戏/Godot_4.6.3/Godot.app/Contents/MacOS/Godot --headless --path /Users/zhang/Documents/游戏/babel-meme-game --script res://tests/test_meme_game_state.gd
+HOME=/Users/zhang/Documents/游戏/.godot_home /Users/zhang/Documents/游戏/Godot_4.6.3/Godot.app/Contents/MacOS/Godot --headless --path /Users/zhang/Documents/游戏/babel-meme-game --script res://tests/test_meme_game_state.gd
 ```
 
+The rendered publish-layout capture tool is `res://tools/capture_publish_scene.gd`.

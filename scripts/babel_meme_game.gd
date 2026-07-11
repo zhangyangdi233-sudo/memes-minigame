@@ -46,8 +46,8 @@ const SOCIAL_POSTER_COUNT := SOCIAL_POSTER_COLUMNS * SOCIAL_POSTER_ROWS
 const SOCIAL_FEED_WHEEL_STEP := 2
 const SOCIAL_POST_CARDS := [
 	{
-		"id": "floor_13", "poster_cell": 0, "caption": "不存在的楼层正在施工", "handle": "塔下施工档案",
-		"text": "实拍：末班电梯停在不存在的十三层。", "tags": ["巴别塔", "空位"], "rarity": 2, "passive": {"id": "floor_draft", "label": "空层底稿", "description": "传播基础 +4", "effect": "base_bonus", "value": 4.0},
+		"id": "floor_13", "poster_cell": 0, "caption": "旧教学楼昨晚多出一层", "handle": "塔下施工档案",
+		"text": "实拍：封闭的教学楼昨晚多出一层，末班电梯停在那里。", "tags": ["巴别塔", "空位"], "rarity": 2, "passive": {"id": "floor_draft", "label": "空层底稿", "description": "传播基础 +4", "effect": "base_bonus", "value": 4.0},
 		"tokens": [
 			{"id": "floor", "text": "不存在的十三层", "tags": ["巴别塔", "空位"], "rarity": 2},
 			{"id": "last_lift", "text": "末班电梯", "tags": ["日常", "巴别塔"], "rarity": 1},
@@ -55,8 +55,8 @@ const SOCIAL_POST_CARDS := [
 		],
 	},
 	{
-		"id": "self_call", "poster_cell": 1, "caption": "无信号时收到自己来电", "handle": "无信号通勤",
-		"text": "求证：断网后，我收到自己发来的哈吉米。", "tags": ["哈吉米", "刷新", "追问"], "rarity": 3, "passive": {"id": "callback_resonance", "label": "回拨共鸣", "description": "每个命中风向额外 +0.10", "effect": "synergy_step", "value": 0.10},
+		"id": "self_call", "poster_cell": 1, "caption": "无信号时收到明天短信", "handle": "无信号通勤",
+		"text": "求证：断网后，我收到明天的自己发来的哈吉米。", "tags": ["哈吉米", "刷新", "追问"], "rarity": 3, "passive": {"id": "callback_resonance", "label": "回拨共鸣", "description": "每个命中风向额外 +0.10", "effect": "synergy_step", "value": 0.10},
 		"tokens": [
 			{"id": "no_signal", "text": "无信号", "tags": ["沉默", "空位"], "rarity": 1},
 			{"id": "self_call", "text": "自己发来的", "tags": ["追问", "反问"], "rarity": 2},
@@ -91,11 +91,11 @@ const SOCIAL_POST_CARDS := [
 		],
 	},
 	{
-		"id": "blackout_broadcast", "poster_cell": 5, "caption": "停电后广播还在报站", "handle": "废站收音机",
-		"text": "录音：停电以后，废站广播仍准时报站。", "tags": ["圣歌", "刷新", "沉默"], "rarity": 3, "passive": {"id": "broadcast_resonance", "label": "广播共鸣", "description": "每个命中风向额外 +0.08", "effect": "synergy_step", "value": 0.08},
+		"id": "blackout_broadcast", "poster_cell": 5, "caption": "停电后广播喊了我名字", "handle": "废站收音机",
+		"text": "录音：停电以后，废站广播准时报站，然后叫了我的名字。", "tags": ["圣歌", "刷新", "沉默"], "rarity": 3, "passive": {"id": "broadcast_resonance", "label": "广播共鸣", "description": "每个命中风向额外 +0.08", "effect": "synergy_step", "value": 0.08},
 		"tokens": [
 			{"id": "blackout", "text": "停电以后", "tags": ["沉默", "空位"], "rarity": 1},
-			{"id": "broadcast", "text": "广播仍在报站", "tags": ["圣歌", "刷新"], "rarity": 2},
+			{"id": "broadcast", "text": "广播喊我名字", "tags": ["圣歌", "刷新"], "rarity": 2},
 			{"id": "dead_station", "text": "废站", "tags": ["巴别塔", "日常"], "rarity": 2},
 		],
 	},
@@ -118,8 +118,8 @@ const SOCIAL_POST_CARDS := [
 		],
 	},
 	{
-		"id": "future_notice", "poster_cell": 8, "caption": "小区群里有人发未来", "handle": "明日群公告",
-		"text": "截图：小区群有人发来明天的失踪通知。", "tags": ["刷新", "禁问", "反问"], "rarity": 3, "passive": {"id": "tomorrow_draft", "label": "明日底稿", "description": "传播基础 +6", "effect": "base_bonus", "value": 6.0},
+		"id": "future_notice", "poster_cell": 8, "caption": "小区群里出现不存在的住户", "handle": "明日群公告",
+		"text": "截图：小区群凌晨多出一个查不到门牌的住户，还发来明天的失踪通知。", "tags": ["刷新", "禁问", "反问"], "rarity": 3, "passive": {"id": "tomorrow_draft", "label": "明日底稿", "description": "传播基础 +6", "effect": "base_bonus", "value": 6.0},
 		"tokens": [
 			{"id": "tomorrow", "text": "明天的通知", "tags": ["刷新", "反问"], "rarity": 2},
 			{"id": "missing", "text": "失踪", "tags": ["禁问", "沉默"], "rarity": 3},
@@ -127,8 +127,8 @@ const SOCIAL_POST_CARDS := [
 		],
 	},
 	{
-		"id": "old_post_today", "poster_cell": 9, "caption": "我在旧帖里看见今天", "handle": "旧帖考古队",
-		"text": "考古：十年前的旧帖，拍到了今天的我。", "tags": ["刷新", "哈吉米", "反问"], "rarity": 3, "passive": {"id": "archive_resonance", "label": "旧帖共鸣", "description": "每个命中风向额外 +0.12", "effect": "synergy_step", "value": 0.12},
+		"id": "old_post_today", "poster_cell": 9, "caption": "十年前旧帖今天回复我", "handle": "旧帖考古队",
+		"text": "考古：十年前的旧帖今天突然回复我，头像是现在的我。", "tags": ["刷新", "哈吉米", "反问"], "rarity": 3, "passive": {"id": "archive_resonance", "label": "旧帖共鸣", "description": "每个命中风向额外 +0.12", "effect": "synergy_step", "value": 0.12},
 		"tokens": [
 			{"id": "ten_year_post", "text": "十年前的旧帖", "tags": ["刷新", "哈吉米"], "rarity": 2},
 			{"id": "today_me", "text": "今天的我", "tags": ["日常", "追问"], "rarity": 2},
@@ -136,7 +136,7 @@ const SOCIAL_POST_CARDS := [
 		],
 	},
 	{
-		"id": "deleted_road", "poster_cell": 10, "caption": "地图删掉了这条小路", "handle": "绿色路线图",
+		"id": "deleted_road", "poster_cell": 10, "caption": "地图上少了一条回家路", "handle": "绿色路线图",
 		"text": "更新：地图删掉了我每天回家的那条路。", "tags": ["空位", "日常", "刷新"], "rarity": 2, "passive": {"id": "lost_road_dividend", "label": "迷路增益", "description": "污染倍率额外 +0.08", "effect": "pollution_bonus", "value": 0.08},
 		"tokens": [
 			{"id": "deleted", "text": "地图删掉了", "tags": ["刷新", "空位"], "rarity": 2},
@@ -145,7 +145,7 @@ const SOCIAL_POST_CARDS := [
 		],
 	},
 	{
-		"id": "access_record", "poster_cell": 11, "caption": "门禁记录显示我没回家", "handle": "门禁空号",
+		"id": "access_record", "poster_cell": 11, "caption": "门禁说我没回家我却在屋里", "handle": "门禁空号",
 		"text": "记录：门禁说我没回来，可我一直在屋里。", "tags": ["禁问", "追问", "日常"], "rarity": 2, "passive": {"id": "access_buffer", "label": "门禁缓冲", "description": "复读衰减减轻 0.12", "effect": "repeat_relief", "value": 0.12},
 		"tokens": [
 			{"id": "not_home", "text": "我没回来", "tags": ["禁问", "追问"], "rarity": 2},
@@ -2100,8 +2100,40 @@ func _render_social_publish_page(parent: VBoxContainer) -> void:
 
 	var publish_content := VBoxContainer.new()
 	publish_content.name = "SocialPublishContent"
+	publish_content.size_flags_horizontal = Control.SIZE_EXPAND_FILL
 	publish_content.add_theme_constant_override("separation", 8)
 	publish_scroll.add_child(publish_content)
+
+	var placed_meme := _placed_meme()
+	var breakdown: Dictionary = game.get_publish_breakdown(placed_meme) if not placed_meme.is_empty() else game.last_publish_breakdown
+	var contract: Dictionary = game.get_daily_signal_contract()
+	var contract_panel := _panel()
+	contract_panel.name = "SocialPublishContractPanel"
+	contract_panel.set_meta("signal_contract_panel", true)
+	publish_content.add_child(contract_panel)
+	var contract_box := VBoxContainer.new()
+	contract_box.add_theme_constant_override("separation", 6)
+	contract_panel.add_child(contract_box)
+	var contract_eyebrow := _label("今日牌型 / DAY %02d" % game.day, 13, _theme_color("muted"))
+	contract_eyebrow.set_meta("on_dark", true)
+	contract_box.add_child(contract_eyebrow)
+	var contract_header := HBoxContainer.new()
+	contract_header.add_theme_constant_override("separation", 8)
+	contract_box.add_child(contract_header)
+	var contract_title := _label(str(contract.get("label", "未命名牌型")), 21, _theme_color("surface"))
+	contract_title.name = "SocialPublishContractTitle"
+	contract_title.set_meta("on_dark", true)
+	contract_title.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+	contract_header.add_child(contract_title)
+	var contract_status := _label(_signal_contract_status(breakdown), 14, _theme_color("muted"))
+	contract_status.name = "SocialPublishContractStatus"
+	contract_status.set_meta("on_dark", true)
+	contract_header.add_child(contract_status)
+	var contract_text := _label(_signal_contract_text(contract, breakdown), 14, _theme_color("surface"))
+	contract_text.name = "SocialPublishContractText"
+	contract_text.set_meta("on_dark", true)
+	contract_text.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
+	contract_box.add_child(contract_text)
 
 	var composer := _panel()
 	composer.name = "SocialPublishComposer"
@@ -2119,13 +2151,11 @@ func _render_social_publish_page(parent: VBoxContainer) -> void:
 	composer_box.add_child(_publish_blank)
 	var score_breakdown := _panel()
 	score_breakdown.name = "SocialPublishScoreBreakdown"
-	score_breakdown.set_meta("soft_panel", true)
 	publish_content.add_child(score_breakdown)
 	var score_text := _label("", 16, _theme_color("ink"))
 	score_text.name = "SocialPublishScoreText"
-	var placed_meme := _placed_meme()
-	var breakdown: Dictionary = game.get_publish_breakdown(placed_meme) if not placed_meme.is_empty() else game.last_publish_breakdown
 	score_text.text = _publish_breakdown_text(breakdown, not placed_meme.is_empty())
+	score_text.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
 	score_breakdown.add_child(score_text)
 	var hint := _label("发布会消耗 1 次行动。浏览、切页和拖拽预览不扣行动。", 15, _theme_color("accent"))
 	hint.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
@@ -2405,7 +2435,7 @@ func _render_publish() -> void:
 
 func _publish_breakdown_text(breakdown: Dictionary, is_preview: bool) -> String:
 	if breakdown.is_empty():
-		return "传播基础  --\n共鸣倍率  ×--\n预计传播  --"
+		return "传播基础 / 筹码  --\n共鸣倍率  ×--\n牌型倍率  ×--\n预计传播  --"
 	var prefix := "预计传播" if is_preview else "本次传播"
 	var repeated := int(breakdown.get("repeat_count", 0))
 	var repeat_note := "\n重复衰减  ×%.2f" % float(breakdown.get("repeat_multiplier", 1.0)) if repeated > 0 else ""
@@ -2413,14 +2443,39 @@ func _publish_breakdown_text(breakdown: Dictionary, is_preview: bool) -> String:
 	var modifier_note := "\n永久许可  %s" % " / ".join(active_modifiers) if not active_modifiers.is_empty() else ""
 	var source_passives: Array = breakdown.get("active_source_passive_labels", [])
 	var source_note := "\n来源被动  %s" % " / ".join(source_passives) if not source_passives.is_empty() else ""
-	return "传播基础  %d\n共鸣倍率  ×%.2f%s%s%s\n%s  %d" % [
+	var contract_multiplier := float(breakdown.get("contract_multiplier", 1.0))
+	var total_multiplier := float(breakdown.get("total_multiplier", 1.0))
+	var resonance_multiplier := total_multiplier / contract_multiplier if contract_multiplier > 0.0 else total_multiplier
+	var contract_bonus := int(breakdown.get("contract_base_bonus", 0))
+	var base_note := "（牌型 +%d）" % contract_bonus if contract_bonus > 0 else ""
+	return "传播基础 / 筹码  %d%s\n共鸣倍率  ×%.2f\n牌型倍率  ×%.2f\n总倍率  ×%.2f%s%s%s\n%s  %d" % [
 		int(breakdown.get("base_value", 0)),
-		float(breakdown.get("total_multiplier", 1.0)),
+		base_note,
+		resonance_multiplier,
+		contract_multiplier,
+		total_multiplier,
 		repeat_note,
 		modifier_note,
 		source_note,
 		prefix,
 		int(breakdown.get("score", 0)),
+	]
+
+
+func _signal_contract_status(breakdown: Dictionary) -> String:
+	if breakdown.is_empty():
+		return "等待组牌"
+	return "牌型成立" if bool(breakdown.get("contract_matched", false)) else "尚未成立"
+
+
+func _signal_contract_text(contract: Dictionary, breakdown: Dictionary) -> String:
+	var progress := str(breakdown.get("contract_progress", "尚未放入完整梗")) if not breakdown.is_empty() else "尚未放入完整梗"
+	return "%s\n%s\n奖励 +%d 基础 · ×%.2f   代价 +%d 污染" % [
+		str(contract.get("description", "等待今日信号")),
+		progress,
+		int(contract.get("base_bonus", 0)),
+		float(contract.get("multiplier", 1.0)),
+		int(contract.get("pollution_risk", 0)),
 	]
 
 
@@ -3085,6 +3140,8 @@ func _apply_ui_theme(node: Node = null) -> void:
 			(node as PanelContainer).add_theme_stylebox_override("panel", _style(_theme_color("ink"), Color(_theme_color("muted"), 0.22)))
 		elif node.has_meta("tooltip_panel"):
 			(node as PanelContainer).add_theme_stylebox_override("panel", _style(_theme_color("muted"), _theme_color("accent")))
+		elif node.has_meta("signal_contract_panel"):
+			(node as PanelContainer).add_theme_stylebox_override("panel", _style(_theme_color("ink"), _theme_color("muted")))
 		elif node.has_meta("soft_panel"):
 			(node as PanelContainer).add_theme_stylebox_override("panel", _soft_style(_theme_color("surface"), _theme_color("accent")))
 		else:

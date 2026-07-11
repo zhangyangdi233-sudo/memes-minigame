@@ -678,7 +678,8 @@ func _run() -> void:
 		if social_post_card != null and social_post_card_1 != null:
 			_assert_true(social_post_card.custom_minimum_size.y != social_post_card_1.custom_minimum_size.y, "masonry post cards should use staggered heights")
 		if social_post_caption != null:
-			_assert_true(str(social_post_caption.text).length() <= 24, "home feed captions should stay short")
+			var caption_length := str(social_post_caption.text).length()
+			_assert_true(caption_length >= 8 and caption_length <= 14, "home feed captions should stay within the researched 8-14 character mobile range")
 		if social_post_caption != null and social_post_caption_1 != null:
 			_assert_true(social_post_caption.text != social_post_caption_1.text, "home feed captions should not feel like repeated token excerpts")
 		if root.has_method("_social_post_for_index"):
@@ -690,6 +691,7 @@ func _run() -> void:
 			_assert_true(_unique_social_values(root, "text", 12) == 12, "all twelve generated poster cells should map to distinct detail posts")
 			_assert_true(_unique_social_values(root, "handle", 12) == 12, "all twelve generated poster cells should map to distinct note personas")
 			_assert_true(_unique_social_captions(root, 12) == 12, "all twelve generated poster cells should expose distinct short captions")
+			_assert_true(_social_captions_fit_length(root, 12, 8, 14), "all twelve social captions should fit the researched 8-14 character mobile range")
 			_assert_true(_social_cards_have_coherent_tokens(root, 12), "each generated poster should carry its own coherent token and tag data")
 			_assert_true(str(root._social_post_for_index(0).get("text", "")).contains("："), "social detail posts should read like compact image-note captions")
 		_assert_true(_generated_posters_are_varied(), "generated social poster images should not all be identical")
@@ -706,6 +708,9 @@ func _run() -> void:
 			var publish_button_after_nav := _find_node_by_name(root, "SocialPublishButton") as Button
 			var publish_score_after_nav := _find_node_by_name(root, "SocialPublishScoreBreakdown") as PanelContainer
 			var publish_score_text_after_nav := _find_node_by_name(root, "SocialPublishScoreText") as Label
+			var publish_contract_after_nav := _find_node_by_name(root, "SocialPublishContractPanel") as PanelContainer
+			var publish_contract_title_after_nav := _find_node_by_name(root, "SocialPublishContractTitle") as Label
+			var publish_contract_text_after_nav := _find_node_by_name(root, "SocialPublishContractText") as Label
 			var feed_after_nav := _find_node_by_name(root, "SocialFeedMasonry") as HBoxContainer
 			var inline_close_after_publish := _find_node_by_name(root, "SocialAppInlineCloseButton") as Button
 			var bottom_nav_after_publish := _find_node_by_name(root, "SocialBottomNav") as HBoxContainer
@@ -714,8 +719,12 @@ func _run() -> void:
 			_assert_true(publish_scroll_after_nav != null, "publish page should put expandable content inside an internal scroll area")
 			_assert_true(publish_action_bar_after_nav != null, "publish page should expose a fixed action bar for confirmation")
 			_assert_true(publish_score_after_nav != null, "publish page should expose a Balatro-like base-times-multiplier breakdown")
+			_assert_true(publish_contract_after_nav != null, "publish page should expose today's signal hand as a distinct scoring contract")
+			if publish_contract_title_after_nav != null and publish_contract_text_after_nav != null:
+				_assert_true(not publish_contract_title_after_nav.text.is_empty(), "daily signal hand should have a visible name")
+				_assert_true(str(publish_contract_text_after_nav.text).contains("奖励") and str(publish_contract_text_after_nav.text).contains("污染"), "daily signal hand should reveal both reward and pollution risk before publishing")
 			if publish_score_text_after_nav != null:
-				_assert_true(str(publish_score_text_after_nav.text).contains("传播基础") and str(publish_score_text_after_nav.text).contains("共鸣倍率"), "publish score breakdown should label both base value and multiplier")
+				_assert_true(str(publish_score_text_after_nav.text).contains("传播基础") and str(publish_score_text_after_nav.text).contains("共鸣倍率") and str(publish_score_text_after_nav.text).contains("牌型倍率"), "publish score breakdown should label base, resonance, and signal-hand multipliers")
 			if composer_after_nav != null and publish_scroll_after_nav != null:
 				_assert_true(_is_descendant_of(composer_after_nav, publish_scroll_after_nav), "publish composer should scroll inside the phone instead of stretching the phone")
 			if publish_button_after_nav != null and publish_action_bar_after_nav != null and publish_scroll_after_nav != null:
@@ -1153,6 +1162,15 @@ func _unique_social_captions(root: Node, count: int) -> int:
 		var post: Dictionary = root._social_post_for_index(index)
 		values[str(root._social_caption(post, index))] = true
 	return values.size()
+
+
+func _social_captions_fit_length(root: Node, count: int, minimum: int, maximum: int) -> bool:
+	for index in count:
+		var post: Dictionary = root._social_post_for_index(index)
+		var length := str(root._social_caption(post, index)).length()
+		if length < minimum or length > maximum:
+			return false
+	return true
 
 
 func _social_cards_have_coherent_tokens(root: Node, count: int) -> bool:
