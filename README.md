@@ -13,6 +13,8 @@ Standalone Godot 4.6 game built from the third-chapter meme prototype. It combin
 
 Each day has five effective actions. Navigation, window movement, preview placement, and editing do not spend actions.
 
+The social phone starts with an empty Following channel. Following accounts and liking posts from Discover are free and persist across days; Nearby remains unavailable because the device has no location signal.
+
 ## Run
 
 Open this folder in Godot 4.6 or newer. The main scene is:

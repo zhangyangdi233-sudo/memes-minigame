@@ -1874,6 +1874,24 @@ func _render_social_home_page(parent: VBoxContainer) -> void:
 	home_page.size_flags_vertical = Control.SIZE_EXPAND_FILL
 	home_page.add_theme_constant_override("separation", 0)
 	parent.add_child(home_page)
+	if _social_channel == "附近":
+		_render_social_channel_empty_state(
+			home_page,
+			"SocialNearbyUnavailable",
+			"无法定位",
+			"设备保持无信号。附近内容无法取得位置。"
+		)
+		return
+
+	var visible_post_indices := _social_visible_post_indices()
+	if _social_channel == "关注" and visible_post_indices.is_empty():
+		_render_social_channel_empty_state(
+			home_page,
+			"SocialFollowingEmptyState",
+			"还没有关注",
+			"在发现瀑布流里关注一个账号，它的帖子会留在这里。"
+		)
+		return
 
 	var feed_frame := PanelContainer.new()
 	feed_frame.name = "SocialFeedDarkFrame"
@@ -1903,8 +1921,8 @@ func _render_social_home_page(parent: VBoxContainer) -> void:
 		column.add_theme_constant_override("separation", 10)
 		masonry.add_child(column)
 		columns.append(column)
-	var card_count: int = SOCIAL_POST_CARDS.size()
-	for post_index in card_count:
+	for visible_index in visible_post_indices.size():
+		var post_index: int = int(visible_post_indices[visible_index])
 		var post := _social_post_for_index(post_index)
 		var card_panel := _panel()
 		card_panel.name = "SocialPostCard%d" % post_index
@@ -1914,7 +1932,7 @@ func _render_social_home_page(parent: VBoxContainer) -> void:
 		card_panel.mouse_filter = Control.MOUSE_FILTER_STOP
 		card_panel.gui_input.connect(_on_social_card_gui_input.bind(post_index))
 		card_panel.mouse_default_cursor_shape = Control.CURSOR_POINTING_HAND
-		columns[post_index % columns.size()].add_child(card_panel)
+		columns[visible_index % columns.size()].add_child(card_panel)
 		var card := VBoxContainer.new()
 		card.add_theme_constant_override("separation", 6)
 		card_panel.add_child(card)
@@ -1926,15 +1944,73 @@ func _render_social_home_page(parent: VBoxContainer) -> void:
 		var meta_row := HBoxContainer.new()
 		meta_row.add_theme_constant_override("separation", 4)
 		card.add_child(meta_row)
-		var likes := _label("♡ %d" % (64 + (post_index * 31) % 120), 12, _theme_color("accent"))
-		likes.name = "SocialPostMetaLikes%d" % post_index
+		var likes := Button.new()
+		likes.name = "SocialPostLikeButton%d" % post_index
+		likes.text = _social_like_text(post, post_index)
+		likes.set_meta("flat_phone_button", true)
+		likes.custom_minimum_size = Vector2(64, 44)
 		likes.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+		likes.pressed.connect(_on_social_like_pressed.bind(str(post.get("id", ""))))
 		meta_row.add_child(likes)
-		meta_row.add_child(_label("...", 14, _theme_color("accent")))
+		var follow := Button.new()
+		follow.name = "SocialPostFollowButton%d" % post_index
+		follow.text = "已关注" if game.is_social_following(str(post.get("handle", ""))) else "关注"
+		follow.set_meta("flat_phone_button", true)
+		follow.custom_minimum_size = Vector2(74, 44)
+		follow.pressed.connect(_on_social_follow_pressed.bind(str(post.get("handle", ""))))
+		meta_row.add_child(follow)
 	var scroll_hint := _label("继续下滑浏览更多信号", 13, _theme_color("accent"))
 	scroll_hint.name = "SocialScrollHint"
 	scroll_hint.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
 	columns[0].add_child(scroll_hint)
+
+
+func _render_social_channel_empty_state(parent: VBoxContainer, node_name: String, title: String, body: String) -> void:
+	var frame := PanelContainer.new()
+	frame.name = node_name
+	frame.set_meta("social_feed_dark", true)
+	frame.size_flags_vertical = Control.SIZE_EXPAND_FILL
+	parent.add_child(frame)
+	var center := CenterContainer.new()
+	center.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+	center.size_flags_vertical = Control.SIZE_EXPAND_FILL
+	frame.add_child(center)
+	var copy := VBoxContainer.new()
+	copy.custom_minimum_size.x = 300
+	copy.add_theme_constant_override("separation", 12)
+	center.add_child(copy)
+	var eyebrow := _label("NO SIGNAL / 00", 13, _theme_color("muted"))
+	eyebrow.set_meta("on_dark", true)
+	eyebrow.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
+	copy.add_child(eyebrow)
+	var heading := _label(title, 24, _theme_color("surface"))
+	heading.set_meta("on_dark", true)
+	heading.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
+	copy.add_child(heading)
+	var message := _label(body, 15, _theme_color("muted"))
+	message.name = "%sMessage" % node_name
+	message.set_meta("on_dark", true)
+	message.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
+	message.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
+	copy.add_child(message)
+
+
+func _social_visible_post_indices() -> Array[int]:
+	var result: Array[int] = []
+	for post_index in SOCIAL_POST_CARDS.size():
+		if _social_channel == "关注":
+			var post := _social_post_for_index(post_index)
+			if not game.is_social_following(str(post.get("handle", ""))):
+				continue
+		result.append(post_index)
+	return result
+
+
+func _social_like_text(post: Dictionary, post_index: int) -> String:
+	var liked := game.is_social_post_liked(str(post.get("id", "")))
+	var stable_index := int(post.get("card_index", post_index))
+	var count := 64 + (stable_index * 31) % 120 + (1 if liked else 0)
+	return "%s %d" % ["♥" if liked else "♡", count]
 
 
 func _render_social_card_poster(parent: VBoxContainer, post_index: int, post: Dictionary) -> void:
@@ -2064,6 +2140,23 @@ func _render_social_detail_page(parent: VBoxContainer, companion: bool = false) 
 	post_text.set_meta("on_dark", true)
 	post_text.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
 	detail_box.add_child(post_text)
+	var engagement := HBoxContainer.new()
+	engagement.name = "SocialDetailEngagementRow"
+	engagement.add_theme_constant_override("separation", 8)
+	detail_box.add_child(engagement)
+	var detail_like := Button.new()
+	detail_like.name = "SocialDetailLikeButton"
+	detail_like.text = _social_like_text(post, int(post.get("card_index", _social_detail_post_index)))
+	detail_like.custom_minimum_size = Vector2(120, 44)
+	detail_like.pressed.connect(_on_social_like_pressed.bind(str(post.get("id", ""))))
+	engagement.add_child(detail_like)
+	var detail_follow := Button.new()
+	detail_follow.name = "SocialDetailFollowButton"
+	detail_follow.text = "已关注" if game.is_social_following(str(post.get("handle", ""))) else "关注"
+	detail_follow.custom_minimum_size = Vector2(120, 44)
+	detail_follow.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+	detail_follow.pressed.connect(_on_social_follow_pressed.bind(str(post.get("handle", ""))))
+	engagement.add_child(detail_follow)
 	var passive: Dictionary = post.get("passive", {})
 	var signal_profile := _label("信号偏向 / %s · %s   稀有度 %d" % [str(passive.get("label", "无")), str(passive.get("description", "")), int(post.get("rarity", 1))], 13, _theme_color("muted"))
 	signal_profile.name = "SocialCardSignalProfile"
@@ -2297,6 +2390,22 @@ func _on_social_channel_pressed(channel: String) -> void:
 	else:
 		_social_screen = "home"
 		_social_detail_open = false
+	_render()
+
+
+func _on_social_follow_pressed(handle: String) -> void:
+	if _input_locked:
+		return
+	var followed := game.toggle_social_follow(handle)
+	log_text = "已关注 @%s。" % handle if followed else "已取消关注 @%s。" % handle
+	_render()
+
+
+func _on_social_like_pressed(post_id: String) -> void:
+	if _input_locked:
+		return
+	var liked := game.toggle_social_like(post_id)
+	log_text = "已保存这条信号。" if liked else "已取消保存。"
 	_render()
 
 

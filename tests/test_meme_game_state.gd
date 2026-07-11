@@ -21,6 +21,7 @@ func _run() -> void:
 	if _state_script == null:
 		return
 	test_navigation_is_free_and_five_actions_mark_day_end()
+	test_social_follow_and_like_toggles_are_free_and_persistent()
 	test_pick_token_costs_action_and_adds_notebook_token()
 	test_buy_emotion_slot_costs_action_and_editing_is_free()
 	test_craft_uses_two_core_slots_and_optional_emotion_text()
@@ -65,6 +66,25 @@ func test_navigation_is_free_and_five_actions_mark_day_end() -> void:
 	game.settle_day_if_needed()
 	_assert_eq(game.day, 2, "settlement should advance to day 2")
 	_assert_eq(game.actions_remaining, 5, "settlement should reset daily actions")
+
+
+func test_social_follow_and_like_toggles_are_free_and_persistent() -> void:
+	var game: RefCounted = _state_script.new()
+	game.new_run()
+	_assert_true(game.social_followed_handles.is_empty(), "a new run should begin without followed social accounts")
+	_assert_true(game.social_liked_post_ids.is_empty(), "a new run should begin without liked posts")
+	var actions_before: int = game.actions_remaining
+	_assert_true(game.toggle_social_follow("塔下夜巡"), "following a new account should return the followed state")
+	_assert_true(game.is_social_following("塔下夜巡"), "followed account should persist in run state")
+	_assert_true(game.toggle_social_like("missing_window"), "liking a new post should return the liked state")
+	_assert_true(game.is_social_post_liked("missing_window"), "liked post should persist in run state")
+	_assert_eq(game.actions_remaining, actions_before, "following and liking should not spend daily actions")
+	game.needs_day_settlement = true
+	game.settle_day_if_needed()
+	_assert_true(game.is_social_following("塔下夜巡"), "followed accounts should survive day settlement")
+	_assert_true(game.is_social_post_liked("missing_window"), "liked posts should survive day settlement")
+	_assert_true(not game.toggle_social_follow("塔下夜巡"), "pressing follow again should unfollow the account")
+	_assert_true(not game.toggle_social_like("missing_window"), "pressing like again should remove the like")
 
 
 func test_pick_token_costs_action_and_adds_notebook_token() -> void:

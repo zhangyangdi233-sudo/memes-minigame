@@ -182,7 +182,7 @@ func _run() -> void:
 		var social_post_poster := _find_node_by_name(root, "SocialPostPoster0") as PanelContainer
 		var social_post_caption := _find_node_by_name(root, "SocialPostCaption0") as Label
 		var social_post_caption_1 := _find_node_by_name(root, "SocialPostCaption1") as Label
-		var social_post_meta_likes := _find_node_by_name(root, "SocialPostMetaLikes0") as Label
+		var social_post_meta_likes := _find_node_by_name(root, "SocialPostLikeButton0") as Button
 		var social_post_texture := _find_node_by_name(root, "SocialPostTexture0") as TextureRect
 		var social_post_texture_1 := _find_node_by_name(root, "SocialPostTexture1") as TextureRect
 		var social_post_open := _find_node_by_name(root, "SocialPostOpen0") as Button
@@ -381,7 +381,7 @@ func _run() -> void:
 					social_post_poster = _find_node_by_name(root, "SocialPostPoster0") as PanelContainer
 					social_post_caption = _find_node_by_name(root, "SocialPostCaption0") as Label
 					social_post_caption_1 = _find_node_by_name(root, "SocialPostCaption1") as Label
-					social_post_meta_likes = _find_node_by_name(root, "SocialPostMetaLikes0") as Label
+					social_post_meta_likes = _find_node_by_name(root, "SocialPostLikeButton0") as Button
 					social_post_texture = _find_node_by_name(root, "SocialPostTexture0") as TextureRect
 					social_post_open = _find_node_by_name(root, "SocialPostOpen0") as Button
 					social_detail_window = _find_node_by_name(root, "SocialDetailWindow") as PanelContainer
@@ -468,7 +468,7 @@ func _run() -> void:
 			social_post_poster = _find_node_by_name(root, "SocialPostPoster0") as PanelContainer
 			social_post_caption = _find_node_by_name(root, "SocialPostCaption0") as Label
 			social_post_caption_1 = _find_node_by_name(root, "SocialPostCaption1") as Label
-			social_post_meta_likes = _find_node_by_name(root, "SocialPostMetaLikes0") as Label
+			social_post_meta_likes = _find_node_by_name(root, "SocialPostLikeButton0") as Button
 			social_post_texture = _find_node_by_name(root, "SocialPostTexture0") as TextureRect
 			social_post_open = _find_node_by_name(root, "SocialPostOpen0") as Button
 			social_detail_window = _find_node_by_name(root, "SocialDetailWindow") as PanelContainer
@@ -777,6 +777,8 @@ func _run() -> void:
 				var detail_floor := _find_node_by_name(root, "SocialDetailWindowHandle") as Label
 				var detail_media_texture := _find_node_by_name(root, "SocialDetailPostTexture") as TextureRect
 				var detail_signal_profile := _find_node_by_name(root, "SocialCardSignalProfile") as Label
+				var detail_like_button := _find_node_by_name(root, "SocialDetailLikeButton") as Button
+				var detail_follow_button := _find_node_by_name(root, "SocialDetailFollowButton") as Button
 				var detail_window_after_card := _find_node_by_name(root, "SocialDetailWindow") as PanelContainer
 				_assert_true(detail_window_after_card != null and detail_window_after_card.visible, "opening a post should show the independent companion window")
 				_assert_true(detail_after_card != null, "opening a post should populate the companion detail page")
@@ -789,6 +791,8 @@ func _run() -> void:
 					_assert_true(str(detail_floor.text).contains("塔层"), "social detail page should label tower floor")
 				_assert_true(detail_media_texture != null and detail_media_texture.texture != null, "social detail should reuse generated post artwork")
 				_assert_true(detail_signal_profile != null and str(detail_signal_profile.text).contains("信号偏向"), "social detail should expose the card's build-facing signal profile")
+				_assert_true(detail_like_button != null and detail_like_button.custom_minimum_size.y >= 44.0, "post detail should expose a touch-sized like control")
+				_assert_true(detail_follow_button != null and detail_follow_button.custom_minimum_size.y >= 44.0, "post detail should expose a touch-sized follow control")
 				if social_detail_close != null:
 					var detail_position_before: Vector2 = root._window_position_for_test("social-detail")
 					_assert_true(root._move_window_for_test("social-detail", Vector2(-24, 12)), "detail companion should be draggable as its own window")
@@ -798,6 +802,54 @@ func _run() -> void:
 					_assert_true(_find_node_by_name(root, "SocialHomePage") != null, "closing detail should keep the home page available")
 			else:
 				_assert_true(false, "scene should expose a post open fallback after returning from profile")
+		if root.has_method("_social_post_for_index"):
+			var social_actions_before: int = root.game.actions_remaining
+			var follow_tab_initial := _find_node_by_name(root, "SocialChannelTab关注") as Button
+			if follow_tab_initial != null:
+				follow_tab_initial.pressed.emit()
+			var following_empty := _find_node_by_name(root, "SocialFollowingEmptyState") as PanelContainer
+			var following_feed_empty := _find_node_by_name(root, "SocialFeedMasonry") as HBoxContainer
+			_assert_true(following_empty != null, "Follow should begin with an explicit empty state")
+			_assert_true(following_feed_empty == null, "Follow should not show discovery posts before the player follows anyone")
+			var discover_for_engagement := _find_node_by_name(root, "SocialChannelTab发现") as Button
+			if discover_for_engagement != null:
+				discover_for_engagement.pressed.emit()
+			var post_zero: Dictionary = root._social_post_for_index(0)
+			var post_zero_id := str(post_zero.get("id", ""))
+			var post_zero_handle := str(post_zero.get("handle", ""))
+			var like_button := _find_node_by_name(root, "SocialPostLikeButton0") as Button
+			var follow_button := _find_node_by_name(root, "SocialPostFollowButton0") as Button
+			_assert_true(like_button != null and like_button.custom_minimum_size.y >= 44.0, "feed cards should expose touch-sized like buttons")
+			_assert_true(follow_button != null and follow_button.custom_minimum_size.y >= 44.0, "feed cards should expose touch-sized follow buttons")
+			if like_button != null:
+				like_button.pressed.emit()
+			var liked_button := _find_node_by_name(root, "SocialPostLikeButton0") as Button
+			_assert_true(root.game.is_social_post_liked(post_zero_id), "liking a feed card should persist in run state")
+			_assert_true(liked_button != null and str(liked_button.text).contains("♥"), "liked feed cards should switch to a filled heart")
+			follow_button = _find_node_by_name(root, "SocialPostFollowButton0") as Button
+			if follow_button != null:
+				follow_button.pressed.emit()
+			_assert_true(root.game.is_social_following(post_zero_handle), "following from Discover should persist the account")
+			var follow_tab_after_follow := _find_node_by_name(root, "SocialChannelTab关注") as Button
+			if follow_tab_after_follow != null:
+				follow_tab_after_follow.pressed.emit()
+			var following_feed := _find_node_by_name(root, "SocialFeedMasonry") as HBoxContainer
+			_assert_true(_find_node_by_name(root, "SocialFollowingEmptyState") == null, "Follow empty state should disappear after following an account")
+			_assert_true(following_feed != null, "Follow should render a masonry feed after an account is followed")
+			_assert_eq(_count_nodes_named_prefix(root, "SocialPostCard"), 1, "Follow should contain only posts from followed accounts")
+			var nearby_tab := _find_node_by_name(root, "SocialChannelTab附近") as Button
+			if nearby_tab != null:
+				nearby_tab.pressed.emit()
+			var nearby_unavailable := _find_node_by_name(root, "SocialNearbyUnavailable") as PanelContainer
+			var nearby_message := _find_node_by_name(root, "SocialNearbyUnavailableMessage") as Label
+			_assert_true(nearby_unavailable != null, "Nearby should show an unavailable-location state")
+			_assert_true(nearby_message != null and str(nearby_message.text).contains("无法"), "Nearby unavailable state should explain that location cannot be obtained")
+			_assert_true(_find_node_by_name(root, "SocialFeedMasonry") == null, "Nearby should not leak discovery posts behind the location error")
+			var discover_after_nearby := _find_node_by_name(root, "SocialChannelTab发现") as Button
+			if discover_after_nearby != null:
+				discover_after_nearby.pressed.emit()
+			_assert_true(_find_node_by_name(root, "SocialFeedMasonry") != null, "Discover should restore the full masonry feed after leaving Nearby")
+			_assert_eq(root.game.actions_remaining, social_actions_before, "following, liking, and switching social channels should not spend actions")
 		if shop_app_window != null and shop_close != null:
 			var actions_before_close: int = root.game.actions_remaining
 			shop_close.pressed.emit()

@@ -170,6 +170,8 @@ var dialogue_blanks: Dictionary = {}
 var published_memes: Array = []
 var last_publish_breakdown: Dictionary = {}
 var event_log: Array[String] = []
+var social_followed_handles: Array[String] = []
+var social_liked_post_ids: Array[String] = []
 
 var owned_emotion_slots: Array = []
 var equipped_emotion_slots: Array = []
@@ -228,6 +230,8 @@ func new_run() -> void:
 	published_memes = []
 	last_publish_breakdown = {}
 	event_log = []
+	social_followed_handles = []
+	social_liked_post_ids = []
 	owned_emotion_slots = []
 	equipped_emotion_slots = []
 	emotion_slot_texts = {}
@@ -302,6 +306,36 @@ func spend_action(action_type: String) -> bool:
 
 func can_spend_action() -> bool:
 	return actions_remaining > 0 and pending_ascent_reward_choices.is_empty()
+
+
+func is_social_following(handle: String) -> bool:
+	return handle in social_followed_handles
+
+
+func toggle_social_follow(handle: String) -> bool:
+	var normalized := handle.strip_edges()
+	if normalized.is_empty():
+		return false
+	if normalized in social_followed_handles:
+		social_followed_handles.erase(normalized)
+		return false
+	social_followed_handles.append(normalized)
+	return true
+
+
+func is_social_post_liked(post_id: String) -> bool:
+	return post_id in social_liked_post_ids
+
+
+func toggle_social_like(post_id: String) -> bool:
+	var normalized := post_id.strip_edges()
+	if normalized.is_empty():
+		return false
+	if normalized in social_liked_post_ids:
+		social_liked_post_ids.erase(normalized)
+		return false
+	social_liked_post_ids.append(normalized)
+	return true
 
 
 func check_pollution_flashback(previous_pollution: int) -> bool:
