@@ -28,8 +28,8 @@ func _capture() -> void:
 	if main._phone_down_backdrop_image != null:
 		main._phone_down_backdrop_image.visible = false
 	if main.get("_reality_player") != null:
-		main._reality_player.position = Vector3(0.45, 0.08, 1.45)
-		main._reality_yaw = -72.0
+		main._reality_player.position = main._reality_floor.start_position()
+		main._reality_yaw = 0.0
 	for frame in 72:
 		await process_frame
 	var viewport_texture := root.get_texture()

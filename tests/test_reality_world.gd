@@ -55,6 +55,23 @@ func _run() -> void:
 	_assert_eq(int(floor_root.get_meta("ordinary_npc_count", 0)), 5, "first floor should contain five ordinary NPCs")
 	_assert_true(int(floor_root.get_meta("useful_item_count", 0)) > 0, "some first-floor rooms should contain useful items")
 	_assert_true(int(floor_root.get_meta("useful_item_count", 0)) < int(floor_root.get_meta("room_count", 0)), "some rooms should remain empty")
+	_assert_eq(str(floor_root.get_meta("layout_mode", "")), "shared_street", "reality floor should be one shared open street instead of isolated NPC boxes")
+	var map_width := float(floor_root.get_meta("map_width", 0.0))
+	var map_length := float(floor_root.get_meta("map_length", 0.0))
+	_assert_true(map_width >= 32.0 and map_length >= 42.0, "first floor should provide a genuinely broad continuous street")
+	var street_ground := _find_node_by_name(floor_root, "StreetGround") as StaticBody3D
+	_assert_true(street_ground != null, "shared street should use one continuous collision ground")
+	_assert_eq(int(floor_root.get_meta("air_wall_count", 0)), 4, "the map perimeter should expose four air walls")
+	var air_walls := _find_node_by_name(floor_root, "AirWalls") as Node3D
+	_assert_true(air_walls != null and air_walls.get_child_count() == 4, "air-wall container should surround every map edge")
+	if air_walls != null:
+		for wall in air_walls.get_children():
+			_assert_true(wall is StaticBody3D and bool(wall.get_meta("air_wall", false)), "each perimeter edge should be an invisible static air wall")
+	if player != null:
+		var half_width := map_width * 0.5
+		var half_length := map_length * 0.5
+		_assert_true(absf(player.position.x) <= half_width - 5.0, "player spawn should have generous horizontal clearance")
+		_assert_true(absf(player.position.z) <= half_length - 5.0, "player spawn should have generous longitudinal clearance")
 
 	var merchant := _find_actor(floor_root, "merchant")
 	var ordinary_npcs := _count_actors(floor_root, "npc")
@@ -75,6 +92,12 @@ func _run() -> void:
 	_assert_true(_action_has_key("reality_interact", KEY_F), "world interaction should use F")
 
 	game_root.set_view_state("npc_up")
+	_assert_true(bool(game_root._reality_mouse_look_enabled), "putting the phone down should immediately enable free mouse look")
+	var yaw_before_mouse := float(game_root._reality_yaw)
+	var mouse_turn := InputEventMouseMotion.new()
+	mouse_turn.relative = Vector2(96.0, 0.0)
+	game_root._unhandled_input(mouse_turn)
+	_assert_true(not is_equal_approx(float(game_root._reality_yaw), yaw_before_mouse), "horizontal mouse movement should rotate the first-person view")
 	if player != null:
 		var walk_start := player.position
 		Input.action_press("reality_forward")
@@ -82,6 +105,19 @@ func _run() -> void:
 			await physics_frame
 		Input.action_release("reality_forward")
 		_assert_true(player.position.z < walk_start.z - 0.25, "holding W should move the first-person body forward through the floor")
+		game_root._reality_yaw = 0.0
+		player.position = Vector3(0.0, 0.08, map_length * 0.5 - 1.2)
+		player.velocity = Vector3.ZERO
+		Input.action_press("reality_back")
+		for frame in 72:
+			await physics_frame
+		Input.action_release("reality_back")
+		_assert_true(player.position.z < map_length * 0.5, "the south air wall should physically stop sustained backward movement")
+		_assert_true(player.position.y > -0.5, "walking against the map edge should keep the player on the continuous ground")
+		player.position = Vector3(0.0, -8.0, 0.0)
+		player.velocity = Vector3(0.0, -12.0, 0.0)
+		game_root._update_reality_player(0.016)
+		_assert_true(player.position.y >= 0.0, "falling below the street should recover the player onto a safe spawn")
 	if player != null and merchant != null:
 		player.position = merchant.position + Vector3(0.0, 0.0, 1.4)
 		game_root._refresh_nearby_reality_actor()
@@ -104,6 +140,9 @@ func _run() -> void:
 	game_root._ensure_reality_floor_current()
 	floor_root = game_root.get_node_or_null("RealityFloor") as Node3D
 	_assert_eq(int(floor_root.get_meta("room_count", 0)), 14, "fifth floor should grow to fourteen rooms")
+	_assert_true(float(floor_root.get_meta("map_length", 0.0)) > map_length, "higher floors should lengthen the same shared street as lots are added")
+	_assert_eq(str(floor_root.get_meta("layout_mode", "")), "shared_street", "higher floors should preserve the shared-street layout")
+	_assert_eq(int(floor_root.get_meta("air_wall_count", 0)), 4, "expanded floors should rebuild their four perimeter air walls")
 	_assert_eq(int(floor_root.get_meta("ordinary_npc_count", 0)), 2, "higher floors should thin ordinary NPCs to two")
 	_assert_eq(_count_actors(floor_root, "npc"), 2, "fifth-floor actor population should match its metadata")
 	_assert_true(_find_actor(floor_root, "merchant") != null, "merchant should persist on the highest floor")

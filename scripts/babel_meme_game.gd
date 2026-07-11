@@ -52,6 +52,8 @@ const REALITY_MOVE_SPEED := 3.3
 const REALITY_ACCELERATION := 14.0
 const REALITY_MOUSE_SENSITIVITY := 0.085
 const REALITY_INTERACTION_DISTANCE := 2.25
+const REALITY_FALL_RECOVERY_Y := -3.0
+const REALITY_SAFE_INSET := 1.2
 const CINEMATIC_ASPECT_RATIO := 2.35
 const SOCIAL_POST_CARDS := [
 	{
@@ -279,6 +281,8 @@ var _reality_floor
 var _reality_built_floor := 0
 var _reality_yaw := 0.0
 var _reality_pitch := 0.0
+var _reality_last_safe_position := Vector3.ZERO
+var _reality_mouse_look_enabled := false
 var _nearby_reality_actor: Area3D
 var _active_reality_actor: Area3D
 var _reality_interaction_active := false
@@ -448,15 +452,15 @@ func _unhandled_input(event: InputEvent) -> void:
 			if _reality_interaction_active:
 				_exit_reality_interaction()
 			else:
-				Input.set_mouse_mode(Input.MOUSE_MODE_VISIBLE)
+				_set_reality_mouse_look(false)
 			get_viewport().set_input_as_handled()
 			return
 	if game.view_state != "npc_up" or _reality_interaction_active:
 		return
 	if event is InputEventMouseButton and event.button_index == MOUSE_BUTTON_LEFT and event.pressed:
-		Input.set_mouse_mode(Input.MOUSE_MODE_CAPTURED)
+		_set_reality_mouse_look(true)
 		get_viewport().set_input_as_handled()
-	elif event is InputEventMouseMotion and Input.mouse_mode == Input.MOUSE_MODE_CAPTURED:
+	elif event is InputEventMouseMotion and _reality_mouse_look_enabled:
 		var motion := event as InputEventMouseMotion
 		_reality_yaw -= motion.relative.x * REALITY_MOUSE_SENSITIVITY
 		_reality_pitch = clampf(_reality_pitch - motion.relative.y * REALITY_MOUSE_SENSITIVITY, -68.0, 72.0)
@@ -493,6 +497,7 @@ func new_game() -> void:
 	_reality_built_floor = 0
 	_reality_yaw = 0.0
 	_reality_pitch = 0.0
+	_set_reality_mouse_look(false)
 	_nearby_reality_actor = null
 	_active_reality_actor = null
 	_reality_interaction_active = false
@@ -512,7 +517,7 @@ func show_main_menu() -> void:
 	_reality_interaction_active = false
 	_active_reality_actor = null
 	_nearby_reality_actor = null
-	Input.set_mouse_mode(Input.MOUSE_MODE_VISIBLE)
+	_set_reality_mouse_look(false)
 	_build_world()
 	_build_main_menu()
 	_sync_audio_state(true)
@@ -527,12 +532,13 @@ func set_view_state(value: String) -> void:
 		_nearby_reality_actor = null
 		_reality_hover_choice_id = ""
 		game.reset_typed_reality_conversation()
-		Input.set_mouse_mode(Input.MOUSE_MODE_VISIBLE)
 		if value == "npc_up":
-			log_text = "你放下手机，走廊重新获得纵深。"
+			_set_reality_mouse_look(true)
+			log_text = "你放下手机，大街重新获得纵深。"
 			_meme_bank_open = false
 			_phone_launcher_open = false
 		else:
+			_set_reality_mouse_look(false)
 			log_text = "你又低头看向手机。"
 			_phone_launcher_open = game.active_app_window.is_empty()
 			if not game.active_app_window.is_empty():
@@ -548,6 +554,11 @@ func _toggle_view_state() -> void:
 		set_view_state("npc_up")
 	else:
 		set_view_state("phone_down")
+
+
+func _set_reality_mouse_look(enabled: bool) -> void:
+	_reality_mouse_look_enabled = enabled
+	Input.set_mouse_mode(Input.MOUSE_MODE_CAPTURED if enabled else Input.MOUSE_MODE_VISIBLE)
 
 
 func _build_world() -> void:
@@ -690,7 +701,8 @@ func _rebuild_reality_floor() -> void:
 	_active_reality_actor = null
 	_nearby_reality_actor = null
 	if _reality_player != null:
-		_reality_player.position = _reality_floor.start_position()
+		_reality_last_safe_position = _reality_floor.start_position()
+		_reality_player.position = _reality_last_safe_position
 		_reality_player.velocity = Vector3.ZERO
 	_reality_yaw = 0.0
 	_reality_pitch = 0.0
@@ -712,6 +724,9 @@ func _npc_count_for_floor(floor_number: int) -> int:
 
 
 func _update_reality_player(delta: float) -> void:
+	if _should_recover_reality_player():
+		_recover_reality_player()
+		return
 	var can_walk: bool = game.view_state == "npc_up" and not _reality_interaction_active and not _input_locked
 	var input_vector := Vector2.ZERO
 	if can_walk:
@@ -729,6 +744,30 @@ func _update_reality_player(delta: float) -> void:
 		_reality_player.velocity.y = 0.0
 	_reality_player.rotation.y = deg_to_rad(_reality_yaw)
 	_reality_player.move_and_slide()
+	if _should_recover_reality_player():
+		_recover_reality_player()
+	elif _reality_player.is_on_floor() and _reality_floor != null and _reality_floor.contains_playable_position(_reality_player.position, REALITY_SAFE_INSET):
+		_reality_last_safe_position = _reality_player.position
+
+
+func _should_recover_reality_player() -> bool:
+	if _reality_player == null or _reality_floor == null:
+		return false
+	if _reality_player.position.y < REALITY_FALL_RECOVERY_Y:
+		return true
+	return not _reality_floor.contains_playable_position(_reality_player.position, -2.0)
+
+
+func _recover_reality_player() -> void:
+	if _reality_player == null or _reality_floor == null:
+		return
+	var recovery_position := _reality_last_safe_position
+	if not _reality_floor.contains_playable_position(recovery_position, REALITY_SAFE_INSET):
+		recovery_position = _reality_floor.start_position()
+	recovery_position = _reality_floor.clamp_to_playable_position(recovery_position, REALITY_SAFE_INSET)
+	recovery_position.y = 0.08
+	_reality_player.position = recovery_position
+	_reality_player.velocity = Vector3.ZERO
 
 
 func _refresh_nearby_reality_actor() -> void:
@@ -778,7 +817,7 @@ func _try_reality_interaction() -> bool:
 		_reality_pitch = -2.0
 	_reality_interaction_active = true
 	_reality_hover_choice_id = ""
-	Input.set_mouse_mode(Input.MOUSE_MODE_VISIBLE)
+	_set_reality_mouse_look(false)
 	log_text = "你停在%s面前。" % _active_actor_display_name()
 	_render()
 	_sync_audio_state(false)
@@ -790,6 +829,8 @@ func _exit_reality_interaction(should_render: bool = true) -> void:
 	_active_reality_actor = null
 	_reality_hover_choice_id = ""
 	game.reset_typed_reality_conversation()
+	if game.view_state == "npc_up":
+		_set_reality_mouse_look(true)
 	if should_render:
 		_render()
 		_sync_audio_state(false)
@@ -3217,7 +3258,7 @@ func _advance_typed_reality_character() -> bool:
 		_reality_interaction_active = false
 		_active_reality_actor = null
 		_nearby_reality_actor = null
-		Input.set_mouse_mode(Input.MOUSE_MODE_VISIBLE)
+		_set_reality_mouse_look(true)
 	if bool(result.get("action_spent", false)):
 		_after_effective_action(actions_before)
 	else:
@@ -3513,6 +3554,7 @@ func _open_phone_launcher() -> void:
 	if _input_locked:
 		return
 	game.set_view_state("phone_down")
+	_set_reality_mouse_look(false)
 	_phone_launcher_open = true
 	if _phone_panel != null:
 		_phone_panel.move_to_front()
@@ -4232,6 +4274,7 @@ func _on_app_pressed(app_id: String) -> void:
 	if _input_locked:
 		return
 	game.set_view_state("phone_down")
+	_set_reality_mouse_look(false)
 	game.set_active_app(app_id)
 	_open_app_windows[app_id] = true
 	_phone_launcher_open = false
@@ -4439,6 +4482,7 @@ func _settle_day_and_present_rewards() -> bool:
 	selected_meme_id = ""
 	if not game.pending_ascent_reward_choices.is_empty():
 		game.set_view_state("phone_down")
+		_set_reality_mouse_look(false)
 		game.set_active_app("babel")
 		_open_app_windows["babel"] = true
 		_phone_launcher_open = false

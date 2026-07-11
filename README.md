@@ -9,7 +9,7 @@ Standalone Godot 4.6 game built from the third-chapter meme prototype. It combin
 3. Build around the day's signal hand for extra propagation base and multiplier.
 4. Buy up to two signal-arcana cards, then use them to rewrite a meme, reroll a hand, or amplify one publish.
 5. Publish for heat and money while accepting the hand and arcana pollution risks.
-6. Put the phone away and explore the current tower floor as a first-person 3D space.
+6. Put the phone away and explore the current tower floor as a first-person 3D street district.
 7. Approach a billboard NPC or the floor merchant, press `F`, and carry the previous floor's hottest meme into reality as a legacy rule.
 
 Each day has five effective actions. Navigation, window movement, preview placement, and editing do not spend actions.
@@ -22,12 +22,12 @@ The meme bank is hidden globally. It appears only as a small attached file windo
 
 ## Reality Controls
 
-- `WASD` or arrow keys: move through the generated rooms.
-- Mouse: click the world to capture the cursor and look around; `Esc` releases it.
+- `WASD` or arrow keys: move freely through the shared street and its open lots.
+- Mouse: lowering the phone captures the cursor for free look; `Esc` releases it and a left click captures it again.
 - `F`: talk to the nearby NPC or merchant.
 - `Tab`: raise or lower the phone.
 
-The first floor starts with four rooms. Each ascent adds two or three rooms, reduces the ordinary NPC population from five toward two, and always keeps one merchant. Some rooms contain signal items while others are deliberately empty. The cinematic bars stay fixed, while phone and App windows render above them.
+The first floor starts with four open street lots around a continuous 34 x 46 meter ground plane. Each ascent adds two or three lots and lengthens the shared street, reduces the ordinary NPC population from five toward two, and always keeps one merchant. Some lots contain signal items while others are deliberately empty. Four invisible perimeter walls and a fall-recovery safeguard keep the player inside the walkable district. The cinematic bars stay fixed, while phone and App windows render above them.
 
 Reality conversations use a cursor-driven three-choice surface. Each choice is a three-to-five-character summary; hovering previews the full clean intention without covering the NPC subtitle. After selecting, any physical key reveals exactly one character. Unspoken characters remain gray, clean characters turn cream-white, and pollution successes replace that position with red signal glyphs or fragments from the meme bank. Legacy phrases are inserted automatically. Completing the whole sentence costs one action; partial typing is free. Ordinary NPCs make one understanding check, merchants make three, and three failed attempts close the conversation until the player presses `F` again.
 
