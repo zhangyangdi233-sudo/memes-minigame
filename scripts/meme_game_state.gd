@@ -90,6 +90,40 @@ const EMOTION_SLOTS := {
 
 const EMOTION_ROTATION := ["anxiety", "please", "counter", "silence", "anger", "prayer"]
 const MAX_EQUIPPED_EMOTION_SLOTS := 2
+const MAX_HELD_ARCANA_CARDS := 2
+const ARCANA_CARDS := {
+	"moon": {
+		"id": "moon", "numeral": "XVIII", "label": "月亮", "price": 8,
+		"effect": "next_multiplier", "multiplier": 1.40, "pollution_risk": 4,
+		"description": "下一次传播总倍率 ×1.40，同时追加 4 污染。",
+	},
+	"tower": {
+		"id": "tower", "numeral": "XVI", "label": "高塔", "price": 10,
+		"effect": "force_contract", "pollution_risk": 7,
+		"description": "下一次发布强制成立今日牌型，同时追加 7 污染。",
+	},
+	"hermit": {
+		"id": "hermit", "numeral": "IX", "label": "隐者", "price": 7,
+		"effect": "repeat_grace", "value": 1, "pollution_risk": 0,
+		"description": "下一次发布忽略 1 次复读衰减。",
+	},
+	"hanged": {
+		"id": "hanged", "numeral": "XII", "label": "倒吊人", "price": 6,
+		"effect": "clarity_for_base", "value": 24, "clarity_cost": 8, "pollution_risk": 0,
+		"description": "立即失去 8 清晰，下一次传播基础 +24。",
+	},
+	"star": {
+		"id": "star", "numeral": "XVII", "label": "星星", "price": 8,
+		"effect": "add_trend_tag", "requires_meme": true, "pollution_risk": 0,
+		"description": "为选中的完整梗永久写入 1 个缺失的今日风向。",
+	},
+	"judgement": {
+		"id": "judgement", "numeral": "XX", "label": "审判", "price": 7,
+		"effect": "reroll_contract", "pollution_risk": 0,
+		"description": "立刻改写今日牌型；本次使用不消耗行动。",
+	},
+}
+const ARCANA_ROTATION := ["moon", "star", "hermit", "tower", "hanged", "judgement"]
 const ASCENT_REWARDS := [
 	{"id": "echo_amplifier", "label": "回声增幅", "description": "每个命中风向让共鸣倍率额外 +0.08。", "effect": "synergy_step", "value": 0.08},
 	{"id": "pollution_dividend", "label": "污染分红", "description": "污染传播倍率固定额外 +0.15。", "effect": "pollution_bonus", "value": 0.15},
@@ -142,6 +176,13 @@ var equipped_emotion_slots: Array = []
 var emotion_slot_texts: Dictionary = {}
 var daily_emotion_slot_id: String = "anxiety"
 
+var owned_arcana_cards: Array = []
+var daily_arcana_card_id: String = "moon"
+var daily_arcana_bought: bool = false
+var pending_arcana_effects: Dictionary = {}
+var signal_contract_offset: int = 0
+var arcana_sequence: int = 0
+
 var permanent_modifiers: Array = []
 var pending_ascent_reward_choices: Array = []
 var pending_ascent_reward_floor: int = 0
@@ -191,6 +232,12 @@ func new_run() -> void:
 	equipped_emotion_slots = []
 	emotion_slot_texts = {}
 	daily_emotion_slot_id = _emotion_slot_for_day(day)
+	owned_arcana_cards = []
+	daily_arcana_card_id = _arcana_for_day(day)
+	daily_arcana_bought = false
+	pending_arcana_effects = {}
+	signal_contract_offset = 0
+	arcana_sequence = 0
 	permanent_modifiers = []
 	pending_ascent_reward_choices = []
 	pending_ascent_reward_floor = 0
@@ -304,6 +351,9 @@ func settle_day_if_needed() -> bool:
 	reality_sentence_slots.clear()
 	reset_reality_phase_for_day()
 	daily_emotion_slot_id = _emotion_slot_for_day(day)
+	daily_arcana_card_id = _arcana_for_day(day)
+	daily_arcana_bought = false
+	signal_contract_offset = 0
 	heat = maxi(10, int(round(float(heat) * 0.82)))
 	money += 5 + tower_floor * 2
 	return true
@@ -388,6 +438,114 @@ func toggle_equipped_emotion_slot(slot_id: String) -> bool:
 	if equipped_emotion_slots.size() >= MAX_EQUIPPED_EMOTION_SLOTS:
 		return false
 	equipped_emotion_slots.append(slot_id)
+	return true
+
+
+func get_daily_arcana_card() -> Dictionary:
+	return (ARCANA_CARDS.get(daily_arcana_card_id, {}) as Dictionary).duplicate(true)
+
+
+func get_owned_arcana_card_data() -> Array:
+	var result: Array = []
+	for held in owned_arcana_cards:
+		var card: Dictionary = ARCANA_CARDS.get(str(held.get("id", "")), {})
+		if card.is_empty():
+			continue
+		var item := card.duplicate(true)
+		item["uid"] = str(held.get("uid", ""))
+		item["bought_day"] = int(held.get("bought_day", day))
+		result.append(item)
+	return result
+
+
+func buy_daily_arcana_card() -> bool:
+	if daily_arcana_bought or owned_arcana_cards.size() >= MAX_HELD_ARCANA_CARDS:
+		return false
+	var card := get_daily_arcana_card()
+	if card.is_empty():
+		return false
+	var price := int(card.get("price", 7))
+	if money < price:
+		return false
+	if not spend_action("buy-arcana-card"):
+		return false
+	money -= price
+	arcana_sequence += 1
+	owned_arcana_cards.append({
+		"uid": "arcana-%s-%d-%d" % [str(card.get("id", "card")), day, arcana_sequence],
+		"id": str(card.get("id", "")),
+		"bought_day": day,
+	})
+	daily_arcana_bought = true
+	event_log.push_front("玄牌入手：%s。它会一直留在手里，直到被使用。" % str(card.get("label", "未命名")))
+	return true
+
+
+func can_use_arcana_card(card_uid: String, meme_id: String = "") -> bool:
+	var held_index := _find_held_arcana_index(card_uid)
+	if held_index < 0:
+		return false
+	var held: Dictionary = owned_arcana_cards[held_index]
+	var card: Dictionary = ARCANA_CARDS.get(str(held.get("id", "")), {})
+	if card.is_empty():
+		return false
+	match str(card.get("effect", "")):
+		"add_trend_tag":
+			return _find_missing_trend_tag(meme_id) != ""
+		"clarity_for_base":
+			return clarity >= int(card.get("clarity_cost", 0))
+	return true
+
+
+func use_arcana_card(card_uid: String, meme_id: String = "") -> bool:
+	var held_index := _find_held_arcana_index(card_uid)
+	if held_index < 0 or not can_use_arcana_card(card_uid, meme_id):
+		return false
+	var held: Dictionary = owned_arcana_cards[held_index]
+	var card: Dictionary = ARCANA_CARDS.get(str(held.get("id", "")), {})
+	var label := str(card.get("label", "未命名玄牌"))
+	match str(card.get("effect", "")):
+		"next_multiplier":
+			_ensure_pending_arcana_effects()
+			pending_arcana_effects["multiplier"] = snappedf(
+				float(pending_arcana_effects.get("multiplier", 1.0)) * float(card.get("multiplier", 1.0)),
+				0.01
+			)
+			pending_arcana_effects["pollution_risk"] = int(pending_arcana_effects.get("pollution_risk", 0)) + int(card.get("pollution_risk", 0))
+			_append_pending_arcana_label(label)
+		"force_contract":
+			_ensure_pending_arcana_effects()
+			pending_arcana_effects["force_contract"] = true
+			pending_arcana_effects["pollution_risk"] = int(pending_arcana_effects.get("pollution_risk", 0)) + int(card.get("pollution_risk", 0))
+			_append_pending_arcana_label(label)
+		"repeat_grace":
+			_ensure_pending_arcana_effects()
+			pending_arcana_effects["repeat_grace"] = int(pending_arcana_effects.get("repeat_grace", 0)) + int(card.get("value", 1))
+			_append_pending_arcana_label(label)
+		"clarity_for_base":
+			clarity = clampi(clarity - int(card.get("clarity_cost", 0)), 0, 100)
+			_ensure_pending_arcana_effects()
+			pending_arcana_effects["base_bonus"] = int(pending_arcana_effects.get("base_bonus", 0)) + int(card.get("value", 0))
+			_append_pending_arcana_label(label)
+		"add_trend_tag":
+			var target_index := _find_completed_meme_index(meme_id)
+			var tag_to_add := _find_missing_trend_tag(meme_id)
+			if target_index < 0 or tag_to_add.is_empty():
+				return false
+			var target: Dictionary = completed_memes[target_index]
+			var tags: Array = target.get("tags", []).duplicate()
+			tags.append(tag_to_add)
+			target["tags"] = _unique(tags)
+			target["rarity"] = _meme_rarity_from_tags(target["tags"])
+			target["pollution_bias"] = int(target.get("pollution_bias", 0)) + 1
+			var marks: Array = target.get("arcana_marks", []).duplicate()
+			marks.append(label)
+			target["arcana_marks"] = _unique(marks)
+			completed_memes[target_index] = target
+		"reroll_contract":
+			signal_contract_offset = posmod(signal_contract_offset + 1, SIGNAL_CONTRACTS.size())
+	owned_arcana_cards.remove_at(held_index)
+	event_log.push_front("玄牌生效：%s。" % label)
 	return true
 
 
@@ -498,6 +656,7 @@ func confirm_dialogue() -> bool:
 	var heat_gain := maxi(6, int(round(float(score) * 0.42)))
 	var pollution_gain := 4 + matching_tags.size() * 2 + int(meme.get("pollution_bias", 0))
 	pollution_gain += int(breakdown.get("contract_pollution_risk", 0))
+	pollution_gain += int(breakdown.get("arcana_pollution_risk", 0))
 	if not spend_action("confirm-dialogue"):
 		return false
 	last_publish_breakdown = breakdown.duplicate(true)
@@ -506,6 +665,9 @@ func confirm_dialogue() -> bool:
 			str(breakdown.get("contract_label", "未知牌型")),
 			float(breakdown.get("contract_multiplier", 1.0)),
 		])
+	var arcana_labels: Array = breakdown.get("active_arcana_labels", [])
+	if not arcana_labels.is_empty():
+		event_log.push_front("玄牌结算：%s。" % " / ".join(arcana_labels))
 	heat = clampi(heat + heat_gain, 0, 999)
 	var previous_pollution := pollution
 	pollution = clampi(pollution + pollution_gain, 0, 100)
@@ -521,6 +683,7 @@ func confirm_dialogue() -> bool:
 	record["published_day"] = day
 	published_memes.push_front(record)
 	dialogue_blanks.clear()
+	pending_arcana_effects.clear()
 	return true
 
 
@@ -741,7 +904,7 @@ func get_publish_breakdown(meme: Dictionary) -> Dictionary:
 
 
 func get_daily_signal_contract() -> Dictionary:
-	return SIGNAL_CONTRACTS[(day - 1) % SIGNAL_CONTRACTS.size()].duplicate(true)
+	return SIGNAL_CONTRACTS[posmod(day - 1 + signal_contract_offset, SIGNAL_CONTRACTS.size())].duplicate(true)
 
 
 func _score_meme_publish(meme: Dictionary, matching_tags: Array) -> int:
@@ -756,6 +919,10 @@ func _calculate_publish_breakdown(meme: Dictionary, matching_tags: Array) -> Dic
 			repeat_count += 1
 	var tags: Array = meme.get("tags", [])
 	var contract_result := _evaluate_signal_contract(meme, matching_tags, repeat_count)
+	var force_contract := bool(pending_arcana_effects.get("force_contract", false))
+	if force_contract and not bool(contract_result.get("matched", false)):
+		contract_result["matched"] = true
+		contract_result["progress"] = "高塔覆写 / 强制成立"
 	var source_base_bonus := 0.0
 	var source_synergy_step := 0.0
 	var source_pollution_bonus := 0.0
@@ -777,17 +944,20 @@ func _calculate_publish_breakdown(meme: Dictionary, matching_tags: Array) -> Dic
 			active_source_passive_labels.append(str(passive.get("label", "来源被动")))
 	var empty_base_bonus := int(round(_modifier_total("empty_base"))) if ("空位" in tags or "沉默" in tags) else 0
 	var contract_base_bonus := int(contract_result.get("base_bonus", 0)) if bool(contract_result.get("matched", false)) else 0
-	var base_value := 12 + rarity * 6 + matching_tags.size() * 8 + empty_base_bonus + int(round(source_base_bonus)) + contract_base_bonus
+	var arcana_base_bonus := int(pending_arcana_effects.get("base_bonus", 0))
+	var base_value := 12 + rarity * 6 + matching_tags.size() * 8 + empty_base_bonus + int(round(source_base_bonus)) + contract_base_bonus + arcana_base_bonus
 	var synergy_step := 0.25 + _modifier_total("synergy_step") + source_synergy_step
 	var synergy_multiplier := 1.0 + matching_tags.size() * synergy_step
 	var pollution_multiplier := 1.0 + float(pollution) / 100.0 * 0.65 + _modifier_total("pollution_bonus") + source_pollution_bonus
 	var emotion_bonus := minf(0.60, float(maxi(0, int(meme.get("pollution_bias", 0)))) * 0.04)
 	emotion_bonus += float(maxi(0, int(meme.get("emotion_count", 0)))) * _modifier_total("emotion_step")
 	var emotion_multiplier := 1.0 + emotion_bonus
-	var effective_repeat_count := maxi(0, repeat_count - int(round(_modifier_total("repeat_grace"))))
+	var arcana_repeat_grace := int(pending_arcana_effects.get("repeat_grace", 0))
+	var effective_repeat_count := maxi(0, repeat_count - int(round(_modifier_total("repeat_grace"))) - arcana_repeat_grace)
 	var repeat_multiplier := minf(1.0, maxf(0.28, 1.0 - effective_repeat_count * 0.18 + source_repeat_relief))
 	var contract_multiplier := float(contract_result.get("multiplier", 1.0)) if bool(contract_result.get("matched", false)) else 1.0
-	var total_multiplier := snappedf(synergy_multiplier * pollution_multiplier * emotion_multiplier * repeat_multiplier * contract_multiplier, 0.01)
+	var arcana_multiplier := float(pending_arcana_effects.get("multiplier", 1.0))
+	var total_multiplier := snappedf(synergy_multiplier * pollution_multiplier * emotion_multiplier * repeat_multiplier * contract_multiplier * arcana_multiplier, 0.01)
 	var score := maxi(1, int(round(base_value * total_multiplier)))
 	var active_modifier_labels: Array[String] = []
 	for modifier in permanent_modifiers:
@@ -814,6 +984,12 @@ func _calculate_publish_breakdown(meme: Dictionary, matching_tags: Array) -> Dic
 		"contract_base_bonus": contract_base_bonus,
 		"contract_multiplier": snappedf(contract_multiplier, 0.01),
 		"contract_pollution_risk": int(contract_result.get("pollution_risk", 0)) if bool(contract_result.get("matched", false)) else 0,
+		"arcana_base_bonus": arcana_base_bonus,
+		"arcana_multiplier": snappedf(arcana_multiplier, 0.01),
+		"arcana_pollution_risk": int(pending_arcana_effects.get("pollution_risk", 0)),
+		"arcana_force_contract": force_contract,
+		"arcana_repeat_grace": arcana_repeat_grace,
+		"active_arcana_labels": (pending_arcana_effects.get("labels", []) as Array).duplicate(),
 		"total_multiplier": total_multiplier,
 		"repeat_count": repeat_count,
 		"effective_repeat_count": effective_repeat_count,
@@ -990,6 +1166,54 @@ func _minimum_floor_for_day(current_day: int) -> int:
 
 func _emotion_slot_for_day(value: int) -> String:
 	return EMOTION_ROTATION[(value - 1) % EMOTION_ROTATION.size()]
+
+
+func _arcana_for_day(value: int) -> String:
+	return ARCANA_ROTATION[(value - 1) % ARCANA_ROTATION.size()]
+
+
+func _find_held_arcana_index(card_uid: String) -> int:
+	for index in owned_arcana_cards.size():
+		if str(owned_arcana_cards[index].get("uid", "")) == card_uid:
+			return index
+	return -1
+
+
+func _find_completed_meme_index(meme_id: String) -> int:
+	for index in completed_memes.size():
+		if str(completed_memes[index].get("id", "")) == meme_id:
+			return index
+	return -1
+
+
+func _find_missing_trend_tag(meme_id: String) -> String:
+	var target_index := _find_completed_meme_index(meme_id)
+	if target_index < 0:
+		return ""
+	var tags: Array = completed_memes[target_index].get("tags", [])
+	for trend_tag in _current_accepted_tags():
+		if trend_tag not in tags:
+			return str(trend_tag)
+	return ""
+
+
+func _ensure_pending_arcana_effects() -> void:
+	if pending_arcana_effects.is_empty():
+		pending_arcana_effects = {
+			"base_bonus": 0,
+			"multiplier": 1.0,
+			"pollution_risk": 0,
+			"repeat_grace": 0,
+			"force_contract": false,
+			"labels": [],
+		}
+
+
+func _append_pending_arcana_label(label: String) -> void:
+	var labels: Array = pending_arcana_effects.get("labels", []).duplicate()
+	if label not in labels:
+		labels.append(label)
+	pending_arcana_effects["labels"] = labels
 
 
 func _meme_rarity_from_tags(tags: Array) -> int:

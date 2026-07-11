@@ -643,6 +643,14 @@ func _run() -> void:
 			_assert_true(social_app_window.visible, "previous app window should remain open when another app opens")
 			_assert_true(babel_app_window.visible, "Babel app should open in its own window")
 			_assert_true(shop_app_window.visible, "shop app should open in its own window")
+			var arcana_shop_section := _find_node_by_name(root, "ArcanaShopSection") as VBoxContainer
+			var daily_arcana_card := _find_node_by_name(root, "DailyArcanaCardPanel") as PanelContainer
+			var daily_arcana_art := _find_node_by_name(root, "DailyArcanaCardArt") as TextureRect
+			var daily_arcana_buy := _find_node_by_name(root, "DailyArcanaBuyButton") as Button
+			_assert_true(arcana_shop_section != null, "shop should expose a dedicated arcana section")
+			_assert_true(daily_arcana_card != null, "shop should present the daily arcana as a card")
+			_assert_true(daily_arcana_art != null and daily_arcana_art.texture != null, "daily arcana should use generated card artwork")
+			_assert_true(daily_arcana_buy != null and daily_arcana_buy.custom_minimum_size.y >= 52.0, "arcana purchase should use a comfortable touch target")
 			_assert_true(notebook_app_window != social_app_window, "notebook app should be an independent window node")
 			if social_app_window != null and social_feed_masonry != null:
 				var social_width := social_app_window.offset_right - social_app_window.offset_left
@@ -700,6 +708,7 @@ func _run() -> void:
 			_assert_true(social_nav_create.custom_minimum_size.y >= 44.0, "create nav touch target should be at least 44px tall")
 			_assert_true(social_nav_mine.custom_minimum_size.y >= 44.0, "profile nav touch target should be at least 44px tall")
 			var social_size_before_publish := social_app_window.size if social_app_window != null else Vector2.ZERO
+			root.game.owned_arcana_cards = [{"uid": "scene-moon", "id": "moon", "bought_day": root.game.day}]
 			social_nav_create.pressed.emit()
 			var publish_page_after_nav := _find_node_by_name(root, "SocialPublishPage") as VBoxContainer
 			var composer_after_nav := _find_node_by_name(root, "SocialPublishComposer") as PanelContainer
@@ -711,6 +720,9 @@ func _run() -> void:
 			var publish_contract_after_nav := _find_node_by_name(root, "SocialPublishContractPanel") as PanelContainer
 			var publish_contract_title_after_nav := _find_node_by_name(root, "SocialPublishContractTitle") as Label
 			var publish_contract_text_after_nav := _find_node_by_name(root, "SocialPublishContractText") as Label
+			var publish_arcana_panel_after_nav := _find_node_by_name(root, "SocialPublishArcanaPanel") as PanelContainer
+			var publish_arcana_hand_after_nav := _find_node_by_name(root, "SocialPublishArcanaHand") as HFlowContainer
+			var publish_arcana_button_after_nav := _find_node_by_name(root, "SocialPublishArcana_scene-moon") as Button
 			var feed_after_nav := _find_node_by_name(root, "SocialFeedMasonry") as HBoxContainer
 			var inline_close_after_publish := _find_node_by_name(root, "SocialAppInlineCloseButton") as Button
 			var bottom_nav_after_publish := _find_node_by_name(root, "SocialBottomNav") as HBoxContainer
@@ -720,6 +732,9 @@ func _run() -> void:
 			_assert_true(publish_action_bar_after_nav != null, "publish page should expose a fixed action bar for confirmation")
 			_assert_true(publish_score_after_nav != null, "publish page should expose a Balatro-like base-times-multiplier breakdown")
 			_assert_true(publish_contract_after_nav != null, "publish page should expose today's signal hand as a distinct scoring contract")
+			_assert_true(publish_arcana_panel_after_nav != null, "publish page should expose the held arcana area")
+			_assert_true(publish_arcana_hand_after_nav != null, "held arcana should stay grouped as a compact hand")
+			_assert_true(publish_arcana_button_after_nav != null and publish_arcana_button_after_nav.custom_minimum_size.y >= 72.0, "held arcana should be directly usable with a readable card-sized target")
 			if publish_contract_title_after_nav != null and publish_contract_text_after_nav != null:
 				_assert_true(not publish_contract_title_after_nav.text.is_empty(), "daily signal hand should have a visible name")
 				_assert_true(str(publish_contract_text_after_nav.text).contains("奖励") and str(publish_contract_text_after_nav.text).contains("污染"), "daily signal hand should reveal both reward and pollution risk before publishing")

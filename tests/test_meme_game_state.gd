@@ -41,6 +41,12 @@ func _run() -> void:
 	test_publish_breakdown_uses_base_times_multiplier_and_repeat_decay()
 	test_daily_signal_contract_matches_and_boosts_score()
 	test_signal_contract_risk_is_paid_on_publish()
+	test_arcana_purchase_costs_action_and_holding_is_capped()
+	test_arcana_use_is_free_and_changes_publish_breakdown()
+	test_star_arcana_adds_a_trend_tag_to_target_meme()
+	test_judgement_arcana_rerolls_the_daily_signal_hand()
+	test_arcana_publish_effects_are_consumed_once_and_pay_their_risk()
+	test_tower_hermit_and_hanged_arcana_cover_the_other_build_paths()
 	test_visible_six_day_trends_match_scoring_rotation()
 	test_day_settlement_can_raise_tower_and_unlock_ending()
 	test_twelve_day_catchup_guarantees_tower_ending()
@@ -456,6 +462,142 @@ func test_signal_contract_risk_is_paid_on_publish() -> void:
 	_assert_true(game.confirm_dialogue(), "a matching signal hand should publish normally")
 	_assert_eq(game.pollution, 4 + 2 * 2 + risk, "publishing should pay the hand's explicit pollution risk")
 	_assert_true(str(game.event_log[0]).contains("双声回路"), "publishing a hand should record the named combo in the event log")
+
+
+func test_arcana_purchase_costs_action_and_holding_is_capped() -> void:
+	var game: RefCounted = _state_script.new()
+	game.new_run()
+	game.money = 100
+	game.daily_arcana_card_id = "moon"
+	_assert_true(game.buy_daily_arcana_card(), "the daily arcana card should be purchasable")
+	_assert_eq(game.actions_remaining, 4, "buying an arcana card should cost one action")
+	_assert_eq(game.owned_arcana_cards.size(), 1, "purchased arcana should enter the held-card area")
+	game.daily_arcana_bought = false
+	game.daily_arcana_card_id = "hermit"
+	_assert_true(game.buy_daily_arcana_card(), "a second arcana should fit in the held-card area")
+	_assert_eq(game.owned_arcana_cards.size(), 2, "two held arcana should fill the inventory")
+	game.daily_arcana_bought = false
+	game.daily_arcana_card_id = "star"
+	_assert_true(not game.buy_daily_arcana_card(), "a third arcana should be rejected while both held slots are full")
+	_assert_eq(game.actions_remaining, 3, "a rejected full-inventory purchase should not spend an action")
+
+
+func test_arcana_use_is_free_and_changes_publish_breakdown() -> void:
+	var baseline: RefCounted = _state_script.new()
+	baseline.new_run()
+	var game: RefCounted = _state_script.new()
+	game.new_run()
+	var meme := {
+		"id": "arcana-preview",
+		"text": "哈吉米，今天还要追问",
+		"tags": ["哈吉米", "追问"],
+		"rarity": 1,
+		"pollution_bias": 0,
+	}
+	game.owned_arcana_cards = [{"uid": "held-moon", "id": "moon", "bought_day": 1}]
+	var actions_before: int = game.actions_remaining
+	_assert_true(game.use_arcana_card("held-moon"), "moon arcana should arm its next-publish effect")
+	_assert_eq(game.actions_remaining, actions_before, "using an already purchased arcana should be free")
+	_assert_eq(game.owned_arcana_cards.size(), 0, "used arcana should be consumed from the held-card area")
+	var plain: Dictionary = baseline.get_publish_breakdown(meme)
+	var boosted: Dictionary = game.get_publish_breakdown(meme)
+	_assert_true(float(boosted.get("arcana_multiplier", 1.0)) > 1.0, "moon arcana should expose a separate multiplier")
+	_assert_true(int(boosted.get("arcana_pollution_risk", 0)) > 0, "moon arcana should reveal its pollution price in preview")
+	_assert_true(int(boosted.get("score", 0)) > int(plain.get("score", 0)), "moon arcana should increase the predicted propagation score")
+	_assert_true("月亮" in boosted.get("active_arcana_labels", []), "publish preview should name the armed arcana")
+
+
+func test_star_arcana_adds_a_trend_tag_to_target_meme() -> void:
+	var game: RefCounted = _state_script.new()
+	game.new_run()
+	game.completed_memes = [{
+		"id": "star-target",
+		"title": "未对齐表达",
+		"text": "今天的路没有尽头",
+		"tags": ["日常"],
+		"rarity": 1,
+		"pollution_bias": 0,
+	}]
+	game.owned_arcana_cards = [{"uid": "held-star", "id": "star", "bought_day": 1}]
+	var actions_before: int = game.actions_remaining
+	_assert_true(game.use_arcana_card("held-star", "star-target"), "star arcana should modify a selected completed meme")
+	_assert_eq(game.actions_remaining, actions_before, "targeted arcana modification should not spend another action")
+	_assert_true("哈吉米" in game.completed_memes[0]["tags"], "star arcana should add the first missing current-trend tag")
+	_assert_eq(int(game.completed_memes[0].get("pollution_bias", 0)), 1, "star-marked memes should carry a small permanent pollution bias")
+
+
+func test_judgement_arcana_rerolls_the_daily_signal_hand() -> void:
+	var game: RefCounted = _state_script.new()
+	game.new_run()
+	var before_id := str(game.get_daily_signal_contract().get("id", ""))
+	game.owned_arcana_cards = [{"uid": "held-judgement", "id": "judgement", "bought_day": 1}]
+	_assert_true(game.use_arcana_card("held-judgement"), "judgement arcana should reroll the current signal hand")
+	var after_id := str(game.get_daily_signal_contract().get("id", ""))
+	_assert_true(after_id != before_id, "judgement should replace the visible daily hand with a different one")
+	_assert_eq(game.actions_remaining, 5, "rerolling with a held arcana should not spend an action")
+
+
+func test_arcana_publish_effects_are_consumed_once_and_pay_their_risk() -> void:
+	var game: RefCounted = _state_script.new()
+	game.new_run()
+	var meme := {
+		"id": "arcana-publish",
+		"title": "月面回声",
+		"text": "哈吉米，为什么还要追问",
+		"tags": ["哈吉米", "追问"],
+		"rarity": 1,
+		"pollution_bias": 0,
+	}
+	game.owned_arcana_cards = [{"uid": "held-moon", "id": "moon", "bought_day": 1}]
+	_assert_true(game.use_arcana_card("held-moon"), "moon arcana should arm before publishing")
+	var preview: Dictionary = game.get_publish_breakdown(meme)
+	var contract_risk := int(preview.get("contract_pollution_risk", 0))
+	var arcana_risk := int(preview.get("arcana_pollution_risk", 0))
+	game.completed_memes = [meme]
+	game.place_meme_in_blank("blank_1", "arcana-publish")
+	_assert_true(game.confirm_dialogue(), "an arcana-armed meme should publish normally")
+	_assert_eq(game.pollution, 4 + 2 * 2 + contract_risk + arcana_risk, "publishing should pay both signal-hand and arcana pollution risks")
+	_assert_true(game.pending_arcana_effects.is_empty(), "successful publish should clear one-shot arcana effects")
+	var next_preview: Dictionary = game.get_publish_breakdown(meme)
+	_assert_eq(float(next_preview.get("arcana_multiplier", 1.0)), 1.0, "consumed arcana multiplier should not leak into later publishes")
+
+
+func test_tower_hermit_and_hanged_arcana_cover_the_other_build_paths() -> void:
+	var meme := {
+		"id": "arcana-paths",
+		"title": "未成立样本",
+		"text": "路面一直向后移动",
+		"tags": ["沉默"],
+		"rarity": 1,
+		"pollution_bias": 0,
+	}
+
+	var tower_game: RefCounted = _state_script.new()
+	tower_game.new_run()
+	tower_game.owned_arcana_cards = [{"uid": "held-tower", "id": "tower", "bought_day": 1}]
+	_assert_true(tower_game.use_arcana_card("held-tower"), "tower arcana should arm without a target meme")
+	var tower_preview: Dictionary = tower_game.get_publish_breakdown(meme)
+	_assert_true(bool(tower_preview.get("contract_matched", false)), "tower arcana should force an otherwise incomplete signal hand")
+	_assert_true(bool(tower_preview.get("arcana_force_contract", false)), "forced hand preview should identify the tower override")
+
+	var hermit_game: RefCounted = _state_script.new()
+	hermit_game.new_run()
+	hermit_game.published_memes = [{"text": meme["text"], "score": 20, "floor": 1}]
+	var repeated_preview: Dictionary = hermit_game.get_publish_breakdown(meme)
+	hermit_game.owned_arcana_cards = [{"uid": "held-hermit", "id": "hermit", "bought_day": 1}]
+	_assert_true(hermit_game.use_arcana_card("held-hermit"), "hermit arcana should arm repeat relief")
+	var relieved_preview: Dictionary = hermit_game.get_publish_breakdown(meme)
+	_assert_true(float(relieved_preview.get("repeat_multiplier", 0.0)) > float(repeated_preview.get("repeat_multiplier", 0.0)), "hermit arcana should reduce repeat decay")
+	_assert_eq(int(relieved_preview.get("effective_repeat_count", -1)), 0, "one hermit should forgive one previous use")
+
+	var hanged_game: RefCounted = _state_script.new()
+	hanged_game.new_run()
+	var plain_preview: Dictionary = hanged_game.get_publish_breakdown(meme)
+	hanged_game.owned_arcana_cards = [{"uid": "held-hanged", "id": "hanged", "bought_day": 1}]
+	_assert_true(hanged_game.use_arcana_card("held-hanged"), "hanged arcana should trade clarity for propagation base")
+	var sacrificed_preview: Dictionary = hanged_game.get_publish_breakdown(meme)
+	_assert_eq(hanged_game.clarity, 92, "hanged arcana should immediately remove eight clarity")
+	_assert_eq(int(sacrificed_preview.get("base_value", 0)), int(plain_preview.get("base_value", 0)) + 24, "hanged arcana should add exactly twenty-four propagation base")
 
 
 func test_visible_six_day_trends_match_scoring_rotation() -> void:

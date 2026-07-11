@@ -1,7 +1,7 @@
 #!/usr/bin/env python3
 """Generate fallback UI art and verify curated imagegen assets.
 
-The two composition-defining images are curated imagegen outputs and must not
+The composition-defining images are curated imagegen outputs and must not
 be overwritten by the procedural fallback generator. This script intentionally
 uses only the Python standard library.
 """
@@ -27,6 +27,7 @@ CURATED_IMAGEGEN_ASSETS = {
 	"assets/generated/world/phone_down_backdrop.png": "b47f8772e40da13dada074bc3518be9fef4368ff9941dca35826bd576a49e6fe",
 	"assets/generated/world/npc_signal_portrait.png": "440d89e06cbb96b63570885939d02e08382d4464fbe24b9874a08907716517fa",
 	"assets/generated/social/poster_sheet.png": "76ae2647761ba61c4923f161f49d9e09f142042d26088b37b267a9db1d059594",
+	"assets/generated/ui/arcana_sheet.png": "ca52ccc5d003c7a7786fd8f3157fc134a1f7426cf488ef78fc3eb98ece10e7bc",
 }
 
 INK: Color = (16, 20, 15, 255)

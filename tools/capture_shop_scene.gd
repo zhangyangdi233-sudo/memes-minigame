@@ -1,6 +1,6 @@
 extends SceneTree
 
-const OUTPUT_PATH := "/Users/zhang/Documents/游戏/babel-meme-game/tools/current_publish_view.png"
+const OUTPUT_PATH := "/Users/zhang/Documents/游戏/babel-meme-game/tools/current_shop_view.png"
 const VIEW_SIZE := Vector2i(1672, 941)
 const HEADLESS_CAPTURE_ERROR := "Screenshot capture requires a rendered display. Run this tool without --headless from a GUI session."
 
@@ -22,23 +22,11 @@ func _capture() -> void:
 	root.add_child(main)
 	if main.has_method("new_game"):
 		main.new_game()
-	main.game.completed_memes = [{
-		"id": "capture-contract",
-		"title": "双声回路样本",
-		"text": "哈吉米，今天为什么还要追问？",
-		"tags": ["哈吉米", "追问", "焦虑"],
-		"rarity": 2,
-		"pollution_bias": 2,
-		"emotion_count": 1,
-	}]
-	main.game.owned_arcana_cards = [
-		{"uid": "capture-moon", "id": "moon", "bought_day": 1},
-		{"uid": "capture-star", "id": "star", "bought_day": 1},
-	]
-	main.game.use_arcana_card("capture-moon")
-	main.game.place_meme_in_blank("blank_1", "capture-contract")
-	if main.has_method("_set_social_screen"):
-		main._set_social_screen("publish")
+	main.game.owned_arcana_cards = [{"uid": "capture-hermit", "id": "hermit", "bought_day": 1}]
+	if main.has_method("_close_app_window"):
+		main._close_app_window("social")
+	if main.has_method("_on_app_pressed"):
+		main._on_app_pressed("shop")
 	for frame in 8:
 		await process_frame
 	var viewport_texture := root.get_texture()

@@ -36,6 +36,7 @@ const HUD_POLLUTION_ICON_PATH := "res://assets/generated/ui/hud_pollution_icon.p
 const HUD_MONEY_ICON_PATH := "res://assets/generated/ui/hud_money_icon.png"
 const HUD_SETTINGS_ICON_PATH := "res://assets/generated/ui/hud_settings_icon.png"
 const SOCIAL_POSTER_SHEET_PATH := "res://assets/generated/social/poster_sheet.png"
+const ARCANA_SHEET_PATH := "res://assets/generated/ui/arcana_sheet.png"
 const PHONE_AMBIENCE_PATH := "res://assets/generated/audio/phone_road_loop.wav"
 const REALITY_AMBIENCE_PATH := "res://assets/generated/audio/reality_room_loop.wav"
 const FLASHBACK_AUDIO_PATH := "res://assets/generated/audio/pollution_flashback.wav"
@@ -43,6 +44,9 @@ const ACTION_TICK_AUDIO_PATH := "res://assets/generated/audio/action_tick.wav"
 const SOCIAL_POSTER_COLUMNS := 4
 const SOCIAL_POSTER_ROWS := 3
 const SOCIAL_POSTER_COUNT := SOCIAL_POSTER_COLUMNS * SOCIAL_POSTER_ROWS
+const ARCANA_SHEET_COLUMNS := 3
+const ARCANA_SHEET_ROWS := 2
+const ARCANA_SHEET_COUNT := ARCANA_SHEET_COLUMNS * ARCANA_SHEET_ROWS
 const SOCIAL_FEED_WHEEL_STEP := 2
 const SOCIAL_POST_CARDS := [
 	{
@@ -919,7 +923,7 @@ func _build_ui() -> void:
 
 	_build_app_window("social", "社交媒体 App", "SocialAppWindow", -809.0, 28.0, -389.0, 880.0)
 	_build_app_window("babel", "巴别塔 App", "BabelAppWindow", -1032.0, 96.0, -592.0, 676.0)
-	_build_app_window("shop", "情绪槽商店", "ShopAppWindow", -1000.0, 124.0, -560.0, 704.0)
+	_build_app_window("shop", "信号商店", "ShopAppWindow", -1000.0, 124.0, -560.0, 704.0)
 	_build_app_window("notebook", "笔记本 App", "NotebookAppWindow", -968.0, 152.0, -528.0, 732.0)
 	_build_social_detail_window()
 
@@ -1713,7 +1717,7 @@ func _render_app() -> void:
 				_app_title.text = "巴别塔 App"
 				_render_babel_app()
 			"shop":
-				_app_title.text = "情绪槽商店"
+				_app_title.text = "信号商店"
 				_render_shop_app()
 			"notebook":
 				_app_title.text = "笔记本 App"
@@ -2135,6 +2139,57 @@ func _render_social_publish_page(parent: VBoxContainer) -> void:
 	contract_text.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
 	contract_box.add_child(contract_text)
 
+	var arcana_panel := _panel()
+	arcana_panel.name = "SocialPublishArcanaPanel"
+	arcana_panel.set_meta("arcana_card_panel", true)
+	publish_content.add_child(arcana_panel)
+	var arcana_box := VBoxContainer.new()
+	arcana_box.add_theme_constant_override("separation", 6)
+	arcana_panel.add_child(arcana_box)
+	var arcana_header := HBoxContainer.new()
+	arcana_header.add_theme_constant_override("separation", 8)
+	arcana_box.add_child(arcana_header)
+	var arcana_title := _label("玄牌 / HELD", 15, _theme_color("surface"))
+	arcana_title.set_meta("on_dark", true)
+	arcana_title.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+	arcana_header.add_child(arcana_title)
+	var arcana_count := _label("%d/%d" % [game.owned_arcana_cards.size(), MemeGameStateScript.MAX_HELD_ARCANA_CARDS], 13, _theme_color("muted"))
+	arcana_count.set_meta("on_dark", true)
+	arcana_header.add_child(arcana_count)
+	var arcana_hand := HFlowContainer.new()
+	arcana_hand.name = "SocialPublishArcanaHand"
+	arcana_hand.add_theme_constant_override("h_separation", 8)
+	arcana_hand.add_theme_constant_override("v_separation", 8)
+	arcana_box.add_child(arcana_hand)
+	var target_meme_id := str(placed_meme.get("id", ""))
+	var held_arcana := game.get_owned_arcana_card_data()
+	if held_arcana.is_empty():
+		var empty_arcana := _label("商店里的玄牌会留在这里。", 13, _theme_color("muted"))
+		empty_arcana.set_meta("on_dark", true)
+		arcana_hand.add_child(empty_arcana)
+	else:
+		for held_card in held_arcana:
+			var arcana_button := Button.new()
+			var card_uid := str(held_card.get("uid", ""))
+			arcana_button.name = "SocialPublishArcana_%s" % card_uid
+			arcana_button.set_meta("arcana_button", true)
+			arcana_button.text = "%s  %s\n使用" % [str(held_card.get("numeral", "")), str(held_card.get("label", "玄牌"))]
+			arcana_button.icon = _arcana_card_texture(str(held_card.get("id", "")))
+			arcana_button.expand_icon = true
+			arcana_button.add_theme_constant_override("icon_max_width", 52)
+			arcana_button.alignment = HORIZONTAL_ALIGNMENT_LEFT
+			arcana_button.custom_minimum_size = Vector2(178, 78)
+			arcana_button.tooltip_text = str(held_card.get("description", ""))
+			arcana_button.disabled = not game.can_use_arcana_card(card_uid, target_meme_id)
+			arcana_button.pressed.connect(_on_arcana_use_pressed.bind(card_uid))
+			arcana_hand.add_child(arcana_button)
+	if not game.pending_arcana_effects.is_empty():
+		var pending_arcana := _label(_pending_arcana_text(), 13, _theme_color("muted"))
+		pending_arcana.name = "SocialPublishArcanaPending"
+		pending_arcana.set_meta("on_dark", true)
+		pending_arcana.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
+		arcana_box.add_child(pending_arcana)
+
 	var composer := _panel()
 	composer.name = "SocialPublishComposer"
 	publish_content.add_child(composer)
@@ -2290,22 +2345,93 @@ func _scroll_social_feed(feed_scroll: ScrollContainer, delta: int) -> void:
 
 func _render_shop_app() -> void:
 	_clear(_app_body)
+	var shop_content := _app_body
+	shop_content.name = "ShopContent"
+	shop_content.add_theme_constant_override("separation", 12)
+
 	var slot := game.get_daily_emotion_slot()
 	if slot.is_empty():
-		_app_body.add_child(_label("今日没有新槽位。", 16, _theme_color("accent")))
-		return
-	_app_body.add_child(_label("今日情绪槽", 18, _theme_color("accent")))
-	var bought: bool = str(slot["id"]) in game.owned_emotion_slots
-	var buy := Button.new()
-	buy.name = "DailyEmotionBuyButton"
-	buy.text = "%s  %d 热币" % [slot["label"], slot["price"]]
-	buy.custom_minimum_size.y = 56
-	buy.disabled = bought or game.money < int(slot["price"]) or not game.can_spend_action()
-	buy.pressed.connect(_on_buy_emotion_slot_pressed)
-	_app_body.add_child(buy)
-	_app_body.add_child(_label("购买后在笔记本改写文字并决定是否装备。前两个槽位会自动装备。", 15, _theme_color("accent")))
-	if bought:
-		_app_body.add_child(_label("已拥有：%s" % game.emotion_slot_texts.get(slot["id"], ""), 16, _theme_color("ink")))
+		shop_content.add_child(_label("今日没有新情绪槽。", 16, _theme_color("accent")))
+	else:
+		var emotion_section := VBoxContainer.new()
+		emotion_section.name = "EmotionShopSection"
+		emotion_section.add_theme_constant_override("separation", 6)
+		shop_content.add_child(emotion_section)
+		emotion_section.add_child(_label("情绪槽 / DAILY", 18, _theme_color("accent")))
+		var bought: bool = str(slot["id"]) in game.owned_emotion_slots
+		var buy := Button.new()
+		buy.name = "DailyEmotionBuyButton"
+		buy.text = "%s  %d 热币" % [slot["label"], slot["price"]]
+		buy.custom_minimum_size.y = 52
+		buy.disabled = bought or game.money < int(slot["price"]) or not game.can_spend_action()
+		buy.pressed.connect(_on_buy_emotion_slot_pressed)
+		emotion_section.add_child(buy)
+		var emotion_hint := _label("买下情绪后，在笔记本改写它的说法。", 14, _theme_color("accent"))
+		emotion_hint.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
+		emotion_section.add_child(emotion_hint)
+		if bought:
+			emotion_section.add_child(_label("已拥有：%s" % game.emotion_slot_texts.get(slot["id"], ""), 15, _theme_color("ink")))
+
+	var arcana_section := VBoxContainer.new()
+	arcana_section.name = "ArcanaShopSection"
+	arcana_section.add_theme_constant_override("separation", 7)
+	shop_content.add_child(arcana_section)
+	var arcana_heading := HBoxContainer.new()
+	arcana_heading.add_theme_constant_override("separation", 8)
+	arcana_section.add_child(arcana_heading)
+	var arcana_title := _label("玄牌 / SIGNAL ARCANA", 18, _theme_color("accent"))
+	arcana_title.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+	arcana_heading.add_child(arcana_title)
+	arcana_heading.add_child(_label("持有 %d/%d" % [game.owned_arcana_cards.size(), MemeGameStateScript.MAX_HELD_ARCANA_CARDS], 14, _theme_color("accent")))
+
+	var card := game.get_daily_arcana_card()
+	if card.is_empty():
+		arcana_section.add_child(_label("今日信号没有留下牌。", 15, _theme_color("accent")))
+	else:
+		var card_panel := _panel()
+		card_panel.name = "DailyArcanaCardPanel"
+		card_panel.set_meta("arcana_card_panel", true)
+		arcana_section.add_child(card_panel)
+		var card_row := HBoxContainer.new()
+		card_row.add_theme_constant_override("separation", 10)
+		card_panel.add_child(card_row)
+		var art := TextureRect.new()
+		art.name = "DailyArcanaCardArt"
+		art.texture = _arcana_card_texture(str(card.get("id", "")))
+		art.custom_minimum_size = Vector2(112, 112)
+		art.expand_mode = TextureRect.EXPAND_IGNORE_SIZE
+		art.stretch_mode = TextureRect.STRETCH_KEEP_ASPECT_COVERED
+		art.mouse_filter = Control.MOUSE_FILTER_IGNORE
+		card_row.add_child(art)
+		var card_copy := VBoxContainer.new()
+		card_copy.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+		card_copy.add_theme_constant_override("separation", 4)
+		card_row.add_child(card_copy)
+		var card_title := _label("%s  %s" % [str(card.get("numeral", "")), str(card.get("label", "未命名"))], 20, _theme_color("surface"))
+		card_title.set_meta("on_dark", true)
+		card_copy.add_child(card_title)
+		var card_description := _label(str(card.get("description", "")), 14, _theme_color("surface"))
+		card_description.set_meta("on_dark", true)
+		card_description.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
+		card_copy.add_child(card_description)
+		var buy_arcana := Button.new()
+		buy_arcana.name = "DailyArcanaBuyButton"
+		buy_arcana.text = "收下玄牌  %d 热币" % int(card.get("price", 7))
+		buy_arcana.custom_minimum_size.y = 52
+		buy_arcana.disabled = game.daily_arcana_bought or game.owned_arcana_cards.size() >= MemeGameStateScript.MAX_HELD_ARCANA_CARDS or game.money < int(card.get("price", 7)) or not game.can_spend_action()
+		buy_arcana.pressed.connect(_on_buy_arcana_card_pressed)
+		card_copy.add_child(buy_arcana)
+
+	var held_cards := game.get_owned_arcana_card_data()
+	if held_cards.is_empty():
+		var held_hint := _label("玄牌最多持有两张；在发布页使用，使用本身不扣行动。", 14, _theme_color("accent"))
+		held_hint.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
+		arcana_section.add_child(held_hint)
+	else:
+		var held_labels: Array[String] = []
+		for held_card in held_cards:
+			held_labels.append("%s %s" % [str(held_card.get("numeral", "")), str(held_card.get("label", "玄牌"))])
+		arcana_section.add_child(_label("手中：%s" % " / ".join(held_labels), 14, _theme_color("accent")))
 
 
 func _render_notebook_app() -> void:
@@ -2435,7 +2561,7 @@ func _render_publish() -> void:
 
 func _publish_breakdown_text(breakdown: Dictionary, is_preview: bool) -> String:
 	if breakdown.is_empty():
-		return "传播基础 / 筹码  --\n共鸣倍率  ×--\n牌型倍率  ×--\n预计传播  --"
+		return "传播基础 / 筹码  --\n共鸣倍率  ×--\n牌型倍率  ×--\n玄牌倍率  ×--\n预计传播  --"
 	var prefix := "预计传播" if is_preview else "本次传播"
 	var repeated := int(breakdown.get("repeat_count", 0))
 	var repeat_note := "\n重复衰减  ×%.2f" % float(breakdown.get("repeat_multiplier", 1.0)) if repeated > 0 else ""
@@ -2444,19 +2570,35 @@ func _publish_breakdown_text(breakdown: Dictionary, is_preview: bool) -> String:
 	var source_passives: Array = breakdown.get("active_source_passive_labels", [])
 	var source_note := "\n来源被动  %s" % " / ".join(source_passives) if not source_passives.is_empty() else ""
 	var contract_multiplier := float(breakdown.get("contract_multiplier", 1.0))
+	var arcana_multiplier := float(breakdown.get("arcana_multiplier", 1.0))
 	var total_multiplier := float(breakdown.get("total_multiplier", 1.0))
-	var resonance_multiplier := total_multiplier / contract_multiplier if contract_multiplier > 0.0 else total_multiplier
+	var separated_multiplier := contract_multiplier * arcana_multiplier
+	var resonance_multiplier := total_multiplier / separated_multiplier if separated_multiplier > 0.0 else total_multiplier
 	var contract_bonus := int(breakdown.get("contract_base_bonus", 0))
-	var base_note := "（牌型 +%d）" % contract_bonus if contract_bonus > 0 else ""
-	return "传播基础 / 筹码  %d%s\n共鸣倍率  ×%.2f\n牌型倍率  ×%.2f\n总倍率  ×%.2f%s%s%s\n%s  %d" % [
+	var arcana_bonus := int(breakdown.get("arcana_base_bonus", 0))
+	var base_parts: Array[String] = []
+	if contract_bonus > 0:
+		base_parts.append("牌型 +%d" % contract_bonus)
+	if arcana_bonus > 0:
+		base_parts.append("玄牌 +%d" % arcana_bonus)
+	var base_note := "（%s）" % " / ".join(base_parts) if not base_parts.is_empty() else ""
+	var arcana_labels: Array = breakdown.get("active_arcana_labels", [])
+	var arcana_risk := int(breakdown.get("arcana_pollution_risk", 0))
+	var arcana_note := "\n玄牌已装  %s%s" % [
+		" / ".join(arcana_labels),
+		" · +%d 污染" % arcana_risk if arcana_risk > 0 else "",
+	] if not arcana_labels.is_empty() else ""
+	return "传播基础 / 筹码  %d%s\n共鸣倍率  ×%.2f\n牌型倍率  ×%.2f\n玄牌倍率  ×%.2f\n总倍率  ×%.2f%s%s%s%s\n%s  %d" % [
 		int(breakdown.get("base_value", 0)),
 		base_note,
 		resonance_multiplier,
 		contract_multiplier,
+		arcana_multiplier,
 		total_multiplier,
 		repeat_note,
 		modifier_note,
 		source_note,
+		arcana_note,
 		prefix,
 		int(breakdown.get("score", 0)),
 	]
@@ -2465,6 +2607,8 @@ func _publish_breakdown_text(breakdown: Dictionary, is_preview: bool) -> String:
 func _signal_contract_status(breakdown: Dictionary) -> String:
 	if breakdown.is_empty():
 		return "等待组牌"
+	if bool(breakdown.get("arcana_force_contract", false)):
+		return "高塔覆写"
 	return "牌型成立" if bool(breakdown.get("contract_matched", false)) else "尚未成立"
 
 
@@ -2477,6 +2621,28 @@ func _signal_contract_text(contract: Dictionary, breakdown: Dictionary) -> Strin
 		float(contract.get("multiplier", 1.0)),
 		int(contract.get("pollution_risk", 0)),
 	]
+
+
+func _pending_arcana_text() -> String:
+	var labels: Array = game.pending_arcana_effects.get("labels", [])
+	var parts: Array[String] = []
+	if not labels.is_empty():
+		parts.append("已装：%s" % " / ".join(labels))
+	var base_bonus := int(game.pending_arcana_effects.get("base_bonus", 0))
+	if base_bonus > 0:
+		parts.append("基础 +%d" % base_bonus)
+	var multiplier := float(game.pending_arcana_effects.get("multiplier", 1.0))
+	if multiplier > 1.0:
+		parts.append("倍率 ×%.2f" % multiplier)
+	var repeat_grace := int(game.pending_arcana_effects.get("repeat_grace", 0))
+	if repeat_grace > 0:
+		parts.append("忽略 %d 次复读" % repeat_grace)
+	if bool(game.pending_arcana_effects.get("force_contract", false)):
+		parts.append("强制牌型")
+	var risk := int(game.pending_arcana_effects.get("pollution_risk", 0))
+	if risk > 0:
+		parts.append("代价 +%d 污染" % risk)
+	return "  ·  ".join(parts)
 
 
 func _render_bank() -> void:
@@ -2733,6 +2899,32 @@ func _social_poster_texture(post_index: int) -> Texture2D:
 	var row := floori(float(cell_index) / SOCIAL_POSTER_COLUMNS)
 	atlas.region = Rect2(
 		Vector2(cell_index % SOCIAL_POSTER_COLUMNS, row) * cell_size,
+		cell_size
+	)
+	_texture_cache[cache_key] = atlas
+	return atlas
+
+
+func _arcana_card_texture(card_id: String) -> Texture2D:
+	var cell_index := MemeGameStateScript.ARCANA_ROTATION.find(card_id)
+	if cell_index < 0:
+		cell_index = 0
+	cell_index = posmod(cell_index, ARCANA_SHEET_COUNT)
+	var cache_key := "%s#cell-%d" % [ARCANA_SHEET_PATH, cell_index]
+	if _texture_cache.has(cache_key):
+		return _texture_cache[cache_key]
+	var sheet := _load_runtime_texture(ARCANA_SHEET_PATH)
+	if sheet == null:
+		return null
+	var cell_size := Vector2(
+		floorf(float(sheet.get_width()) / ARCANA_SHEET_COLUMNS),
+		floorf(float(sheet.get_height()) / ARCANA_SHEET_ROWS)
+	)
+	var atlas := AtlasTexture.new()
+	atlas.atlas = sheet
+	var row := floori(float(cell_index) / ARCANA_SHEET_COLUMNS)
+	atlas.region = Rect2(
+		Vector2(cell_index % ARCANA_SHEET_COLUMNS, row) * cell_size,
 		cell_size
 	)
 	_texture_cache[cache_key] = atlas
@@ -3088,6 +3280,15 @@ func _apply_ui_theme(node: Node = null) -> void:
 			button.add_theme_stylebox_override("normal", _reward_card_style(_theme_color("ink"), _theme_color("muted")))
 			button.add_theme_stylebox_override("hover", _reward_card_style(_theme_color("muted"), _theme_color("ink")))
 			button.add_theme_stylebox_override("pressed", _reward_card_style(_theme_color("accent"), _theme_color("ink")))
+		elif button.has_meta("arcana_button"):
+			button.add_theme_color_override("font_color", _theme_color("surface"))
+			button.add_theme_color_override("font_hover_color", _theme_color("ink"))
+			button.add_theme_color_override("font_pressed_color", _theme_color("ink"))
+			button.add_theme_color_override("font_disabled_color", _theme_color("accent").lightened(0.25))
+			button.add_theme_stylebox_override("normal", _style(_theme_color("ink"), _theme_color("muted")))
+			button.add_theme_stylebox_override("hover", _style(_theme_color("muted"), _theme_color("ink")))
+			button.add_theme_stylebox_override("pressed", _style(_theme_color("surface"), _theme_color("ink")))
+			button.add_theme_stylebox_override("disabled", _style(_theme_color("ink").lightened(0.08), _theme_color("accent")))
 		elif button.has_meta("meme_bank_tab") and bool(button.get_meta("meme_bank_peek", false)):
 			button.add_theme_color_override("font_color", _theme_color("muted"))
 			button.add_theme_color_override("font_hover_color", _theme_color("surface"))
@@ -3141,6 +3342,8 @@ func _apply_ui_theme(node: Node = null) -> void:
 		elif node.has_meta("tooltip_panel"):
 			(node as PanelContainer).add_theme_stylebox_override("panel", _style(_theme_color("muted"), _theme_color("accent")))
 		elif node.has_meta("signal_contract_panel"):
+			(node as PanelContainer).add_theme_stylebox_override("panel", _style(_theme_color("ink"), _theme_color("muted")))
+		elif node.has_meta("arcana_card_panel"):
 			(node as PanelContainer).add_theme_stylebox_override("panel", _style(_theme_color("ink"), _theme_color("muted")))
 		elif node.has_meta("soft_panel"):
 			(node as PanelContainer).add_theme_stylebox_override("panel", _soft_style(_theme_color("surface"), _theme_color("accent")))
@@ -3465,6 +3668,31 @@ func _on_buy_emotion_slot_pressed() -> void:
 	else:
 		log_text = "购买失败。"
 		_render()
+
+
+func _on_buy_arcana_card_pressed() -> void:
+	if _input_locked:
+		return
+	var card := game.get_daily_arcana_card()
+	var actions_before: int = int(game.actions_remaining)
+	if game.buy_daily_arcana_card():
+		log_text = "收下玄牌：%s" % str(card.get("label", "玄牌"))
+		_after_effective_action(actions_before)
+	else:
+		log_text = "玄牌没有进入手中。检查资金、行动和两个持有位。"
+		_render()
+
+
+func _on_arcana_use_pressed(card_uid: String) -> void:
+	if _input_locked:
+		return
+	var placed := _placed_meme()
+	var target_meme_id := str(placed.get("id", ""))
+	if game.use_arcana_card(card_uid, target_meme_id):
+		log_text = "玄牌已经改写本次构筑。"
+	else:
+		log_text = "这张玄牌需要先在发布空格里放入可改写的完整梗。"
+	_render()
 
 
 func _on_emotion_text_changed(text: String, slot_id: String) -> void:

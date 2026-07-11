@@ -1,14 +1,15 @@
 # Babel Meme Game
 
-Standalone Godot 4.6 game built from the third-chapter meme prototype. It combines a phone-based urban-legend feed with emotion-slot crafting, Balatro-like propagation scoring, permanent ascent modifiers, inherited meme rules, and reality dialogue that becomes less understandable as pollution rises.
+Standalone Godot 4.6 game built from the third-chapter meme prototype. It combines a phone-based urban-legend feed with emotion-slot crafting, Balatro-like propagation scoring, signal-arcana consumables, permanent ascent modifiers, inherited meme rules, and reality dialogue that becomes less understandable as pollution rises.
 
 ## Current Loop
 
 1. Browse the social feed and collect language fragments.
 2. Buy and edit emotion slots, then craft a complete meme from two core fragments.
 3. Build around the day's signal hand for extra propagation base and multiplier.
-4. Publish for heat and money while accepting the hand's pollution risk.
-5. Ascend the tower, keep one permanent modifier, and carry the previous floor's hottest meme into reality as a legacy rule.
+4. Buy up to two signal-arcana cards, then use them to rewrite a meme, reroll a hand, or amplify one publish.
+5. Publish for heat and money while accepting the hand and arcana pollution risks.
+6. Ascend the tower, keep one permanent modifier, and carry the previous floor's hottest meme into reality as a legacy rule.
 
 Each day has five effective actions. Navigation, window movement, preview placement, and editing do not spend actions.
 
