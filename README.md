@@ -27,6 +27,8 @@ The first floor starts with four rooms. Each ascent adds two or three rooms, red
 
 Reality conversations use a cursor-driven three-choice surface. Each choice is a three-to-five-character summary; hovering previews the full clean intention without covering the NPC subtitle. After selecting, any physical key reveals exactly one character. Unspoken characters remain gray, clean characters turn cream-white, and pollution successes replace that position with red signal glyphs or fragments from the meme bank. Legacy phrases are inserted automatically. Completing the whole sentence costs one action; partial typing is free. Ordinary NPCs make one understanding check, merchants make three, and three failed attempts close the conversation until the player presses `F` again.
 
+If the merchant understands `询问商品`, they reveal one rotating communication item. `静音贴`, `语义锚`, and `旧词典页` have different prices, bonuses, and limited charges. The strongest owned item is consumed only when the listener's base understanding roll would fail, so an already clear sentence never wastes a charge.
+
 ## Run
 
 Open this folder in Godot 4.6 or newer. The main scene is:

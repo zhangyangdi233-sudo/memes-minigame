@@ -14,6 +14,7 @@ func _run() -> void:
 		"res://tools/capture_shop_scene.gd",
 		"res://tools/capture_reality_scene.gd",
 		"res://tools/capture_dialogue_scene.gd",
+		"res://tools/capture_merchant_scene.gd",
 		"res://tools/capture_main_menu.gd",
 	]:
 		_assert_capture_script_guarded(script_path)

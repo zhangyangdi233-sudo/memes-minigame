@@ -205,6 +205,9 @@ func _run() -> void:
 		var reality_typing_line := _find_node_by_name(root, "RealityTypingLine") as RichTextLabel
 		var reality_typing_progress := _find_node_by_name(root, "RealityTypingProgress") as Label
 		var reality_continue := _find_node_by_name(root, "RealityConversationContinue") as Button
+		var reality_aid_status := _find_node_by_name(root, "RealityAidStatus") as Label
+		var reality_merchant_offer := _find_node_by_name(root, "RealityMerchantOffer") as PanelContainer
+		var reality_merchant_buy := _find_node_by_name(root, "RealityMerchantBuyButton") as Button
 		var meme_bank_popup := _find_node_by_name(root, "MemeBankPopup") as PanelContainer
 		var meme_bank_tab := _find_node_by_name(root, "MemeBankTab") as Button
 		var meme_bank_drag_handle := _find_node_by_name(root, "MemeBankDragHandle") as Label
@@ -410,6 +413,9 @@ func _run() -> void:
 					reality_typing_line = _find_node_by_name(root, "RealityTypingLine") as RichTextLabel
 					reality_typing_progress = _find_node_by_name(root, "RealityTypingProgress") as Label
 					reality_continue = _find_node_by_name(root, "RealityConversationContinue") as Button
+					reality_aid_status = _find_node_by_name(root, "RealityAidStatus") as Label
+					reality_merchant_offer = _find_node_by_name(root, "RealityMerchantOffer") as PanelContainer
+					reality_merchant_buy = _find_node_by_name(root, "RealityMerchantBuyButton") as Button
 					meme_bank_popup = _find_node_by_name(root, "MemeBankPopup") as PanelContainer
 					meme_bank_tab = _find_node_by_name(root, "MemeBankTab") as Button
 					meme_bank_drag_handle = _find_node_by_name(root, "MemeBankDragHandle") as Label
@@ -608,6 +614,10 @@ func _run() -> void:
 		_assert_true(reality_intent_preview != null, "reality dialogue should expose a separate full-intent hover preview")
 		_assert_true(reality_typing_line != null and reality_typing_progress != null, "reality dialogue should expose gray-to-white per-key typing")
 		_assert_true(reality_continue != null, "understood dialogue should expose a compact exit control")
+		_assert_true(reality_aid_status != null, "reality dialogue should expose remaining communication-item charges")
+		_assert_true(reality_merchant_offer != null and reality_merchant_buy != null, "merchant dialogue should expose its limited-use item offer")
+		if reality_merchant_buy != null:
+			_assert_true(reality_merchant_buy.custom_minimum_size.y >= 56.0, "merchant item purchase should use a comfortable target")
 		if reality_subtitle != null:
 			var cinematic_bar := _find_node_by_name(root, "CinematicBottomBar") as ColorRect
 			_assert_true(cinematic_bar == null or reality_subtitle.z_index > cinematic_bar.z_index, "movie subtitles should render over the cinematic bar")
@@ -1189,6 +1199,27 @@ func _run() -> void:
 			view_toggle_button = _find_node_by_name(root, "PhoneViewToggleButton") as Button
 			if root._reality_interaction_active and view_toggle_button != null:
 				_assert_true(not view_toggle_button.visible, "active cursor dialogue should hide the phone toggle from the response surface")
+		root._reality_interaction_active = true
+		root._active_reality_actor = reality_merchant
+		root.game.conversation_actor_type = "merchant"
+		root.game.conversation_actor_label = "信号商人"
+		root.game.conversation_selected_choice_id = "ask_goods"
+		root.game.conversation_understood = true
+		root.game.conversation_phase = "result"
+		root.game.daily_communication_item_bought = false
+		root._render()
+		reality_merchant_offer = _find_node_by_name(root, "RealityMerchantOffer") as PanelContainer
+		reality_merchant_buy = _find_node_by_name(root, "RealityMerchantBuyButton") as Button
+		_assert_true(reality_merchant_offer != null and reality_merchant_offer.visible, "understood ask-goods response should reveal the merchant's limited-use item")
+		_assert_true(reality_merchant_buy != null and not reality_merchant_buy.disabled, "affordable merchant item should be purchasable")
+		var actions_before_item := int(root.game.actions_remaining)
+		root._on_buy_communication_item()
+		if root._input_locked:
+			root._finish_action_spend_animation()
+		_assert_eq(root.game.actions_remaining, actions_before_item - 1, "buying the merchant communication item should spend one action")
+		_assert_true(not root.game.get_active_communication_item().is_empty(), "purchased communication item should expose remaining charges")
+		reality_aid_status = _find_node_by_name(root, "RealityAidStatus") as Label
+		_assert_true(reality_aid_status != null and reality_aid_status.visible, "active limited-use item should show its remaining charges during dialogue")
 	root.queue_free()
 
 

@@ -337,6 +337,10 @@ var _reality_intent_preview: Label
 var _reality_typing_line: RichTextLabel
 var _reality_typing_progress: Label
 var _reality_continue_button: Button
+var _reality_aid_status: Label
+var _reality_merchant_offer: PanelContainer
+var _reality_merchant_offer_text: Label
+var _reality_merchant_buy_button: Button
 var _reality_hover_choice_id := ""
 var _flashback_overlay: Control
 var _flashback_noise: ColorRect
@@ -1210,6 +1214,43 @@ func _build_ui() -> void:
 	_reality_typing_progress.z_index = 15
 	_ui_root.add_child(_reality_typing_progress)
 
+	_reality_aid_status = _label("", 14, _theme_color("muted"))
+	_reality_aid_status.name = "RealityAidStatus"
+	_reality_aid_status.set_meta("on_dark", true)
+	_reality_aid_status.set_anchors_preset(Control.PRESET_BOTTOM_WIDE)
+	_reality_aid_status.offset_left = 520
+	_reality_aid_status.offset_top = -204
+	_reality_aid_status.offset_right = -460
+	_reality_aid_status.offset_bottom = -180
+	_reality_aid_status.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
+	_reality_aid_status.z_index = 15
+	_ui_root.add_child(_reality_aid_status)
+
+	_reality_merchant_offer = _panel()
+	_reality_merchant_offer.name = "RealityMerchantOffer"
+	_reality_merchant_offer.set_anchors_preset(Control.PRESET_BOTTOM_WIDE)
+	_reality_merchant_offer.offset_left = 480
+	_reality_merchant_offer.offset_top = -330
+	_reality_merchant_offer.offset_right = -420
+	_reality_merchant_offer.offset_bottom = -210
+	_reality_merchant_offer.z_index = 15
+	_ui_root.add_child(_reality_merchant_offer)
+	var merchant_offer_box := HBoxContainer.new()
+	merchant_offer_box.add_theme_constant_override("separation", 14)
+	_reality_merchant_offer.add_child(merchant_offer_box)
+	_reality_merchant_offer_text = _label("", 17, _theme_color("ink"))
+	_reality_merchant_offer_text.name = "RealityMerchantOfferText"
+	_reality_merchant_offer_text.custom_minimum_size = Vector2(120, 80)
+	_reality_merchant_offer_text.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+	_reality_merchant_offer_text.autowrap_mode = TextServer.AUTOWRAP_ARBITRARY
+	_reality_merchant_offer_text.clip_text = true
+	merchant_offer_box.add_child(_reality_merchant_offer_text)
+	_reality_merchant_buy_button = Button.new()
+	_reality_merchant_buy_button.name = "RealityMerchantBuyButton"
+	_reality_merchant_buy_button.custom_minimum_size = Vector2(132, 56)
+	_reality_merchant_buy_button.pressed.connect(_on_buy_communication_item)
+	merchant_offer_box.add_child(_reality_merchant_buy_button)
+
 	_reality_subtitle_panel = PanelContainer.new()
 	_reality_subtitle_panel.name = "RealitySubtitlePanel"
 	_reality_subtitle_panel.set_meta("movie_subtitle", true)
@@ -1862,6 +1903,19 @@ func _apply_reality_layout() -> void:
 		_reality_typing_progress.offset_top = -208.0
 		_reality_typing_progress.offset_right = content_right
 		_reality_typing_progress.offset_bottom = -182.0
+	if _reality_aid_status != null:
+		_reality_aid_status.set_anchors_preset(Control.PRESET_BOTTOM_WIDE)
+		_reality_aid_status.offset_left = content_left
+		_reality_aid_status.offset_top = -204.0
+		_reality_aid_status.offset_right = content_right
+		_reality_aid_status.offset_bottom = -180.0
+	if _reality_merchant_offer != null:
+		_reality_merchant_offer.set_anchors_preset(Control.PRESET_BOTTOM_WIDE)
+		var offer_inset := 0.0 if compact else 160.0
+		_reality_merchant_offer.offset_left = content_left + offer_inset
+		_reality_merchant_offer.offset_top = -348.0
+		_reality_merchant_offer.offset_right = content_right - offer_inset
+		_reality_merchant_offer.offset_bottom = -214.0
 	if _reality_subtitle_panel != null:
 		_reality_subtitle_panel.set_anchors_preset(Control.PRESET_BOTTOM_WIDE)
 		_reality_subtitle_panel.offset_left = content_left
@@ -3047,6 +3101,16 @@ func _render_reality() -> void:
 	_reality_typing_line.visible = typing
 	_reality_typing_progress.visible = typing
 	_reality_continue_button.visible = result
+	var aid_status := game.get_communication_item_status()
+	_reality_aid_status.text = "沟通辅助  %s" % aid_status if not aid_status.is_empty() else ""
+	_reality_aid_status.visible = _reality_interaction_active and not typing and not aid_status.is_empty()
+	var show_offer := _reality_interaction_active and game.should_show_merchant_communication_offer()
+	_reality_merchant_offer.visible = show_offer
+	if show_offer:
+		var offer := game.get_daily_communication_item()
+		_reality_merchant_offer_text.text = "%s · %d 次\n%s" % [str(offer.get("label", "沟通辅助")), int(offer.get("charges", 0)), str(offer.get("description", ""))]
+		_reality_merchant_buy_button.text = "已购" if game.daily_communication_item_bought else "%d 资金" % int(offer.get("price", 0))
+		_reality_merchant_buy_button.disabled = game.daily_communication_item_bought or not game.can_spend_action() or game.money < int(offer.get("price", 0))
 
 	if choosing:
 		for choice in game.get_typed_reality_choices():
@@ -3116,6 +3180,19 @@ func _on_reality_choice_selected(choice_id: String) -> void:
 		_reality_hover_choice_id = ""
 		_render()
 		_sync_audio_state(false)
+
+
+func _on_buy_communication_item() -> void:
+	if _input_locked:
+		return
+	var actions_before := int(game.actions_remaining)
+	var item := game.get_daily_communication_item()
+	if game.buy_daily_communication_item():
+		log_text = "买到%s。" % str(item.get("label", "沟通辅助"))
+		_after_effective_action(actions_before)
+	else:
+		log_text = "这件沟通辅助没有成交。"
+		_render()
 
 
 func _advance_typed_reality_character() -> bool:
@@ -3194,6 +3271,10 @@ func _update_visibility() -> void:
 		_reality_typing_line.visible = interaction_visible and game.conversation_phase == "typing"
 	if _reality_typing_progress != null:
 		_reality_typing_progress.visible = interaction_visible and game.conversation_phase == "typing"
+	if _reality_aid_status != null:
+		_reality_aid_status.visible = interaction_visible and game.conversation_phase != "typing" and not game.get_communication_item_status().is_empty()
+	if _reality_merchant_offer != null:
+		_reality_merchant_offer.visible = interaction_visible and game.should_show_merchant_communication_offer()
 	if _reality_floor != null:
 		_reality_floor.visible = not in_phone
 	if _reality_player != null:

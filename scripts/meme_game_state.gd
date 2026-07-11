@@ -153,6 +153,21 @@ const REALITY_RESPONSE_SETS := {
 	],
 }
 const REALITY_CORRUPTION_GLYPHS := ["■", "▦", "∴", "//", "哈", "吉", "米", "空位"]
+const COMMUNICATION_ITEMS := {
+	"silence_patch": {
+		"id": "silence_patch", "label": "静音贴", "price": 6, "charges": 2, "clarity_bonus": 18,
+		"description": "原本听不懂时，自动把理解机会提高 18%。",
+	},
+	"semantic_anchor": {
+		"id": "semantic_anchor", "label": "语义锚", "price": 9, "charges": 3, "clarity_bonus": 14,
+		"description": "原本听不懂时，自动把理解机会提高 14%。",
+	},
+	"dictionary_leaf": {
+		"id": "dictionary_leaf", "label": "旧词典页", "price": 12, "charges": 1, "clarity_bonus": 32,
+		"description": "仅能使用一次，但把理解机会提高 32%。",
+	},
+}
+const COMMUNICATION_ITEM_ROTATION := ["silence_patch", "semantic_anchor", "dictionary_leaf"]
 
 var day: int = 1
 var heat: int = 18
@@ -227,6 +242,10 @@ var conversation_attempts: int = 0
 var conversation_understood: bool = false
 var conversation_understanding_rolls: Array[int] = []
 var conversation_feedback: String = ""
+var owned_communication_items: Array = []
+var daily_communication_item_bought: bool = false
+var last_communication_item_used: String = ""
+var last_communication_item_remaining: int = 0
 
 
 func new_run() -> void:
@@ -283,6 +302,10 @@ func new_run() -> void:
 	last_relationship_residue_gain = 0
 	last_relationship_money_loss = 0
 	reality_dialogue_count = 0
+	owned_communication_items = []
+	daily_communication_item_bought = false
+	last_communication_item_used = ""
+	last_communication_item_remaining = 0
 	reset_typed_reality_conversation()
 
 
@@ -413,6 +436,8 @@ func start_typed_reality_conversation(actor_id: String, actor_type: String, acto
 	conversation_understood = false
 	conversation_understanding_rolls = []
 	conversation_feedback = ""
+	last_communication_item_used = ""
+	last_communication_item_remaining = 0
 	conversation_phase = "choosing"
 	return true
 
@@ -431,10 +456,66 @@ func reset_typed_reality_conversation() -> void:
 	conversation_understood = false
 	conversation_understanding_rolls = []
 	conversation_feedback = ""
+	last_communication_item_used = ""
+	last_communication_item_remaining = 0
 
 
 func get_typed_reality_choices() -> Array:
 	return conversation_choices.duplicate(true)
+
+
+func get_daily_communication_item() -> Dictionary:
+	var index := posmod(day + tower_floor - 2, COMMUNICATION_ITEM_ROTATION.size())
+	var item_id := str(COMMUNICATION_ITEM_ROTATION[index])
+	return (COMMUNICATION_ITEMS.get(item_id, {}) as Dictionary).duplicate(true)
+
+
+func buy_daily_communication_item() -> bool:
+	if daily_communication_item_bought:
+		return false
+	var item := get_daily_communication_item()
+	if item.is_empty():
+		return false
+	var price := int(item.get("price", 0))
+	if money < price or not spend_action("buy-communication-item"):
+		return false
+	money -= price
+	daily_communication_item_bought = true
+	var item_id := str(item.get("id", ""))
+	var stacked := false
+	for index in owned_communication_items.size():
+		var owned: Dictionary = owned_communication_items[index]
+		if str(owned.get("id", "")) != item_id:
+			continue
+		owned["charges"] = int(owned.get("charges", 0)) + int(item.get("charges", 0))
+		owned_communication_items[index] = owned
+		stacked = true
+		break
+	if not stacked:
+		owned_communication_items.append(item.duplicate(true))
+	event_log.push_front("你从信号商人那里买到%s，可用 %d 次。" % [str(item.get("label", "沟通辅助")), int(item.get("charges", 0))])
+	return true
+
+
+func get_active_communication_item() -> Dictionary:
+	var best: Dictionary = {}
+	for item in owned_communication_items:
+		if int(item.get("charges", 0)) <= 0:
+			continue
+		if best.is_empty() or int(item.get("clarity_bonus", 0)) > int(best.get("clarity_bonus", 0)):
+			best = item
+	return best.duplicate(true)
+
+
+func get_communication_item_status() -> String:
+	var item := get_active_communication_item()
+	if item.is_empty():
+		return ""
+	return "%s ×%d" % [str(item.get("label", "沟通辅助")), int(item.get("charges", 0))]
+
+
+func should_show_merchant_communication_offer() -> bool:
+	return conversation_actor_type == "merchant" and conversation_phase == "result" and conversation_understood and conversation_selected_choice_id == "ask_goods"
 
 
 func preview_typed_reality_choice(choice_id: String) -> String:
@@ -504,19 +585,19 @@ func advance_typed_reality_character() -> Dictionary:
 	result["understood"] = understood
 	if understood:
 		conversation_phase = "result"
-		conversation_feedback = "%s听懂了你的意思。" % conversation_actor_label
+		conversation_feedback = "%s听懂了你的意思。%s" % [conversation_actor_label, _communication_item_feedback()]
 		return result
 
 	last_relationship_residue_gain = clampi(1 + int(pollution / 18.0) + legacy_rules.size(), 1, 14)
 	relationship_residue = clampi(relationship_residue + last_relationship_residue_gain, 0, 100)
 	if conversation_attempts >= 3:
 		conversation_phase = "locked_out"
-		conversation_feedback = "%s第三次移开了视线。" % conversation_actor_label
+		conversation_feedback = "%s第三次移开了视线。%s" % [conversation_actor_label, _communication_item_feedback()]
 		result["locked_out"] = true
 		return result
 
 	conversation_phase = "choosing"
-	conversation_feedback = "%s没有听懂。再试一次（%d/3）。" % [conversation_actor_label, conversation_attempts]
+	conversation_feedback = "%s没有听懂。再试一次（%d/3）。%s" % [conversation_actor_label, conversation_attempts, _communication_item_feedback()]
 	conversation_selected_choice_id = ""
 	conversation_clean_sentence = ""
 	conversation_revealed_units = []
@@ -561,17 +642,46 @@ func _conversation_corruption_text(roll: int, character_index: int) -> String:
 
 func _resolve_typed_reality_understanding() -> bool:
 	conversation_understanding_rolls = []
+	last_communication_item_used = ""
+	last_communication_item_remaining = 0
 	var legacy_penalty := legacy_rules.size() * 6
-	var clear_chance := clampi(100 - pollution - legacy_penalty, 5, 96)
-	npc_understanding = clear_chance
+	var base_clear_chance := clampi(100 - pollution - legacy_penalty, 5, 96)
 	var check_count := 3 if conversation_actor_type == "merchant" else 1
 	var understood := false
 	for check_index in check_count:
 		var roll := _conversation_roll("understanding", conversation_reveal_index, check_index)
 		conversation_understanding_rolls.append(roll)
-		if roll < clear_chance:
+		if roll < base_clear_chance:
 			understood = true
+	var effective_clear_chance := base_clear_chance
+	if not understood:
+		var aid := get_active_communication_item()
+		if not aid.is_empty():
+			effective_clear_chance = clampi(base_clear_chance + int(aid.get("clarity_bonus", 0)), 5, 98)
+			_consume_communication_item(str(aid.get("id", "")))
+			for roll in conversation_understanding_rolls:
+				if roll < effective_clear_chance:
+					understood = true
+	npc_understanding = effective_clear_chance
 	return understood
+
+
+func _consume_communication_item(item_id: String) -> void:
+	for index in owned_communication_items.size():
+		var item: Dictionary = owned_communication_items[index]
+		if str(item.get("id", "")) != item_id or int(item.get("charges", 0)) <= 0:
+			continue
+		item["charges"] = maxi(0, int(item.get("charges", 0)) - 1)
+		owned_communication_items[index] = item
+		last_communication_item_used = str(item.get("label", "沟通辅助"))
+		last_communication_item_remaining = int(item.get("charges", 0))
+		return
+
+
+func _communication_item_feedback() -> String:
+	if last_communication_item_used.is_empty():
+		return ""
+	return "（%s生效，剩余 %d 次）" % [last_communication_item_used, last_communication_item_remaining]
 
 
 func _conversation_roll(channel: String, character_index: int, check_index: int) -> int:
@@ -604,6 +714,9 @@ func settle_day_if_needed() -> bool:
 	daily_emotion_slot_id = _emotion_slot_for_day(day)
 	daily_arcana_card_id = _arcana_for_day(day)
 	daily_arcana_bought = false
+	daily_communication_item_bought = false
+	last_communication_item_used = ""
+	last_communication_item_remaining = 0
 	signal_contract_offset = 0
 	heat = maxi(10, int(round(float(heat) * 0.82)))
 	money += 5 + tower_floor * 2

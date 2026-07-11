@@ -39,6 +39,8 @@ func _run() -> void:
 	test_typed_reality_reveals_one_character_and_spends_on_completion()
 	test_typed_reality_corruption_and_merchant_understanding_checks()
 	test_typed_reality_locks_out_after_three_failed_attempts()
+	test_communication_item_purchase_costs_action_and_has_limited_charges()
+	test_communication_item_only_consumes_to_rescue_failed_understanding()
 	test_reality_dialogue_leaves_irreversible_relationship_residue()
 	test_first_crossing_sixty_triggers_flashback_and_forces_day_end()
 	test_flashback_trigger_is_once_per_run()
@@ -431,6 +433,75 @@ func test_typed_reality_locks_out_after_three_failed_attempts() -> void:
 	_assert_eq(game.conversation_phase, "locked_out", "three failed spoken attempts should lock the conversation until F is pressed again")
 	_assert_eq(game.conversation_attempts, 3, "lockout should happen on the third failed attempt")
 	_assert_eq(game.actions_remaining, 2, "each complete retry should spend one daily action")
+
+
+func test_communication_item_purchase_costs_action_and_has_limited_charges() -> void:
+	var game: RefCounted = _state_script.new()
+	game.new_run()
+	var item: Dictionary = game.get_daily_communication_item()
+	var money_before: int = game.money
+	_assert_true(game.buy_daily_communication_item(), "merchant communication item should be purchasable once per day")
+	_assert_eq(game.actions_remaining, 4, "buying a communication item should spend one action")
+	_assert_eq(game.money, money_before - int(item.get("price", 0)), "communication item purchase should pay its listed price")
+	_assert_true(game.daily_communication_item_bought, "daily merchant inventory should remember the purchase")
+	var owned: Dictionary = game.get_active_communication_item()
+	_assert_eq(str(owned.get("id", "")), str(item.get("id", "")), "purchased communication item should enter the active inventory")
+	_assert_eq(int(owned.get("charges", 0)), int(item.get("charges", 0)), "communication item should begin with its listed limited uses")
+	_assert_true(not game.buy_daily_communication_item(), "merchant should not sell the same daily communication item twice")
+	_assert_eq(game.actions_remaining, 4, "failed duplicate purchase should not spend an action")
+	game.start_typed_reality_conversation("merchant-offer", "merchant", "信号商人")
+	game.conversation_selected_choice_id = "ask_goods"
+	game.conversation_understood = true
+	game.conversation_phase = "result"
+	_assert_true(game.should_show_merchant_communication_offer(), "understood ask-goods response should expose the merchant item offer")
+
+
+func test_communication_item_only_consumes_to_rescue_failed_understanding() -> void:
+	var finder: RefCounted = _state_script.new()
+	finder.new_run()
+	finder.pollution = 80
+	var item: Dictionary = finder.get_daily_communication_item()
+	var base_chance := 20
+	var boosted_chance := base_chance + int(item.get("clarity_bonus", 0))
+	var rescued_actor_id := ""
+	var clear_actor_id := ""
+	for candidate_index in 500:
+		var candidate := "aid-roll-%d" % candidate_index
+		finder.start_typed_reality_conversation(candidate, "npc", "回声住户")
+		var choice_id := str(finder.get_typed_reality_choices()[0].get("id", ""))
+		finder.select_typed_reality_choice(choice_id)
+		finder.conversation_attempts = 1
+		var roll: int = finder._conversation_roll("understanding", finder.conversation_clean_sentence.length(), 0)
+		if clear_actor_id.is_empty() and roll < base_chance:
+			clear_actor_id = candidate
+		if rescued_actor_id.is_empty() and roll >= base_chance and roll < boosted_chance:
+			rescued_actor_id = candidate
+		if not rescued_actor_id.is_empty() and not clear_actor_id.is_empty():
+			break
+	_assert_true(not rescued_actor_id.is_empty() and not clear_actor_id.is_empty(), "test should find deterministic clear and aid-rescued listener rolls")
+
+	var rescued_game: RefCounted = _state_script.new()
+	rescued_game.new_run()
+	rescued_game.pollution = 80
+	rescued_game.owned_communication_items = [item.duplicate(true)]
+	rescued_game.start_typed_reality_conversation(rescued_actor_id, "npc", "回声住户")
+	rescued_game.select_typed_reality_choice(str(rescued_game.get_typed_reality_choices()[0].get("id", "")))
+	while rescued_game.conversation_phase == "typing":
+		rescued_game.advance_typed_reality_character()
+	_assert_true(rescued_game.conversation_understood, "limited-use communication item should rescue a roll inside its bonus range")
+	_assert_eq(int(rescued_game.get_active_communication_item().get("charges", 0)), int(item.get("charges", 0)) - 1, "rescued misunderstanding should consume exactly one charge")
+	_assert_eq(rescued_game.last_communication_item_used, str(item.get("label", "")), "dialogue result should identify the consumed communication item")
+
+	var clear_game: RefCounted = _state_script.new()
+	clear_game.new_run()
+	clear_game.pollution = 80
+	clear_game.owned_communication_items = [item.duplicate(true)]
+	clear_game.start_typed_reality_conversation(clear_actor_id, "npc", "回声住户")
+	clear_game.select_typed_reality_choice(str(clear_game.get_typed_reality_choices()[0].get("id", "")))
+	while clear_game.conversation_phase == "typing":
+		clear_game.advance_typed_reality_character()
+	_assert_true(clear_game.conversation_understood, "base-clear listener should understand without assistance")
+	_assert_eq(int(clear_game.get_active_communication_item().get("charges", 0)), int(item.get("charges", 0)), "communication item should not waste a charge on an already successful roll")
 
 
 func test_reality_dialogue_leaves_irreversible_relationship_residue() -> void:
