@@ -1176,11 +1176,29 @@ func _run() -> void:
 		root._on_buy_communication_item()
 		if root._input_locked:
 			root._finish_action_spend_animation()
-		_assert_eq(root.game.actions_remaining, actions_before_item - 1, "buying the merchant communication item should spend one action")
-		_assert_true(not root.game.get_active_communication_item().is_empty(), "purchased communication item should expose remaining charges")
-		reality_aid_status = _find_node_by_name(root, "RealityAidStatus") as Label
-		_assert_true(reality_aid_status != null and reality_aid_status.visible, "active limited-use item should show its remaining charges during dialogue")
-	root.queue_free()
+			_assert_eq(root.game.actions_remaining, actions_before_item - 1, "buying the merchant communication item should spend one action")
+			_assert_true(not root.game.get_active_communication_item().is_empty(), "purchased communication item should expose remaining charges")
+			reality_aid_status = _find_node_by_name(root, "RealityAidStatus") as Label
+			_assert_true(reality_aid_status != null and reality_aid_status.visible, "active limited-use item should show its remaining charges during dialogue")
+		root.game.ending_unlocked = true
+		root._render()
+		var ending_screen := _find_node_by_name(root, "EndingScreen") as Control
+		var ending_title := _find_node_by_name(root, "EndingTitle") as Label
+		var ending_body := _find_node_by_name(root, "EndingBody") as Label
+		var ending_choices := _find_node_by_name(root, "EndingLanguageChoices") as HBoxContainer
+		var ending_block_choice := _find_node_by_name(root, "EndingLanguageChoice_blocks") as Button
+		_assert_true(ending_screen != null and bool(ending_screen.get_meta("empty_tower", false)), "tower ending should replace gameplay with a dedicated empty-tower screen")
+		_assert_true(ending_title != null and ending_title.text == "塔顶没有人", "tower ending should state that nobody is waiting at the top")
+		_assert_true(ending_body != null and str(ending_body.text).contains("没有智者"), "tower ending should make the sage's absence explicit")
+		_assert_true(ending_choices != null and ending_choices.get_child_count() == 4, "tower ending should offer only blank, blocks, Hajimi, or silence")
+		_assert_true(ending_block_choice != null, "block residue should be one of the four final language choices")
+		if ending_block_choice != null:
+			ending_block_choice.pressed.emit()
+			await process_frame
+			var ending_result := _find_node_by_name(root, "EndingLanguageResult") as Label
+			_assert_true(ending_result != null and str(ending_result.text).contains("■ ■ ■ ■"), "committed final language should replace the four choices with its irreversible output")
+			_assert_true(_find_node_by_name(root, "EndingLanguageChoices") == null, "final language choices should disappear after one is committed")
+		root.queue_free()
 
 
 func _assert_true(value: bool, message: String) -> void:

@@ -35,6 +35,8 @@ Reality conversations use a cursor-driven three-choice surface. Each choice is a
 
 If the merchant understands `询问商品`, they reveal one rotating communication item. `静音贴`, `语义锚`, and `旧词典页` have different prices, bonuses, and limited charges. The strongest owned item is consumed only when the listener's base understanding roll would fail, so an already clear sentence never wastes a charge.
 
+At the empty tower top there is no sage and no ordinary sentence. The final interaction compresses the remaining language to exactly four irreversible choices: blank, blocks, `哈吉米`, or silence. After one choice, the tower gives no reply and only a restart remains.
+
 ## Run
 
 Open this folder in Godot 4.6 or newer. The main scene is:

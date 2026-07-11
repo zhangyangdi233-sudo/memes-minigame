@@ -168,6 +168,12 @@ const COMMUNICATION_ITEMS := {
 	},
 }
 const COMMUNICATION_ITEM_ROTATION := ["silence_patch", "semantic_anchor", "dictionary_leaf"]
+const ENDING_LANGUAGE_CHOICES := [
+	{"id": "blank", "label": "空白", "output": "（空白）"},
+	{"id": "blocks", "label": "■■■■", "output": "■ ■ ■ ■"},
+	{"id": "hajimi", "label": "哈吉米", "output": "哈吉米"},
+	{"id": "silence", "label": "沉默", "output": "……"},
+]
 
 var day: int = 1
 var heat: int = 18
@@ -177,6 +183,7 @@ var tower_floor: int = 1
 var threshold_discount: int = 0
 var next_threshold: int = 36
 var ending_unlocked: bool = false
+var ending_language_choice: String = ""
 var money: int = 18
 var actions_remaining: int = 5
 var max_actions_per_day: int = 5
@@ -259,6 +266,7 @@ func new_run() -> void:
 	threshold_discount = 0
 	next_threshold = _tower_threshold(tower_floor)
 	ending_unlocked = false
+	ending_language_choice = ""
 	money = 18
 	actions_remaining = max_actions_per_day
 	needs_day_settlement = false
@@ -365,6 +373,27 @@ func collect_world_item(item_data: Dictionary) -> bool:
 		pending_world_item_effects["labels"] = labels
 	event_log.push_front("拾取街区遗物：%s。%s" % [label, str(item_data.get("description", "信号已经写入。"))])
 	return true
+
+
+func get_ending_language_choices() -> Array:
+	return ENDING_LANGUAGE_CHOICES.duplicate(true)
+
+
+func choose_ending_language(choice_id: String) -> bool:
+	if not ending_unlocked or not ending_language_choice.is_empty():
+		return false
+	for choice in ENDING_LANGUAGE_CHOICES:
+		if str(choice.get("id", "")) == choice_id:
+			ending_language_choice = choice_id
+			return true
+	return false
+
+
+func get_ending_language_output() -> String:
+	for choice in ENDING_LANGUAGE_CHOICES:
+		if str(choice.get("id", "")) == ending_language_choice:
+			return str(choice.get("output", ""))
+	return ""
 
 
 func set_active_app(app_id: String) -> void:

@@ -16,6 +16,7 @@ func _run() -> void:
 		"res://tools/capture_dialogue_scene.gd",
 		"res://tools/capture_merchant_scene.gd",
 		"res://tools/capture_relic_scene.gd",
+		"res://tools/capture_ending_scene.gd",
 		"res://tools/capture_day_transition.gd",
 		"res://tools/capture_main_menu.gd",
 	]:

@@ -57,6 +57,7 @@ func _run() -> void:
 	test_tower_hermit_and_hanged_arcana_cover_the_other_build_paths()
 	test_visible_six_day_trends_match_scoring_rotation()
 	test_day_settlement_can_raise_tower_and_unlock_ending()
+	test_ending_language_choice_is_limited_and_irreversible()
 	test_twelve_day_catchup_guarantees_tower_ending()
 
 
@@ -869,6 +870,18 @@ func test_day_settlement_can_raise_tower_and_unlock_ending() -> void:
 	_assert_eq(game.tower_floor, 5, "high progress should raise the tower floor")
 	_assert_true(game.get("ending_unlocked"), "floor 5 should unlock ending")
 	_assert_true(game.legacy_rules.size() >= 1, "raising tower should preserve previous floor as legacy")
+
+
+func test_ending_language_choice_is_limited_and_irreversible() -> void:
+	var game: RefCounted = _state_script.new()
+	game.new_run()
+	_assert_eq(game.get_ending_language_choices().size(), 4, "tower ending should compress language to exactly four residual choices")
+	_assert_true(not game.choose_ending_language("hajimi"), "final language should remain unavailable before reaching the tower top")
+	game.ending_unlocked = true
+	_assert_true(not game.choose_ending_language("ordinary_sentence"), "tower ending should reject language outside the four residual choices")
+	_assert_true(game.choose_ending_language("blocks"), "player should be able to commit one residual final language")
+	_assert_eq(game.get_ending_language_output(), "■ ■ ■ ■", "block choice should resolve to the final block utterance")
+	_assert_true(not game.choose_ending_language("hajimi"), "the last utterance should be irreversible once selected")
 
 
 func test_twelve_day_catchup_guarantees_tower_ending() -> void:
