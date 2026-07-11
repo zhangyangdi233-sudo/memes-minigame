@@ -50,7 +50,8 @@ func _run() -> void:
 		player.position = merchant.position + Vector3(0.0, 0.0, 1.4)
 		game_root._refresh_nearby_reality_actor()
 		game_root._try_reality_interaction()
-	game_root.begin_reality_player_turn()
+	var first_choice_id := str(game_root.game.get_typed_reality_choices()[0].get("id", ""))
+	game_root._on_reality_choice_selected(first_choice_id)
 	await create_timer(0.65).timeout
 	if reality != null:
 		_assert_near(reality.volume_db, -16.0, 0.2, "player composing should make the room tone more intimate")

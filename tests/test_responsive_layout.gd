@@ -87,9 +87,10 @@ func _run() -> void:
 	if game_root.has_method("set_view_state"):
 		game_root.set_view_state("npc_up")
 	await process_frame
-	var npc_bubble := _find_node_by_name(game_root, "NPCChatBubble") as PanelContainer
+	var reality_subtitle := _find_node_by_name(game_root, "RealitySubtitlePanel") as PanelContainer
+	var reality_choices := _find_node_by_name(game_root, "RealityResponseChoices") as HBoxContainer
 	var phone_tab := _find_node_by_name(game_root, "PhoneTab") as Button
-	_assert_true(npc_bubble != null and not npc_bubble.visible, "small-view walking mode should wait for an F interaction before showing dialogue")
+	_assert_true(reality_subtitle != null and not reality_subtitle.visible, "small-view walking mode should wait for an F interaction before showing subtitles")
 	var reality_player := _find_node_by_name(game_root, "RealityPlayer") as CharacterBody3D
 	var reality_merchant := _find_node_by_name(game_root, "Merchant") as Area3D
 	if reality_player != null and reality_merchant != null:
@@ -97,31 +98,32 @@ func _run() -> void:
 		game_root._refresh_nearby_reality_actor()
 		game_root._try_reality_interaction()
 	await process_frame
-	_assert_true(npc_bubble != null and npc_bubble.visible, "small-view F interaction should show the NPC chat bubble")
-	if npc_bubble != null:
-		_assert_true(_inside_rect(npc_bubble, viewport_rect), "small-view NPC chat bubble should stay inside the viewport")
-	if game_root.has_method("begin_reality_player_turn"):
-		game_root.begin_reality_player_turn()
+	_assert_true(reality_subtitle != null and reality_subtitle.visible, "small-view F interaction should show the movie subtitle")
+	_assert_true(reality_choices != null and reality_choices.visible and reality_choices.get_child_count() == 3, "small-view dialogue should fit all three response choices")
+	if reality_subtitle != null:
+		_assert_true(_inside_rect(reality_subtitle, viewport_rect), "small-view movie subtitle should stay inside the viewport")
+	if reality_choices != null:
+		_assert_true(_inside_rect(reality_choices, viewport_rect), "small-view response choices should stay inside the viewport")
+	var first_choice_id := str(game_root.game.get_typed_reality_choices()[0].get("id", ""))
+	game_root._on_reality_choice_hovered(first_choice_id)
+	var intent_preview := _find_node_by_name(game_root, "RealityIntentPreview") as Label
+	_assert_true(intent_preview != null and intent_preview.visible, "small-view hover should reveal the full intended sentence")
+	if intent_preview != null:
+		_assert_true(_inside_rect(intent_preview, viewport_rect), "small-view intent preview should stay inside the viewport")
+		if reality_subtitle != null:
+			_assert_true(not intent_preview.get_global_rect().intersects(reality_subtitle.get_global_rect()), "small-view intent preview should not cover the subtitle")
+	game_root._on_reality_choice_selected(first_choice_id)
 	await process_frame
-	var dim_overlay := _find_node_by_name(game_root, "RealityDimOverlay") as ColorRect
-	var npc_focus := _find_node_by_name(game_root, "NPCFocusImage") as TextureRect
-	var player_portrait := _find_node_by_name(game_root, "PlayerPortrait") as Control
-	var thought_layer := _find_node_by_name(game_root, "ThoughtWordLayer") as Control
-	var puzzle_frame := _find_node_by_name(game_root, "LanguagePuzzleFrame") as PanelContainer
-	_assert_true(dim_overlay != null and dim_overlay.visible, "small-view player turn should show the dim overlay")
-	_assert_true(npc_focus != null and npc_focus.visible, "small-view player turn should keep the generated NPC portrait visible")
-	_assert_true(player_portrait != null and player_portrait.visible, "small-view player turn should show the player portrait")
-	_assert_true(thought_layer != null and thought_layer.visible, "small-view player turn should show thought words")
-	_assert_true(puzzle_frame != null and puzzle_frame.visible, "small-view player turn should show the language puzzle")
-	for control in [npc_focus, player_portrait, thought_layer, puzzle_frame, phone_tab]:
+	var typing_line := _find_node_by_name(game_root, "RealityTypingLine") as RichTextLabel
+	var typing_progress := _find_node_by_name(game_root, "RealityTypingProgress") as Label
+	_assert_true(typing_line != null and typing_line.visible, "small-view selected response should become the per-key typing line")
+	_assert_true(typing_progress != null and typing_progress.visible, "small-view typing should expose concise progress")
+	_assert_true(_find_node_by_name(game_root, "LanguagePuzzleFrame") == null, "small-view dialogue should not restore the retired Florence puzzle")
+	for control in [typing_line, typing_progress, reality_subtitle, phone_tab]:
 		if control != null and control.visible:
 			_assert_true(_inside_rect(control, viewport_rect), "small-view reality control should stay inside the viewport: %s" % control.name)
-	if hud != null and player_portrait != null:
-		_assert_true(player_portrait.get_global_rect().position.x >= hud.get_global_rect().end.x + 8.0, "small-view player portrait should not cover the HUD rail")
-	if player_portrait != null and puzzle_frame != null:
-		_assert_true(not player_portrait.get_global_rect().intersects(puzzle_frame.get_global_rect()), "small-view player portrait should not overlap the language puzzle")
-	if player_portrait != null and thought_layer != null:
-		_assert_true(not player_portrait.get_global_rect().intersects(thought_layer.get_global_rect()), "small-view player portrait should not overlap thought words")
+	if hud != null and typing_line != null:
+		_assert_true(typing_line.get_global_rect().position.x >= hud.get_global_rect().end.x + 8.0, "small-view typing line should keep clear of the HUD rail")
 	game_root.queue_free()
 
 

@@ -50,7 +50,8 @@ func _run() -> void:
 		_assert_true(root.has_method("_theme_color"), "main scene should expose semantic theme colors")
 		_assert_true(root.has_method("_play_pollution_flashback"), "main scene should expose pollution flashback playback")
 		_assert_true(root.has_method("_finish_pollution_flashback"), "main scene should expose pollution flashback completion")
-		_assert_true(root.has_method("begin_reality_player_turn"), "main scene should expose player turn transition")
+		_assert_true(root.has_method("_on_reality_choice_selected"), "main scene should expose cursor-driven reality choices")
+		_assert_true(root.has_method("_advance_typed_reality_character"), "main scene should expose per-key reality typing")
 		_assert_true(root.has_method("_toggle_meme_bank"), "main scene should expose meme bank drawer toggle")
 		_assert_true(root.has_method("_move_window_for_test"), "main scene should expose test window movement helper")
 		_assert_true(root.has_method("_window_position_for_test"), "main scene should expose test window position helper")
@@ -196,9 +197,14 @@ func _run() -> void:
 		var npc_focus_image := root.get_node_or_null("CanvasLayer/UIRoot/NPCFocusImage") as TextureRect
 		var player_portrait := root.get_node_or_null("CanvasLayer/UIRoot/PlayerPortrait") as Control
 		var thought_layer := root.get_node_or_null("CanvasLayer/UIRoot/ThoughtWordLayer") as Control
-		var thought_flow := _find_node_by_name(root, "RealityThoughtFlow") as HFlowContainer
 		var puzzle_frame := root.get_node_or_null("CanvasLayer/UIRoot/LanguagePuzzleFrame") as PanelContainer
-		var confirm_reality_button := _find_node_by_text(root, "尽量正常地说出口") as Button
+		var reality_subtitle := _find_node_by_name(root, "RealitySubtitlePanel") as PanelContainer
+		var reality_subtitle_label := _find_node_by_name(root, "RealitySubtitleLabel") as Label
+		var reality_choices := _find_node_by_name(root, "RealityResponseChoices") as HBoxContainer
+		var reality_intent_preview := _find_node_by_name(root, "RealityIntentPreview") as Label
+		var reality_typing_line := _find_node_by_name(root, "RealityTypingLine") as RichTextLabel
+		var reality_typing_progress := _find_node_by_name(root, "RealityTypingProgress") as Label
+		var reality_continue := _find_node_by_name(root, "RealityConversationContinue") as Button
 		var meme_bank_popup := _find_node_by_name(root, "MemeBankPopup") as PanelContainer
 		var meme_bank_tab := _find_node_by_name(root, "MemeBankTab") as Button
 		var meme_bank_drag_handle := _find_node_by_name(root, "MemeBankDragHandle") as Label
@@ -241,18 +247,20 @@ func _run() -> void:
 			root._sync_audio_state(true)
 			_assert_true(phone_ambience.volume_db > reality_ambience.volume_db, "phone view should foreground road ambience")
 			root.game.view_state = "npc_up"
-			root.game.reality_phase = "npc_speaking"
+			root._reality_interaction_active = false
 			root._sync_audio_state(true)
 			_assert_true(reality_ambience.volume_db > phone_ambience.volume_db, "NPC view should foreground room ambience")
 			var npc_reality_volume := reality_ambience.volume_db
-			root.game.reality_phase = "player_composing"
+			root._reality_interaction_active = true
+			root.game.conversation_phase = "typing"
 			root._sync_audio_state(true)
-			_assert_true(reality_ambience.volume_db > npc_reality_volume, "player composing should bring the room tone closer")
+			_assert_true(reality_ambience.volume_db > npc_reality_volume, "per-key speaking should bring the room tone closer")
 			root._duck_ambience_for_flashback()
 			_assert_true(bool(phone_ambience.get_meta("flashback_ducked", false)), "flashback should mark phone ambience as ducked")
 			_assert_true(bool(reality_ambience.get_meta("flashback_ducked", false)), "flashback should mark reality ambience as ducked")
 			root.game.view_state = "phone_down"
-			root.game.reality_phase = "npc_speaking"
+			root._reality_interaction_active = false
+			root.game.conversation_phase = "idle"
 			root._sync_audio_state(true)
 		_assert_true(apple_hud == null, "old Apple HUD panel should be removed")
 		_assert_true(international_hud != null, "scene should expose an International-style icon HUD rail")
@@ -394,9 +402,14 @@ func _run() -> void:
 					npc_focus_image = root.get_node_or_null("CanvasLayer/UIRoot/NPCFocusImage") as TextureRect
 					player_portrait = root.get_node_or_null("CanvasLayer/UIRoot/PlayerPortrait") as Control
 					thought_layer = root.get_node_or_null("CanvasLayer/UIRoot/ThoughtWordLayer") as Control
-					thought_flow = _find_node_by_name(root, "RealityThoughtFlow") as HFlowContainer
 					puzzle_frame = root.get_node_or_null("CanvasLayer/UIRoot/LanguagePuzzleFrame") as PanelContainer
-					confirm_reality_button = _find_node_by_text(root, "尽量正常地说出口") as Button
+					reality_subtitle = _find_node_by_name(root, "RealitySubtitlePanel") as PanelContainer
+					reality_subtitle_label = _find_node_by_name(root, "RealitySubtitleLabel") as Label
+					reality_choices = _find_node_by_name(root, "RealityResponseChoices") as HBoxContainer
+					reality_intent_preview = _find_node_by_name(root, "RealityIntentPreview") as Label
+					reality_typing_line = _find_node_by_name(root, "RealityTypingLine") as RichTextLabel
+					reality_typing_progress = _find_node_by_name(root, "RealityTypingProgress") as Label
+					reality_continue = _find_node_by_name(root, "RealityConversationContinue") as Button
 					meme_bank_popup = _find_node_by_name(root, "MemeBankPopup") as PanelContainer
 					meme_bank_tab = _find_node_by_name(root, "MemeBankTab") as Button
 					meme_bank_drag_handle = _find_node_by_name(root, "MemeBankDragHandle") as Label
@@ -588,23 +601,16 @@ func _run() -> void:
 			_assert_true(social_scroll_hint != null, "social feed should include a downward-browsing hint")
 		_assert_true(external_publish_panel == null, "publish blank should no longer be a separate desktop panel")
 		_assert_true(flashback_overlay != null, "scene should expose a full-screen pollution flashback overlay")
-		_assert_true(npc_bubble != null, "scene should expose the NPC chat bubble")
-		_assert_true(dim_overlay != null, "scene should expose the reality dim overlay")
-		_assert_true(npc_focus_image != null, "reality view should expose the generated signal-classmate portrait")
-		if npc_focus_image != null:
-			_assert_true(npc_focus_image.texture != null, "generated NPC portrait should load as a runtime texture")
-			_assert_eq(str(npc_focus_image.get_meta("asset_path", "")), "res://assets/generated/world/npc_signal_portrait.png", "reality view should use the new curated NPC asset without restoring the retired filename")
-			if dim_overlay != null:
-				_assert_true(npc_focus_image.z_index > dim_overlay.z_index, "NPC portrait should remain bright above the reality dim layer")
-		if dim_overlay != null:
-			_assert_true(dim_overlay.material is ShaderMaterial, "reality dim overlay should preserve the centered NPC focus treatment")
-		_assert_true(player_portrait != null, "scene should expose the player portrait")
-		if player_portrait != null:
-			var player_portrait_image := _find_node_by_name(player_portrait, "PlayerPortraitImage") as TextureRect
-			_assert_true(player_portrait_image != null and player_portrait_image.material is ShaderMaterial, "player portrait should be remapped into the active five-color palette at runtime")
-		_assert_true(thought_layer != null, "scene should expose the thought word layer")
-		_assert_true(thought_flow != null, "thought words should use a wrapping flow container")
-		_assert_true(puzzle_frame != null, "scene should expose the Florence-style language puzzle frame")
+		_assert_true(npc_bubble == null and dim_overlay == null and npc_focus_image == null, "retired chat bubble, dim overlay, and duplicate focus portrait should stay removed")
+		_assert_true(player_portrait == null and thought_layer == null and puzzle_frame == null, "retired Florence word puzzle controls should stay removed")
+		_assert_true(reality_subtitle != null and reality_subtitle_label != null, "reality dialogue should use a bottom-center movie subtitle")
+		_assert_true(reality_choices != null, "reality dialogue should expose a three-choice cursor surface")
+		_assert_true(reality_intent_preview != null, "reality dialogue should expose a separate full-intent hover preview")
+		_assert_true(reality_typing_line != null and reality_typing_progress != null, "reality dialogue should expose gray-to-white per-key typing")
+		_assert_true(reality_continue != null, "understood dialogue should expose a compact exit control")
+		if reality_subtitle != null:
+			var cinematic_bar := _find_node_by_name(root, "CinematicBottomBar") as ColorRect
+			_assert_true(cinematic_bar == null or reality_subtitle.z_index > cinematic_bar.z_index, "movie subtitles should render over the cinematic bar")
 		_assert_true(meme_bank_popup != null, "scene should expose an integrated meme bank popup")
 		_assert_true(meme_bank_tab != null, "meme bank tab should live inside the integrated popup")
 		_assert_true(meme_bank_drag_handle != null, "meme bank popup should expose a separate drag handle instead of relying on the toggle button")
@@ -1017,7 +1023,7 @@ func _run() -> void:
 			root._render()
 			_assert_eq(social_app_window.position, moved_pos, "dragged app window position should survive render")
 			_assert_eq(root.game.actions_remaining, 5, "moving a window should not spend an action")
-			var draggable_ids := ["phone", "app:babel", "app:social", "app:shop", "app:notebook", "bank", "reality", "settings"]
+			var draggable_ids := ["phone", "app:babel", "app:social", "app:shop", "app:notebook", "bank", "settings"]
 			for window_id in draggable_ids:
 				_assert_true(root._move_window_for_test(window_id, Vector2(0, 0)), "window should remain registered as draggable: %s" % window_id)
 			var drag_index := 0
@@ -1127,21 +1133,10 @@ func _run() -> void:
 			_assert_true(not social_app_window.visible, "NPC view should hide social app window")
 			_assert_true(not babel_app_window.visible, "NPC view should hide Babel app window")
 			_assert_true(not shop_app_window.visible, "NPC view should hide shop app window")
-		if npc_bubble != null and dim_overlay != null and player_portrait != null and thought_layer != null and puzzle_frame != null:
-			_assert_true(not npc_bubble.visible, "free-walking NPC view should not open dialogue before an F interaction")
-			_assert_true(npc_focus_image != null and not npc_focus_image.visible, "free-walking NPC view should keep the old conversation portrait hidden")
-			_assert_true(not dim_overlay.visible, "NPC speaking phase should not dim the background yet")
-			_assert_true(not player_portrait.visible, "NPC speaking phase should hide player portrait")
-			_assert_true(not thought_layer.visible, "NPC speaking phase should hide thought words")
-			_assert_true(not puzzle_frame.visible, "NPC speaking phase should hide the language puzzle frame")
-		var reality_player := _find_node_by_name(root, "RealityPlayer") as CharacterBody3D
-		var reality_merchant := _find_node_by_name(root, "Merchant") as Area3D
-		if reality_player != null and reality_merchant != null and root.has_method("_try_reality_interaction"):
-			reality_player.position = reality_merchant.position + Vector3(0.0, 0.0, 1.4)
-			root._refresh_nearby_reality_actor()
-			_assert_true(root._try_reality_interaction(), "approaching a billboard actor and pressing F should enter reality dialogue")
-			_assert_true(npc_bubble.visible, "F interaction should reveal the NPC dialogue layer")
-			_assert_true(npc_focus_image != null and npc_focus_image.visible, "F interaction should reveal the focused conversation portrait")
+		if reality_subtitle != null and reality_choices != null and reality_typing_line != null:
+			_assert_true(not reality_subtitle.visible, "free-walking NPC view should not show subtitles before an F interaction")
+			_assert_true(not reality_choices.visible, "free-walking NPC view should keep response choices hidden")
+			_assert_true(not reality_typing_line.visible, "free-walking NPC view should keep the typing line hidden")
 		root.game.legacy_rules = [
 			{
 				"id": "legacy-1",
@@ -1153,56 +1148,47 @@ func _run() -> void:
 				"strength": 1,
 			},
 		]
-		root._render()
-		if root.has_method("begin_reality_player_turn") and dim_overlay != null and player_portrait != null and thought_layer != null and puzzle_frame != null:
-			root.begin_reality_player_turn()
-			view_toggle_button = _find_node_by_name(root, "PhoneViewToggleButton") as Button
-			_assert_true(dim_overlay.visible, "player composing phase should dim the background")
-			_assert_true(dim_overlay.mouse_filter == Control.MOUSE_FILTER_IGNORE, "reality dim overlay should not block foreground controls")
-			var remaining_brightness := 1.0 - dim_overlay.color.a
-			_assert_true(remaining_brightness >= 0.70 and remaining_brightness <= 0.80, "player composing dim overlay should keep background brightness around 70-80 percent")
-			_assert_true(absf(float(dim_overlay.get_meta("target_background_brightness", 0.0)) - remaining_brightness) < 0.001, "dim overlay should document its intended background brightness")
-			_assert_true(dim_overlay.material is ShaderMaterial, "player composing phase should keep the centered NPC bright through a shader cutout")
-			_assert_true(npc_focus_image != null and npc_focus_image.visible, "player composing phase should keep the NPC portrait visible")
-			_assert_true(player_portrait.visible, "player composing phase should show the player portrait")
-			_assert_true(player_portrait.z_index > dim_overlay.z_index, "player portrait should remain bright above the dim overlay")
-			if international_hud != null:
-				_assert_true(player_portrait.offset_left >= international_hud.offset_right + 48.0, "player portrait should keep a clear safety gap from the HUD rail and today's actions")
-			_assert_true(not _controls_overlap(player_portrait, puzzle_frame), "player portrait should not overlap the language puzzle frame")
-			_assert_true(thought_layer.visible, "player composing phase should show thought words")
-			_assert_true(thought_layer.z_index > dim_overlay.z_index, "thought words should remain bright above the dim overlay")
-			_assert_true(not _controls_overlap(player_portrait, thought_layer), "player portrait should not overlap floating thought words")
-			_assert_true(puzzle_frame.visible, "player composing phase should show the language puzzle frame")
-			_assert_true(puzzle_frame.z_index > dim_overlay.z_index, "language puzzle frame should remain bright above the dim overlay")
-			confirm_reality_button = _find_node_by_text(root, "尽量正常地说出口") as Button
-			_assert_true(confirm_reality_button != null, "player composing phase should expose a confirm speech button")
-			if confirm_reality_button != null:
-				_assert_true(confirm_reality_button.custom_minimum_size.y >= 56.0, "confirm speech button should use a comfortable touch target")
-			if view_toggle_button != null:
-				_assert_true(not view_toggle_button.visible, "player composing phase should hide the fixed take-phone button so it does not cover the language puzzle")
-			meme_bank_popup = _find_node_by_name(root, "MemeBankPopup") as PanelContainer
-			if meme_bank_popup != null:
-				_assert_true(not meme_bank_popup.visible, "player composing phase should hide the meme bank corner so it does not cover the language puzzle")
-			_assert_true(npc_bubble.visible, "NPC bubble should remain visible above the dimmed background")
-			_assert_true(npc_bubble.z_index > dim_overlay.z_index, "NPC bubble should remain bright above the dim overlay")
-			if phone_popup != null:
-				_assert_true(phone_popup.visible, "player composing phase should keep the side phone affordance visible")
-				_assert_true(phone_popup.z_index > dim_overlay.z_index, "side phone affordance should remain bright above the dim overlay")
-			_assert_true(_has_text(root, "语言组成框"), "player composing phase should show the language puzzle label")
-			_assert_true(_has_text(root, "哈吉米，必须补票"), "language puzzle should show required legacy tile")
-			var actions_before_puzzle := int(root.game.actions_remaining)
-			var first_tile: Dictionary = root.game.get_reality_tile_options()[0]
-			root._on_reality_tile_pressed(str(first_tile.get("id", "")))
-			root._on_reality_slot_pressed("slot_0")
-			var first_reality_slot := _find_node_by_text(root, "1\n%s" % str(first_tile.get("text", ""))) as Button
-			_assert_true(first_reality_slot != null, "click fallback should place the selected reality word into the language puzzle slot")
-			_assert_eq(root.game.actions_remaining, actions_before_puzzle, "placing reality puzzle words should not spend an action")
-			root.game.place_reality_tile("slot_1", "legacy:legacy-1")
-			_assert_true(root.game.confirm_reality_dialogue(), "reality dialogue should resolve after its required legacy tile is placed")
+		root.game.pollution = 100
+		var reality_player := _find_node_by_name(root, "RealityPlayer") as CharacterBody3D
+		var reality_merchant := _find_node_by_name(root, "Merchant") as Area3D
+		if reality_player != null and reality_merchant != null and root.has_method("_try_reality_interaction"):
+			reality_player.position = reality_merchant.position + Vector3(0.0, 0.0, 1.4)
+			root._refresh_nearby_reality_actor()
+			_assert_true(root._try_reality_interaction(), "approaching a billboard actor and pressing F should enter reality dialogue")
+			reality_subtitle = _find_node_by_name(root, "RealitySubtitlePanel") as PanelContainer
+			reality_choices = _find_node_by_name(root, "RealityResponseChoices") as HBoxContainer
+			reality_intent_preview = _find_node_by_name(root, "RealityIntentPreview") as Label
+			reality_typing_line = _find_node_by_name(root, "RealityTypingLine") as RichTextLabel
+			reality_typing_progress = _find_node_by_name(root, "RealityTypingProgress") as Label
+			_assert_true(reality_subtitle != null and reality_subtitle.visible, "F interaction should reveal the movie subtitle")
+			_assert_true(reality_subtitle_label != null and str(reality_subtitle_label.text).contains("我只收还能被别人听懂的东西"), "NPC speech should remain clear even when the protagonist is highly polluted")
+			_assert_true(reality_choices != null and reality_choices.visible and reality_choices.get_child_count() == 3, "F interaction should reveal exactly three response choices")
+			var choices: Array = root.game.get_typed_reality_choices()
+			var first_choice_id := str(choices[0].get("id", ""))
+			root._on_reality_choice_hovered(first_choice_id)
+			_assert_true(reality_intent_preview != null and reality_intent_preview.visible, "hovering a short choice should reveal the complete intended sentence")
+			_assert_true(reality_intent_preview != null and str(reality_intent_preview.text).contains("哈吉米，必须补票"), "hover preview should include inherited language automatically")
+			if reality_intent_preview != null and reality_subtitle != null:
+				_assert_true(not _controls_overlap(reality_intent_preview, reality_subtitle), "full-intent hover preview should not obscure the previous NPC subtitle")
+			root._on_reality_choice_selected(first_choice_id)
+			_assert_eq(root.game.conversation_phase, "typing", "clicking a response should enter per-key typing")
+			_assert_true(reality_choices != null and not reality_choices.visible, "typing should replace the three choice buttons")
+			_assert_true(reality_typing_line != null and reality_typing_line.visible, "typing should reveal a fixed gray sentence below the NPC")
+			var actions_before_typing := int(root.game.actions_remaining)
+			_assert_true(root._advance_typed_reality_character(), "one arbitrary key path should reveal one character")
 			root._render()
-			var reality_result := _find_node_by_name(root, "RealityResultLabel") as Label
-			_assert_true(reality_result != null and str(reality_result.text).contains("关系残留"), "reality result should show irreversible relationship residue")
-			_assert_true(reality_result != null and str(reality_result.text).contains("沟通代价"), "reality result should show the money cost of misunderstanding")
+			_assert_eq(root.game.conversation_reveal_index, 1, "one arbitrary key should move the reveal cursor once")
+			_assert_eq(root.game.actions_remaining, actions_before_typing, "partial per-key typing should not spend an action")
+			_assert_true(str(reality_typing_line.text).to_lower().contains("ff3b30"), "polluted revealed characters should render in signal red")
+			while root.game.conversation_phase == "typing":
+				root._advance_typed_reality_character()
+			if root._input_locked:
+				root._finish_action_spend_animation()
+			_assert_eq(root.game.actions_remaining, actions_before_typing - 1, "finishing the sentence should spend exactly one action")
+			_assert_eq(root.game.conversation_understanding_rolls.size(), 3, "merchant listener should roll three pollution understanding checks")
+			view_toggle_button = _find_node_by_name(root, "PhoneViewToggleButton") as Button
+			if root._reality_interaction_active and view_toggle_button != null:
+				_assert_true(not view_toggle_button.visible, "active cursor dialogue should hide the phone toggle from the response surface")
 	root.queue_free()
 
 

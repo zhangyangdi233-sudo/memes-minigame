@@ -30,7 +30,6 @@ const POLLUTION_PALETTE_5 := {
 
 const PHONE_DOWN_BACKDROP_PATH := "res://assets/generated/world/phone_down_backdrop.png"
 const NPC_SIGNAL_PORTRAIT_PATH := "res://assets/generated/world/npc_signal_portrait.png"
-const PLAYER_PORTRAIT_TEXTURE_PATH := "res://assets/generated/ui/player_portrait.png"
 const NO_SIGNAL_ICON_PATH := "res://assets/generated/ui/no_signal_icon.png"
 const HUD_DAY_ICON_PATH := "res://assets/generated/ui/hud_day_icon.png"
 const HUD_POLLUTION_ICON_PATH := "res://assets/generated/ui/hud_pollution_icon.png"
@@ -164,8 +163,6 @@ const SOCIAL_POST_CARDS := [
 		],
 	},
 ]
-const REALITY_DIM_ALPHA := 0.24
-
 const DAY_PLANS := [
 	{
 		"title": "旧帖被顶上来",
@@ -269,7 +266,6 @@ const DAY_PLANS := [
 var game = MemeGameStateScript.new()
 var selected_token_id := ""
 var selected_meme_id := ""
-var selected_reality_tile_id := ""
 var log_text := ""
 var _road_scroll := 0.0
 var _input_locked := false
@@ -334,17 +330,14 @@ var _meme_bank_drag_handle: Label
 var _meme_bank_window: PanelContainer
 var _meme_bank_content: Control
 var _bank_list: HBoxContainer
-var _reality_panel: PanelContainer
-var _reality_tile_row: Container
-var _reality_slot_box: GridContainer
-var _reality_result: Label
-var _confirm_reality_button: Button
-var _npc_chat_bubble: PanelContainer
-var _npc_chat_label: Label
-var _reality_dim_overlay: ColorRect
-var _npc_focus_image: TextureRect
-var _player_portrait: Control
-var _thought_word_layer: Control
+var _reality_subtitle_panel: PanelContainer
+var _reality_subtitle_label: Label
+var _reality_choice_row: HBoxContainer
+var _reality_intent_preview: Label
+var _reality_typing_line: RichTextLabel
+var _reality_typing_progress: Label
+var _reality_continue_button: Button
+var _reality_hover_choice_id := ""
 var _flashback_overlay: Control
 var _flashback_noise: ColorRect
 var _flashback_blackout: ColorRect
@@ -429,6 +422,10 @@ func _unhandled_input(event: InputEvent) -> void:
 	if _input_locked or not _game_started:
 		return
 	if event is InputEventKey and event.pressed and not event.echo:
+		if _reality_interaction_active and game.conversation_phase == "typing" and event.keycode != KEY_ESCAPE:
+			if _advance_typed_reality_character():
+				get_viewport().set_input_as_handled()
+				return
 		if event.is_action_pressed("reality_interact"):
 			_try_reality_interaction()
 			get_viewport().set_input_as_handled()
@@ -464,7 +461,6 @@ func new_game() -> void:
 	game.new_run()
 	selected_token_id = ""
 	selected_meme_id = ""
-	selected_reality_tile_id = ""
 	_meme_bank_open = false
 	_phone_popup_expanded = true
 	_phone_launcher_open = false
@@ -518,6 +514,8 @@ func set_view_state(value: String) -> void:
 		_reality_interaction_active = false
 		_active_reality_actor = null
 		_nearby_reality_actor = null
+		_reality_hover_choice_id = ""
+		game.reset_typed_reality_conversation()
 		Input.set_mouse_mode(Input.MOUSE_MODE_VISIBLE)
 		if value == "npc_up":
 			log_text = "你放下手机，走廊重新获得纵深。"
@@ -539,17 +537,6 @@ func _toggle_view_state() -> void:
 		set_view_state("npc_up")
 	else:
 		set_view_state("phone_down")
-
-
-func begin_reality_player_turn() -> void:
-	if _input_locked:
-		return
-	if not _reality_interaction_active:
-		return
-	if game.begin_reality_player_turn():
-		log_text = "你开始在脑内拼一句尽量普通的话。"
-	_render()
-	_sync_audio_state(false)
 
 
 func _build_world() -> void:
@@ -765,8 +752,18 @@ func _try_reality_interaction() -> bool:
 	if _nearby_reality_actor == null:
 		return false
 	_active_reality_actor = _nearby_reality_actor
+	var actor_id := str(_active_reality_actor.get_meta("actor_id", "actor"))
+	var actor_type := str(_active_reality_actor.get_meta("actor_type", "npc"))
+	var actor_label := str(_active_reality_actor.get_meta("display_name", "对方"))
+	if not game.start_typed_reality_conversation(actor_id, actor_type, actor_label):
+		_active_reality_actor = null
+		return false
+	var actor_direction: Vector3 = _active_reality_actor.position - _reality_player.position
+	if actor_direction.length_squared() > 0.001:
+		_reality_yaw = rad_to_deg(atan2(-actor_direction.x, -actor_direction.z))
+		_reality_pitch = -2.0
 	_reality_interaction_active = true
-	game.reset_reality_phase_for_day()
+	_reality_hover_choice_id = ""
 	Input.set_mouse_mode(Input.MOUSE_MODE_VISIBLE)
 	log_text = "你停在%s面前。" % _active_actor_display_name()
 	_render()
@@ -777,7 +774,8 @@ func _try_reality_interaction() -> bool:
 func _exit_reality_interaction(should_render: bool = true) -> void:
 	_reality_interaction_active = false
 	_active_reality_actor = null
-	game.reset_reality_phase_for_day()
+	_reality_hover_choice_id = ""
+	game.reset_typed_reality_conversation()
 	if should_render:
 		_render()
 		_sync_audio_state(false)
@@ -835,7 +833,8 @@ func _sync_audio_state(immediate: bool = false) -> void:
 		return
 	var in_phone: bool = game.view_state == "phone_down"
 	var phone_target: float = -18.0 if in_phone else -48.0
-	var reality_target: float = -48.0 if in_phone else (-16.0 if game.reality_phase == "player_composing" else -21.0)
+	var intimate_typing: bool = _reality_interaction_active and game.conversation_phase == "typing"
+	var reality_target: float = -48.0 if in_phone else (-16.0 if intimate_typing else -21.0)
 	_phone_ambience.set_meta("target_volume_db", phone_target)
 	_reality_ambience.set_meta("target_volume_db", reality_target)
 	_phone_ambience.set_meta("flashback_ducked", false)
@@ -1155,105 +1154,91 @@ func _build_ui() -> void:
 	_build_app_window("notebook", "笔记本 App", "NotebookAppWindow", -968.0, 152.0, -528.0, 732.0)
 	_build_social_detail_window()
 
-	_reality_dim_overlay = ColorRect.new()
-	_reality_dim_overlay.name = "RealityDimOverlay"
-	_reality_dim_overlay.color = Color(0, 0, 0, REALITY_DIM_ALPHA)
-	_reality_dim_overlay.set_meta("target_background_brightness", 1.0 - REALITY_DIM_ALPHA)
-	_reality_dim_overlay.set_anchors_preset(Control.PRESET_FULL_RECT)
-	_reality_dim_overlay.mouse_filter = Control.MOUSE_FILTER_IGNORE
-	_reality_dim_overlay.z_index = 9
-	var reality_dim_shader := Shader.new()
-	reality_dim_shader.code = "shader_type canvas_item;\nuniform float dim_alpha = 0.24;\nvoid fragment() {\n\tvec2 p = UV - vec2(0.5, 0.43);\n\tfloat ellipse = length(vec2(p.x / 0.15, p.y / 0.38));\n\tfloat outside_npc = smoothstep(0.82, 1.08, ellipse);\n\tCOLOR = vec4(0.0, 0.0, 0.0, dim_alpha * outside_npc);\n}"
-	var reality_dim_material := ShaderMaterial.new()
-	reality_dim_material.shader = reality_dim_shader
-	reality_dim_material.set_shader_parameter("dim_alpha", REALITY_DIM_ALPHA)
-	_reality_dim_overlay.material = reality_dim_material
-	_ui_root.add_child(_reality_dim_overlay)
+	_reality_intent_preview = _label("", 28, _theme_color("surface"))
+	_reality_intent_preview.name = "RealityIntentPreview"
+	_reality_intent_preview.set_meta("on_dark", true)
+	_reality_intent_preview.set_anchors_preset(Control.PRESET_BOTTOM_WIDE)
+	_reality_intent_preview.offset_left = 310
+	_reality_intent_preview.offset_top = -360
+	_reality_intent_preview.offset_right = -250
+	_reality_intent_preview.offset_bottom = -286
+	_reality_intent_preview.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
+	_reality_intent_preview.vertical_alignment = VERTICAL_ALIGNMENT_CENTER
+	_reality_intent_preview.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
+	_reality_intent_preview.add_theme_color_override("font_outline_color", Color("050705"))
+	_reality_intent_preview.add_theme_constant_override("outline_size", 8)
+	_reality_intent_preview.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	_reality_intent_preview.z_index = 14
+	_ui_root.add_child(_reality_intent_preview)
 
-	_npc_focus_image = TextureRect.new()
-	_npc_focus_image.name = "NPCFocusImage"
-	_npc_focus_image.texture = _load_runtime_texture(NPC_SIGNAL_PORTRAIT_PATH)
-	_npc_focus_image.set_meta("asset_path", NPC_SIGNAL_PORTRAIT_PATH)
-	_npc_focus_image.set_meta("generated_with", "imagegen")
-	_npc_focus_image.expand_mode = TextureRect.EXPAND_IGNORE_SIZE
-	_npc_focus_image.stretch_mode = TextureRect.STRETCH_KEEP_ASPECT_CENTERED
-	_npc_focus_image.mouse_filter = Control.MOUSE_FILTER_IGNORE
-	_npc_focus_image.z_index = 11
-	_ui_root.add_child(_npc_focus_image)
+	_reality_choice_row = HBoxContainer.new()
+	_reality_choice_row.name = "RealityResponseChoices"
+	_reality_choice_row.set_anchors_preset(Control.PRESET_BOTTOM_WIDE)
+	_reality_choice_row.offset_left = 350
+	_reality_choice_row.offset_top = -270
+	_reality_choice_row.offset_right = -290
+	_reality_choice_row.offset_bottom = -206
+	_reality_choice_row.add_theme_constant_override("separation", 14)
+	_reality_choice_row.z_index = 15
+	_ui_root.add_child(_reality_choice_row)
 
-	_npc_chat_bubble = _panel()
-	_npc_chat_bubble.name = "NPCChatBubble"
-	_npc_chat_bubble.set_anchors_preset(Control.PRESET_TOP_RIGHT)
-	_npc_chat_bubble.offset_left = -430
-	_npc_chat_bubble.offset_top = 126
-	_npc_chat_bubble.offset_right = -38
-	_npc_chat_bubble.offset_bottom = 278
-	_npc_chat_bubble.z_index = 12
-	_ui_root.add_child(_npc_chat_bubble)
-	var bubble_box := VBoxContainer.new()
-	bubble_box.add_theme_constant_override("separation", 8)
-	_npc_chat_bubble.add_child(bubble_box)
-	_npc_chat_label = _label("", 18, _theme_color("ink"))
-	_npc_chat_label.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
-	bubble_box.add_child(_npc_chat_label)
-	var bubble_continue := Button.new()
-	bubble_continue.text = "组织语言"
-	bubble_continue.custom_minimum_size.y = 44
-	bubble_continue.pressed.connect(begin_reality_player_turn)
-	bubble_box.add_child(bubble_continue)
+	_reality_typing_line = RichTextLabel.new()
+	_reality_typing_line.name = "RealityTypingLine"
+	_reality_typing_line.bbcode_enabled = true
+	_reality_typing_line.fit_content = false
+	_reality_typing_line.scroll_active = false
+	_reality_typing_line.set_anchors_preset(Control.PRESET_BOTTOM_WIDE)
+	_reality_typing_line.offset_left = 280
+	_reality_typing_line.offset_top = -300
+	_reality_typing_line.offset_right = -220
+	_reality_typing_line.offset_bottom = -206
+	_reality_typing_line.add_theme_font_size_override("normal_font_size", 30)
+	_reality_typing_line.add_theme_color_override("default_color", _theme_color("surface"))
+	_reality_typing_line.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	_reality_typing_line.z_index = 15
+	_ui_root.add_child(_reality_typing_line)
 
-	_player_portrait = _build_player_portrait()
-	_player_portrait.name = "PlayerPortrait"
-	_player_portrait.z_index = 14
-	_ui_root.add_child(_player_portrait)
+	_reality_typing_progress = _label("", 14, _theme_color("muted"))
+	_reality_typing_progress.name = "RealityTypingProgress"
+	_reality_typing_progress.set_meta("on_dark", true)
+	_reality_typing_progress.set_anchors_preset(Control.PRESET_BOTTOM_WIDE)
+	_reality_typing_progress.offset_left = 520
+	_reality_typing_progress.offset_top = -210
+	_reality_typing_progress.offset_right = -460
+	_reality_typing_progress.offset_bottom = -184
+	_reality_typing_progress.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
+	_reality_typing_progress.z_index = 15
+	_ui_root.add_child(_reality_typing_progress)
 
-	_thought_word_layer = Control.new()
-	_thought_word_layer.name = "ThoughtWordLayer"
-	_thought_word_layer.set_anchors_preset(Control.PRESET_TOP_WIDE)
-	_thought_word_layer.offset_left = 288
-	_thought_word_layer.offset_top = 348
-	_thought_word_layer.offset_right = -238
-	_thought_word_layer.offset_bottom = 592
-	_thought_word_layer.z_index = 13
-	_ui_root.add_child(_thought_word_layer)
-	_reality_tile_row = HFlowContainer.new()
-	_reality_tile_row.add_theme_constant_override("h_separation", 10)
-	_reality_tile_row.add_theme_constant_override("v_separation", 10)
-	_reality_tile_row.set_anchors_preset(Control.PRESET_FULL_RECT)
-	_thought_word_layer.add_child(_reality_tile_row)
-	_reality_tile_row.name = "RealityThoughtFlow"
-
-	_reality_panel = _panel()
-	_reality_panel.name = "LanguagePuzzleFrame"
-	_reality_panel.set_anchors_preset(Control.PRESET_BOTTOM_WIDE)
-	_reality_panel.offset_left = 260
-	_reality_panel.offset_top = -222
-	_reality_panel.offset_right = -72
-	_reality_panel.offset_bottom = -36
-	_reality_panel.z_index = 15
-	_ui_root.add_child(_reality_panel)
-	var reality_box := VBoxContainer.new()
-	reality_box.add_theme_constant_override("separation", 8)
-	_reality_panel.add_child(reality_box)
-	var reality_title := _label("语言组成框", 22, _theme_color("accent"))
-	reality_title.mouse_filter = Control.MOUSE_FILTER_STOP
-	reality_box.add_child(reality_title)
-	_make_draggable_window(_reality_panel, "reality", reality_title)
-	_reality_slot_box = GridContainer.new()
-	_reality_slot_box.columns = 4
-	_reality_slot_box.add_theme_constant_override("separation", 8)
-	_reality_slot_box.add_theme_constant_override("h_separation", 8)
-	_reality_slot_box.add_theme_constant_override("v_separation", 8)
-	reality_box.add_child(_reality_slot_box)
-	_confirm_reality_button = Button.new()
-	_confirm_reality_button.text = "尽量正常地说出口"
-	_confirm_reality_button.custom_minimum_size.y = 56
-	_confirm_reality_button.pressed.connect(_on_confirm_reality_pressed)
-	reality_box.add_child(_confirm_reality_button)
-	_reality_result = _label("", 16, _theme_color("accent"))
-	_reality_result.name = "RealityResultLabel"
-	_reality_result.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
-	reality_box.add_child(_reality_result)
+	_reality_subtitle_panel = PanelContainer.new()
+	_reality_subtitle_panel.name = "RealitySubtitlePanel"
+	_reality_subtitle_panel.set_meta("movie_subtitle", true)
+	_reality_subtitle_panel.set_anchors_preset(Control.PRESET_BOTTOM_WIDE)
+	_reality_subtitle_panel.offset_left = 360
+	_reality_subtitle_panel.offset_top = -178
+	_reality_subtitle_panel.offset_right = -300
+	_reality_subtitle_panel.offset_bottom = -104
+	_reality_subtitle_panel.z_index = 14
+	_ui_root.add_child(_reality_subtitle_panel)
+	var subtitle_box := HBoxContainer.new()
+	subtitle_box.add_theme_constant_override("separation", 12)
+	_reality_subtitle_panel.add_child(subtitle_box)
+	_reality_subtitle_label = _label("", 20, _theme_color("surface"))
+	_reality_subtitle_label.name = "RealitySubtitleLabel"
+	_reality_subtitle_label.set_meta("on_dark", true)
+	_reality_subtitle_label.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+	_reality_subtitle_label.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
+	_reality_subtitle_label.vertical_alignment = VERTICAL_ALIGNMENT_CENTER
+	_reality_subtitle_label.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
+	_reality_subtitle_label.add_theme_color_override("font_outline_color", Color("050705"))
+	_reality_subtitle_label.add_theme_constant_override("outline_size", 6)
+	subtitle_box.add_child(_reality_subtitle_label)
+	_reality_continue_button = Button.new()
+	_reality_continue_button.name = "RealityConversationContinue"
+	_reality_continue_button.text = "结束"
+	_reality_continue_button.custom_minimum_size = Vector2(92, 48)
+	_reality_continue_button.pressed.connect(_exit_reality_interaction)
+	subtitle_box.add_child(_reality_continue_button)
 
 	_meme_bank_window = _panel()
 	_meme_bank_window.name = "MemeBankPopup"
@@ -1849,53 +1834,40 @@ func _apply_reality_layout() -> void:
 	if _hud_panel != null:
 		hud_right = _hud_panel.offset_right
 	var compact := viewport_size.x < 760.0
-	var safe_left := maxf(18.0, hud_right + (18.0 if compact else 48.0))
-	var phone_affordance_width := 104.0
-	var right_margin := phone_affordance_width + 16.0
-	var portrait_width := 132.0 if compact else 206.0
-	var portrait_height := 188.0 if compact else 276.0
-	var portrait_left := safe_left
-	if _npc_focus_image != null:
-		var npc_width := 280.0 if compact else 440.0
-		var npc_height := npc_width * 1.5
-		var npc_center_x := viewport_size.x * 0.5
-		_npc_focus_image.set_anchors_preset(Control.PRESET_TOP_LEFT)
-		_npc_focus_image.offset_left = npc_center_x - npc_width * 0.5
-		_npc_focus_image.offset_top = 54.0 if compact else 64.0
-		_npc_focus_image.offset_right = npc_center_x + npc_width * 0.5
-		_npc_focus_image.offset_bottom = _npc_focus_image.offset_top + npc_height
-	if _player_portrait != null:
-		_player_portrait.set_anchors_preset(Control.PRESET_BOTTOM_LEFT)
-		_player_portrait.offset_left = portrait_left
-		_player_portrait.offset_top = -portrait_height - 24.0
-		_player_portrait.offset_right = portrait_left + portrait_width
-		_player_portrait.offset_bottom = -24.0
-		var portrait_image := _player_portrait.get_node_or_null("PlayerPortraitImage") as TextureRect
-		if portrait_image != null:
-			portrait_image.custom_minimum_size = Vector2(maxf(80.0, portrait_width - 20.0), maxf(120.0, portrait_height - 20.0))
-	var puzzle_left := portrait_left + portrait_width + 18.0
-	var available_right := viewport_size.x - right_margin
-	if available_right - puzzle_left < 180.0:
-		puzzle_left = minf(maxf(safe_left, viewport_size.x * 0.42), maxf(safe_left, available_right - 180.0))
-	if _reality_panel != null:
-		_reality_panel.set_anchors_preset(Control.PRESET_BOTTOM_WIDE)
-		_reality_panel.offset_left = puzzle_left
-		_reality_panel.offset_top = -326.0 if compact else -214.0
-		_reality_panel.offset_right = -right_margin
-		_reality_panel.offset_bottom = -24.0
-	if _thought_word_layer != null:
-		_thought_word_layer.set_anchors_preset(Control.PRESET_TOP_WIDE)
-		_thought_word_layer.offset_left = puzzle_left
-		_thought_word_layer.offset_top = 286.0 if compact else 344.0
-		_thought_word_layer.offset_right = -right_margin
-		_thought_word_layer.offset_bottom = 386.0 if compact else 584.0
-	if _npc_chat_bubble != null:
-		var bubble_width := minf(430.0, maxf(280.0, viewport_size.x - safe_left - right_margin - 12.0))
-		_npc_chat_bubble.set_anchors_preset(Control.PRESET_TOP_RIGHT)
-		_npc_chat_bubble.offset_left = -bubble_width - right_margin
-		_npc_chat_bubble.offset_top = 112.0
-		_npc_chat_bubble.offset_right = -right_margin
-		_npc_chat_bubble.offset_bottom = 270.0
+	var safe_left := maxf(18.0, hud_right + (12.0 if compact else 48.0))
+	var right_margin := 118.0 if compact else 150.0
+	var content_left := safe_left + (4.0 if compact else 80.0)
+	var content_right := -right_margin
+	if _reality_intent_preview != null:
+		_reality_intent_preview.set_anchors_preset(Control.PRESET_BOTTOM_WIDE)
+		_reality_intent_preview.offset_left = content_left
+		_reality_intent_preview.offset_top = -354.0
+		_reality_intent_preview.offset_right = content_right
+		_reality_intent_preview.offset_bottom = -282.0
+	if _reality_choice_row != null:
+		_reality_choice_row.set_anchors_preset(Control.PRESET_BOTTOM_WIDE)
+		_reality_choice_row.offset_left = content_left
+		_reality_choice_row.offset_top = -272.0
+		_reality_choice_row.offset_right = content_right
+		_reality_choice_row.offset_bottom = -208.0
+	if _reality_typing_line != null:
+		_reality_typing_line.set_anchors_preset(Control.PRESET_BOTTOM_WIDE)
+		_reality_typing_line.offset_left = content_left
+		_reality_typing_line.offset_top = -300.0
+		_reality_typing_line.offset_right = content_right
+		_reality_typing_line.offset_bottom = -208.0
+	if _reality_typing_progress != null:
+		_reality_typing_progress.set_anchors_preset(Control.PRESET_BOTTOM_WIDE)
+		_reality_typing_progress.offset_left = content_left
+		_reality_typing_progress.offset_top = -208.0
+		_reality_typing_progress.offset_right = content_right
+		_reality_typing_progress.offset_bottom = -182.0
+	if _reality_subtitle_panel != null:
+		_reality_subtitle_panel.set_anchors_preset(Control.PRESET_BOTTOM_WIDE)
+		_reality_subtitle_panel.offset_left = content_left
+		_reality_subtitle_panel.offset_top = -178.0
+		_reality_subtitle_panel.offset_right = content_right
+		_reality_subtitle_panel.offset_bottom = -104.0
 
 
 func _apply_responsive_layouts_if_needed(force: bool = false) -> void:
@@ -3054,61 +3026,115 @@ func _render_bank() -> void:
 
 
 func _render_reality() -> void:
-	_clear(_reality_tile_row)
-	_clear(_reality_slot_box)
-	var compact_reality := _viewport_size().x < 760.0
-	if _reality_slot_box != null:
-		_reality_slot_box.columns = 2 if compact_reality else 4
-
+	if _reality_subtitle_label == null:
+		return
+	_clear(_reality_choice_row)
 	var plan := _day_plan()
-	if _npc_chat_label != null:
-		var speaker := _active_actor_display_name() if _reality_interaction_active else str(plan["speaker"])
-		var line := str(plan["line"])
-		if _active_reality_actor != null and str(_active_reality_actor.get_meta("actor_type", "npc")) == "merchant":
-			line = "我只收还能被别人听懂的东西。你要开口吗？"
-		_npc_chat_label.text = "%s\n%s" % [speaker, _corrupt(line)]
+	var actor_name := _active_actor_display_name()
+	var npc_line := str(plan["line"])
+	if _active_reality_actor != null and str(_active_reality_actor.get_meta("actor_type", "npc")) == "merchant":
+		npc_line = "我只收还能被别人听懂的东西。你要开口吗？"
+	var phase := str(game.conversation_phase)
+	var subtitle := "%s：%s" % [actor_name, npc_line]
+	if not game.conversation_feedback.is_empty():
+		subtitle += "\n" + str(game.conversation_feedback)
+	_reality_subtitle_label.text = subtitle
 
-	for tile in game.get_reality_tile_options():
-		var btn = DraggableButtonScript.new()
-		btn.text = str(tile["text"])
-		btn.custom_minimum_size = Vector2(118, 56)
-		btn.set_drag_payload("reality", str(tile["id"]), str(tile["text"]))
-		btn.pressed.connect(_on_reality_tile_pressed.bind(str(tile["id"])))
-		if bool(tile.get("locked", false)):
-			btn.disabled = true
-			btn.text = "锁定：" + btn.text
-		_reality_tile_row.add_child(btn)
+	var choosing := _reality_interaction_active and phase == "choosing"
+	var typing := _reality_interaction_active and phase == "typing"
+	var result := _reality_interaction_active and phase == "result"
+	_reality_choice_row.visible = choosing
+	_reality_typing_line.visible = typing
+	_reality_typing_progress.visible = typing
+	_reality_continue_button.visible = result
 
-	for index in maxi(4, game.legacy_rules.size() + 3):
-		var slot_id := "slot_%d" % index
-		var drop = DropButtonScript.new()
-		drop.custom_minimum_size = Vector2(88, 54) if compact_reality else Vector2(132, 60)
-		drop.text = "%d\n%s" % [index + 1, _reality_slot_text(slot_id)]
-		drop.configure_drop_target("reality", slot_id)
-		drop.dropped.connect(_on_reality_tile_dropped)
-		drop.pressed.connect(_on_reality_slot_pressed.bind(slot_id))
-		_reality_slot_box.add_child(drop)
+	if choosing:
+		for choice in game.get_typed_reality_choices():
+			var choice_id := str(choice.get("id", ""))
+			var button := Button.new()
+			button.name = "RealityChoice%s" % choice_id.to_pascal_case()
+			button.text = str(choice.get("summary", "回应"))
+			button.custom_minimum_size = Vector2(96 if _viewport_size().x < 760.0 else 164, 56)
+			button.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+			button.set_meta("reality_response_choice", true)
+			button.mouse_entered.connect(_on_reality_choice_hovered.bind(choice_id))
+			button.mouse_exited.connect(_on_reality_choice_unhovered.bind(choice_id))
+			button.pressed.connect(_on_reality_choice_selected.bind(choice_id))
+			_reality_choice_row.add_child(button)
+		if _reality_hover_choice_id.is_empty():
+			_reality_intent_preview.text = ""
+		else:
+			_reality_intent_preview.text = game.preview_typed_reality_choice(_reality_hover_choice_id)
+	_reality_intent_preview.visible = choosing and not _reality_intent_preview.text.is_empty()
 
-	var required: Array = game.get_required_legacy_tiles()
-	var required_texts: Array[String] = []
-	for tile in required:
-		var suffix := "（锁定）" if bool(tile.get("locked", false)) else ""
-		required_texts.append("%s%s" % [str(tile.get("text", "")), suffix])
-	if required_texts.is_empty():
-		_reality_result.text = "思考词可以自由拼接。"
+	if typing:
+		_reality_typing_line.text = _typed_reality_bbcode()
+		_reality_typing_progress.text = "任意键  %d / %d" % [game.conversation_reveal_index, game.conversation_clean_sentence.length()]
 	else:
-		_reality_result.text = "必须进入句子的遗产：%s" % " / ".join(required_texts)
-	if game.reality_phase == "reality_result":
-		_reality_result.text = "清洁原句：%s\n现实出口：%s\nNPC理解：%d%%\n关系残留：+%d / %d · %s\n沟通代价：-%d 资金" % [
-			game.last_clean_sentence,
-			game.last_polluted_sentence,
-			game.npc_understanding,
-			game.last_relationship_residue_gain,
-			game.relationship_residue,
-			game.get_relationship_state_label(),
-			game.last_relationship_money_loss,
-		]
-	_confirm_reality_button.disabled = not game.can_spend_action() or game.reality_phase == "reality_result"
+		_reality_typing_line.text = ""
+		_reality_typing_progress.text = ""
+
+
+func _typed_reality_bbcode() -> String:
+	var normal_color := _theme_color("surface").to_html(false)
+	var pending_color := Color("777B72").to_html(false)
+	var corrupted_color := Color("FF3B30").to_html(false)
+	var parts: Array[String] = []
+	for unit in game.conversation_revealed_units:
+		var color := corrupted_color if bool(unit.get("corrupted", false)) else normal_color
+		parts.append("[color=#%s]%s[/color]" % [color, _escape_bbcode(str(unit.get("display", "")))])
+	var suffix := game.get_typed_reality_unrevealed_suffix()
+	if not suffix.is_empty():
+		parts.append("[color=#%s]%s[/color]" % [pending_color, _escape_bbcode(suffix)])
+	return "".join(parts)
+
+
+func _escape_bbcode(value: String) -> String:
+	return value.replace("[", "[lb]").replace("]", "[rb]")
+
+
+func _on_reality_choice_hovered(choice_id: String) -> void:
+	_reality_hover_choice_id = choice_id
+	if _reality_intent_preview != null:
+		_reality_intent_preview.text = game.preview_typed_reality_choice(choice_id)
+		_reality_intent_preview.visible = not _reality_intent_preview.text.is_empty()
+
+
+func _on_reality_choice_unhovered(choice_id: String) -> void:
+	if _reality_hover_choice_id != choice_id:
+		return
+	_reality_hover_choice_id = ""
+	if _reality_intent_preview != null:
+		_reality_intent_preview.text = ""
+		_reality_intent_preview.visible = false
+
+
+func _on_reality_choice_selected(choice_id: String) -> void:
+	if _input_locked:
+		return
+	if game.select_typed_reality_choice(choice_id):
+		_reality_hover_choice_id = ""
+		_render()
+		_sync_audio_state(false)
+
+
+func _advance_typed_reality_character() -> bool:
+	if _input_locked or not _reality_interaction_active:
+		return false
+	var actions_before := int(game.actions_remaining)
+	var result: Dictionary = game.advance_typed_reality_character()
+	if not bool(result.get("advanced", false)):
+		return false
+	if bool(result.get("locked_out", false)):
+		_reality_interaction_active = false
+		_active_reality_actor = null
+		_nearby_reality_actor = null
+		Input.set_mouse_mode(Input.MOUSE_MODE_VISIBLE)
+	if bool(result.get("action_spent", false)):
+		_after_effective_action(actions_before)
+	else:
+		_render()
+	return true
 
 
 func _update_visibility() -> void:
@@ -3147,7 +3173,7 @@ func _update_visibility() -> void:
 	if _hand_phone_image != null:
 		_hand_phone_image.visible = in_phone or _phone_art_alpha > 0.03
 	if _view_toggle_button != null:
-		_view_toggle_button.visible = _game_started and (in_phone or game.reality_phase == "npc_speaking")
+		_view_toggle_button.visible = _game_started and (in_phone or not _reality_interaction_active)
 		_view_toggle_button.text = "放下手机" if in_phone else "拿起手机"
 	if _settings_window != null:
 		_settings_window.visible = _settings_open and _game_started
@@ -3158,15 +3184,16 @@ func _update_visibility() -> void:
 	if _world_prompt != null:
 		_world_prompt.visible = (not in_phone) and (not _reality_interaction_active) and _nearby_reality_actor != null
 	var interaction_visible := (not in_phone) and _reality_interaction_active
-	var composing: bool = interaction_visible and game.reality_phase == "player_composing"
-	var result: bool = interaction_visible and game.reality_phase == "reality_result"
-	_npc_chat_bubble.visible = interaction_visible
-	_reality_dim_overlay.visible = composing
-	if _npc_focus_image != null:
-		_npc_focus_image.visible = interaction_visible
-	_player_portrait.visible = composing
-	_thought_word_layer.visible = composing
-	_reality_panel.visible = composing or result
+	if _reality_subtitle_panel != null:
+		_reality_subtitle_panel.visible = interaction_visible
+	if _reality_choice_row != null:
+		_reality_choice_row.visible = interaction_visible and game.conversation_phase == "choosing"
+	if _reality_intent_preview != null:
+		_reality_intent_preview.visible = interaction_visible and game.conversation_phase == "choosing" and not _reality_intent_preview.text.is_empty()
+	if _reality_typing_line != null:
+		_reality_typing_line.visible = interaction_visible and game.conversation_phase == "typing"
+	if _reality_typing_progress != null:
+		_reality_typing_progress.visible = interaction_visible and game.conversation_phase == "typing"
 	if _reality_floor != null:
 		_reality_floor.visible = not in_phone
 	if _reality_player != null:
@@ -3602,31 +3629,6 @@ func _clamp_window_to_viewport(window: Control) -> void:
 	window.position = Vector2(clampf(window.position.x, min_x, max_x), clampf(window.position.y, 0.0, max_y))
 
 
-func _build_player_portrait() -> Control:
-	var portrait := PanelContainer.new()
-	portrait.set_meta("portrait_panel", true)
-	portrait.set_anchors_preset(Control.PRESET_BOTTOM_LEFT)
-	portrait.offset_left = 224
-	portrait.offset_top = -300
-	portrait.offset_right = 430
-	portrait.offset_bottom = -24
-	var image := TextureRect.new()
-	image.name = "PlayerPortraitImage"
-	image.texture = _load_runtime_texture(PLAYER_PORTRAIT_TEXTURE_PATH)
-	image.expand_mode = TextureRect.EXPAND_IGNORE_SIZE
-	image.stretch_mode = TextureRect.STRETCH_KEEP_ASPECT_CENTERED
-	image.custom_minimum_size = Vector2(182, 248)
-	var portrait_shader := Shader.new()
-	portrait_shader.code = "shader_type canvas_item;\nuniform vec4 ink_color : source_color;\nuniform vec4 figure_color : source_color;\nvoid fragment() {\n\tvec4 source = texture(TEXTURE, UV);\n\tfloat green_key = smoothstep(0.08, 0.34, source.g - max(source.r, source.b));\n\tvec3 mapped = mix(ink_color.rgb, figure_color.rgb, green_key);\n\tCOLOR = vec4(mapped, source.a);\n}"
-	var portrait_material := ShaderMaterial.new()
-	portrait_material.shader = portrait_shader
-	portrait_material.set_shader_parameter("ink_color", _theme_color("ink"))
-	portrait_material.set_shader_parameter("figure_color", _theme_color("muted"))
-	image.material = portrait_material
-	portrait.add_child(image)
-	return portrait
-
-
 func _apply_world_theme() -> void:
 	if _reality_floor != null:
 		_reality_floor.apply_palette(_active_palette())
@@ -3653,14 +3655,6 @@ func _apply_world_theme() -> void:
 			var mat := npc_body.material_override as StandardMaterial3D
 			mat.albedo_color = Color.WHITE if mat.albedo_texture != null else _theme_color("surface")
 			mat.emission = _theme_color("muted")
-	if _player_portrait != null:
-		var portrait_image := _player_portrait.get_node_or_null("PlayerPortraitImage") as TextureRect
-		if portrait_image != null and portrait_image.material is ShaderMaterial:
-			var portrait_material := portrait_image.material as ShaderMaterial
-			portrait_material.set_shader_parameter("ink_color", _theme_color("ink"))
-			portrait_material.set_shader_parameter("figure_color", _theme_color("muted"))
-
-
 func _apply_ui_theme(node: Node = null) -> void:
 	if node == null:
 		node = _ui_root
@@ -3730,6 +3724,8 @@ func _apply_ui_theme(node: Node = null) -> void:
 	elif node is PanelContainer:
 		if node.has_meta("phone_shell"):
 			(node as PanelContainer).add_theme_stylebox_override("panel", _phone_shell_style())
+		elif node.has_meta("movie_subtitle"):
+			(node as PanelContainer).add_theme_stylebox_override("panel", StyleBoxEmpty.new())
 		elif node.has_meta("portrait_panel"):
 			(node as PanelContainer).add_theme_stylebox_override("panel", _reward_card_style(_theme_color("ink"), _theme_color("muted")))
 		elif node.has_meta("phone_surface"):
@@ -3834,7 +3830,6 @@ func _finish_action_spend_animation() -> void:
 	if _action_spend_should_settle and _settle_day_and_present_rewards():
 		selected_token_id = ""
 		selected_meme_id = ""
-		selected_reality_tile_id = ""
 		if not game.event_log.is_empty():
 			log_text = game.event_log[0]
 		settled = true
@@ -3957,7 +3952,6 @@ func _finish_pollution_flashback() -> void:
 	if should_settle and _settle_day_and_present_rewards():
 		selected_token_id = ""
 		selected_meme_id = ""
-		selected_reality_tile_id = ""
 		log_text = "黑屏之后，已经是第二天。"
 		if not game.event_log.is_empty():
 			log_text = "%s\n%s" % [log_text, game.event_log[0]]
@@ -4218,50 +4212,6 @@ func _on_confirm_dialogue_pressed() -> void:
 		_render()
 
 
-func _on_reality_tile_pressed(tile_id: String) -> void:
-	if _input_locked:
-		return
-	selected_reality_tile_id = tile_id
-	log_text = "选中现实词块。"
-	_render()
-
-
-func _on_reality_slot_pressed(slot_id: String) -> void:
-	if _input_locked:
-		return
-	if selected_reality_tile_id.is_empty():
-		log_text = "先选一个现实词块。"
-	else:
-		game.place_reality_tile(slot_id, selected_reality_tile_id)
-		log_text = "现实句子又多了一块。"
-	_render()
-
-
-func _on_reality_tile_dropped(data: Dictionary, slot_id: String) -> void:
-	if _input_locked:
-		return
-	var tile_id := str(data.get("id", ""))
-	if tile_id.is_empty():
-		return
-	selected_reality_tile_id = tile_id
-	game.place_reality_tile(slot_id, tile_id)
-	log_text = "词块已拖入现实句子。"
-	_render()
-
-
-func _on_confirm_reality_pressed() -> void:
-	if _input_locked:
-		return
-	var actions_before: int = int(game.actions_remaining)
-	if game.confirm_reality_dialogue():
-		selected_reality_tile_id = ""
-		log_text = "你说：%s" % game.last_polluted_sentence
-		_after_effective_action(actions_before)
-	else:
-		log_text = "遗产规则还没有全部进入句子。"
-		_render()
-
-
 func _after_effective_action(actions_before: int = -1) -> void:
 	if game.pollution_flashback_pending:
 		_play_pollution_flashback()
@@ -4275,7 +4225,6 @@ func _after_effective_action(actions_before: int = -1) -> void:
 	if _settle_day_and_present_rewards():
 		selected_token_id = ""
 		selected_meme_id = ""
-		selected_reality_tile_id = ""
 		if not game.event_log.is_empty():
 			log_text = game.event_log[0]
 	_render()
@@ -4284,9 +4233,12 @@ func _after_effective_action(actions_before: int = -1) -> void:
 func _settle_day_and_present_rewards() -> bool:
 	if not game.settle_day_if_needed():
 		return false
+	_reality_interaction_active = false
+	_active_reality_actor = null
+	_nearby_reality_actor = null
+	_reality_hover_choice_id = ""
 	selected_token_id = ""
 	selected_meme_id = ""
-	selected_reality_tile_id = ""
 	if not game.pending_ascent_reward_choices.is_empty():
 		game.set_view_state("phone_down")
 		game.set_active_app("babel")
@@ -4328,22 +4280,6 @@ func _placed_meme() -> Dictionary:
 			if str(meme["id"]) == meme_id:
 				return meme
 	return {}
-
-
-func _reality_slot_text(slot_id: String) -> String:
-	if not game.reality_sentence_slots.has(slot_id):
-		return "等待词块"
-	var tile_id := str(game.reality_sentence_slots[slot_id])
-	if tile_id.begins_with("clean:"):
-		return tile_id.substr(6)
-	if tile_id.begins_with("emotion:"):
-		return str(game.emotion_slot_texts.get(tile_id.substr(8), ""))
-	if tile_id.begins_with("legacy:"):
-		var rule_id := tile_id.substr(7)
-		for rule in game.legacy_rules:
-			if str(rule.get("id", "")) == rule_id:
-				return str(rule.get("required_text", ""))
-	return "等待词块"
 
 
 func _corrupt(text: String) -> String:

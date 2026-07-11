@@ -35,6 +35,10 @@ func _run() -> void:
 	test_reality_dialogue_requires_all_legacy_tiles()
 	test_high_pollution_locks_legacy_tiles_and_pollutes_sentence()
 	test_reality_phase_moves_from_npc_to_player_to_result()
+	test_typed_reality_choices_preview_legacy_without_spending()
+	test_typed_reality_reveals_one_character_and_spends_on_completion()
+	test_typed_reality_corruption_and_merchant_understanding_checks()
+	test_typed_reality_locks_out_after_three_failed_attempts()
 	test_reality_dialogue_leaves_irreversible_relationship_residue()
 	test_first_crossing_sixty_triggers_flashback_and_forces_day_end()
 	test_flashback_trigger_is_once_per_run()
@@ -332,6 +336,101 @@ func test_reality_phase_moves_from_npc_to_player_to_result() -> void:
 	game.begin_reality_player_turn()
 	game.set_view_state("npc_up")
 	_assert_eq(game.get("reality_phase"), "npc_speaking", "entering NPC view should restart at NPC speaking phase")
+
+
+func test_typed_reality_choices_preview_legacy_without_spending() -> void:
+	var game: RefCounted = _state_script.new()
+	game.new_run()
+	game.legacy_rules = [{
+		"id": "legacy-typed",
+		"floor": 1,
+		"required_text": "哈吉米，必须补票",
+		"tags": ["哈吉米"],
+	}]
+	var actions_before: int = game.actions_remaining
+	_assert_true(game.start_typed_reality_conversation("npc-preview", "npc", "迟到者"), "approaching an NPC should start typed conversation")
+	var choices: Array = game.get_typed_reality_choices()
+	_assert_eq(choices.size(), 3, "typed reality conversation should expose exactly three choices")
+	for choice in choices:
+		var summary := str(choice.get("summary", ""))
+		_assert_true(summary.length() >= 3 and summary.length() <= 5, "reality choice summaries should stay within three to five Chinese characters")
+	var preview: String = game.preview_typed_reality_choice(str(choices[0].get("id", "")))
+	_assert_true(preview.contains("哈吉米，必须补票"), "hover preview should automatically carry every legacy phrase")
+	_assert_eq(game.actions_remaining, actions_before, "starting and previewing typed dialogue should not spend an action")
+
+
+func test_typed_reality_reveals_one_character_and_spends_on_completion() -> void:
+	var game: RefCounted = _state_script.new()
+	game.new_run()
+	game.pollution = 0
+	_assert_true(game.start_typed_reality_conversation("npc-typing", "npc", "抄写员"), "typed dialogue should start with available actions")
+	var choice_id := str(game.get_typed_reality_choices()[0].get("id", ""))
+	_assert_true(game.select_typed_reality_choice(choice_id), "clicking a response should enter typing")
+	var sentence_length: int = game.conversation_clean_sentence.length()
+	var first_result: Dictionary = game.advance_typed_reality_character()
+	_assert_true(bool(first_result.get("advanced", false)), "one key press should reveal one character")
+	_assert_eq(game.conversation_reveal_index, 1, "one key press should advance the reveal cursor exactly once")
+	_assert_eq(game.conversation_revealed_units.size(), 1, "one key press should create exactly one revealed unit")
+	_assert_eq(game.actions_remaining, 5, "partial typing should not spend an action")
+	var final_result: Dictionary = {}
+	for index in range(1, sentence_length):
+		final_result = game.advance_typed_reality_character()
+	_assert_true(bool(final_result.get("completed", false)), "revealing the final character should complete the attempt")
+	_assert_true(bool(final_result.get("action_spent", false)), "a completed spoken attempt should spend one action")
+	_assert_eq(game.actions_remaining, 4, "typing an entire sentence should cost exactly one action")
+	_assert_eq(game.last_clean_sentence, game.last_polluted_sentence, "zero pollution should preserve every clean character")
+
+
+func test_typed_reality_corruption_and_merchant_understanding_checks() -> void:
+	var game: RefCounted = _state_script.new()
+	game.new_run()
+	game.pollution = 100
+	game.completed_memes = [{"id": "meme-corrupt", "title": "信号补票", "text": "哈吉米必须进入句子"}]
+	_assert_true(game.start_typed_reality_conversation("merchant-corrupt", "merchant", "信号商人"), "merchant should use the same typed conversation surface")
+	var choice_id := str(game.get_typed_reality_choices()[0].get("id", ""))
+	game.select_typed_reality_choice(choice_id)
+	var first_result: Dictionary = game.advance_typed_reality_character()
+	_assert_true(bool(first_result.get("advanced", false)), "polluted typing should still advance one character per key")
+	_assert_true(bool(game.conversation_revealed_units[0].get("corrupted", false)), "100 pollution should corrupt the first revealed character")
+	_assert_true(str(game.conversation_revealed_units[0].get("display", "")) != str(game.conversation_revealed_units[0].get("clean", "")), "corrupted character should become a glyph or meme-bank fragment")
+	var final_result: Dictionary = {}
+	while game.conversation_phase == "typing":
+		final_result = game.advance_typed_reality_character()
+	_assert_true(bool(final_result.get("completed", false)), "merchant sentence should resolve after its last key press")
+	_assert_eq(game.conversation_understanding_rolls.size(), 3, "merchant understanding should always roll three pollution checks")
+
+
+func test_typed_reality_locks_out_after_three_failed_attempts() -> void:
+	var game: RefCounted = _state_script.new()
+	game.new_run()
+	game.pollution = 100
+	var actor_id := ""
+	for candidate_index in 200:
+		var candidate := "lockout-%d" % candidate_index
+		game.start_typed_reality_conversation(candidate, "npc", "无名信徒")
+		var candidate_choice := str(game.get_typed_reality_choices()[0].get("id", ""))
+		game.select_typed_reality_choice(candidate_choice)
+		var all_fail := true
+		for attempt_index in 3:
+			game.conversation_attempts = attempt_index
+			if game._conversation_roll("understanding", game.conversation_clean_sentence.length(), 0) < 5:
+				all_fail = false
+				break
+		if all_fail:
+			actor_id = candidate
+			break
+	_assert_true(not actor_id.is_empty(), "test should find a deterministic actor id that fails three maximum-pollution checks")
+	game.new_run()
+	game.pollution = 100
+	game.start_typed_reality_conversation(actor_id, "npc", "无名信徒")
+	for attempt_index in 3:
+		var choice_id := str(game.get_typed_reality_choices()[0].get("id", ""))
+		_assert_true(game.select_typed_reality_choice(choice_id), "each failed attempt should return to the three response choices")
+		while game.conversation_phase == "typing":
+			game.advance_typed_reality_character()
+	_assert_eq(game.conversation_phase, "locked_out", "three failed spoken attempts should lock the conversation until F is pressed again")
+	_assert_eq(game.conversation_attempts, 3, "lockout should happen on the third failed attempt")
+	_assert_eq(game.actions_remaining, 2, "each complete retry should spend one daily action")
 
 
 func test_reality_dialogue_leaves_irreversible_relationship_residue() -> void:

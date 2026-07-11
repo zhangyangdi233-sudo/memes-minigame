@@ -25,6 +25,8 @@ The social phone starts with an empty Following channel. Following accounts and 
 
 The first floor starts with four rooms. Each ascent adds two or three rooms, reduces the ordinary NPC population from five toward two, and always keeps one merchant. Some rooms contain signal items while others are deliberately empty. The cinematic bars stay fixed, while phone and App windows render above them.
 
+Reality conversations use a cursor-driven three-choice surface. Each choice is a three-to-five-character summary; hovering previews the full clean intention without covering the NPC subtitle. After selecting, any physical key reveals exactly one character. Unspoken characters remain gray, clean characters turn cream-white, and pollution successes replace that position with red signal glyphs or fragments from the meme bank. Legacy phrases are inserted automatically. Completing the whole sentence costs one action; partial typing is free. Ordinary NPCs make one understanding check, merchants make three, and three failed attempts close the conversation until the player presses `F` again.
+
 ## Run
 
 Open this folder in Godot 4.6 or newer. The main scene is:
@@ -48,4 +50,4 @@ HOME=/Users/zhang/Documents/游戏/.godot_home /Users/zhang/Documents/游戏/God
 ```
 
 The rendered publish-layout capture tool is `res://tools/capture_publish_scene.gd`.
-The generated-floor regression test is `res://tests/test_reality_world.gd`, and `res://tools/capture_reality_scene.gd` captures the walking view.
+The generated-floor regression test is `res://tests/test_reality_world.gd`. `res://tools/capture_reality_scene.gd` captures the walking view, while `res://tools/capture_dialogue_scene.gd` captures the subtitle and response layout.

@@ -89,6 +89,14 @@ func _run() -> void:
 		_assert_true(game_root._try_reality_interaction(), "F interaction path should open the nearby actor")
 		_assert_true(game_root._reality_interaction_active, "world interaction should enter the dialogue state")
 		_assert_true(game_root._active_reality_actor == merchant, "world interaction should remember the selected actor")
+		var choice_id := str(game_root.game.get_typed_reality_choices()[0].get("id", ""))
+		game_root._on_reality_choice_selected(choice_id)
+		var arbitrary_key := InputEventKey.new()
+		arbitrary_key.keycode = KEY_SPACE
+		arbitrary_key.pressed = true
+		game_root._unhandled_input(arbitrary_key)
+		_assert_eq(game_root.game.conversation_reveal_index, 1, "an arbitrary physical key should reveal exactly one spoken character")
+		_assert_eq(game_root.game.actions_remaining, 5, "partial typed speech should remain action-free")
 		game_root._exit_reality_interaction()
 		_assert_true(not game_root._reality_interaction_active, "leaving dialogue should return to free walking")
 

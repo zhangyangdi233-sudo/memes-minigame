@@ -140,6 +140,19 @@ const FALLBACK_LEGACY_TEXTS := {
 	3: {"text": "请用更新后的句式进入", "tags": ["巴别塔", "刷新"]},
 	4: {"text": "你为什么需要他说话", "tags": ["反问", "禁问"]},
 }
+const REALITY_RESPONSE_SETS := {
+	"npc": [
+		{"id": "explain", "summary": "直接说明", "sentence": "我只是想把刚才的事情说清楚。"},
+		{"id": "apologize", "summary": "先道歉", "sentence": "对不起，我没有想让你觉得被忽视。"},
+		{"id": "listen", "summary": "请你再说", "sentence": "请你再说一遍，我想认真听完。"},
+	],
+	"merchant": [
+		{"id": "ask_goods", "summary": "询问商品", "sentence": "我想看看能帮助沟通的东西。"},
+		{"id": "state_need", "summary": "说明来意", "sentence": "我需要让别人更容易听懂我。"},
+		{"id": "test_price", "summary": "试探价格", "sentence": "这些东西分别需要多少钱？"},
+	],
+}
+const REALITY_CORRUPTION_GLYPHS := ["■", "▦", "∴", "//", "哈", "吉", "米", "空位"]
 
 var day: int = 1
 var heat: int = 18
@@ -201,6 +214,19 @@ var relationship_residue: int = 0
 var last_relationship_residue_gain: int = 0
 var last_relationship_money_loss: int = 0
 var reality_dialogue_count: int = 0
+var conversation_phase: String = "idle"
+var conversation_actor_id: String = ""
+var conversation_actor_type: String = "npc"
+var conversation_actor_label: String = ""
+var conversation_choices: Array = []
+var conversation_selected_choice_id: String = ""
+var conversation_clean_sentence: String = ""
+var conversation_revealed_units: Array = []
+var conversation_reveal_index: int = 0
+var conversation_attempts: int = 0
+var conversation_understood: bool = false
+var conversation_understanding_rolls: Array[int] = []
+var conversation_feedback: String = ""
 
 
 func new_run() -> void:
@@ -257,6 +283,7 @@ func new_run() -> void:
 	last_relationship_residue_gain = 0
 	last_relationship_money_loss = 0
 	reality_dialogue_count = 0
+	reset_typed_reality_conversation()
 
 
 func set_phone_open(value: bool) -> void:
@@ -371,6 +398,195 @@ func reset_reality_phase_for_day() -> void:
 	reality_phase = "npc_speaking"
 
 
+func start_typed_reality_conversation(actor_id: String, actor_type: String, actor_label: String) -> bool:
+	if not can_spend_action():
+		return false
+	conversation_actor_id = actor_id
+	conversation_actor_type = "merchant" if actor_type == "merchant" else "npc"
+	conversation_actor_label = actor_label
+	conversation_choices = (REALITY_RESPONSE_SETS.get(conversation_actor_type, REALITY_RESPONSE_SETS["npc"]) as Array).duplicate(true)
+	conversation_selected_choice_id = ""
+	conversation_clean_sentence = ""
+	conversation_revealed_units = []
+	conversation_reveal_index = 0
+	conversation_attempts = 0
+	conversation_understood = false
+	conversation_understanding_rolls = []
+	conversation_feedback = ""
+	conversation_phase = "choosing"
+	return true
+
+
+func reset_typed_reality_conversation() -> void:
+	conversation_phase = "idle"
+	conversation_actor_id = ""
+	conversation_actor_type = "npc"
+	conversation_actor_label = ""
+	conversation_choices = []
+	conversation_selected_choice_id = ""
+	conversation_clean_sentence = ""
+	conversation_revealed_units = []
+	conversation_reveal_index = 0
+	conversation_attempts = 0
+	conversation_understood = false
+	conversation_understanding_rolls = []
+	conversation_feedback = ""
+
+
+func get_typed_reality_choices() -> Array:
+	return conversation_choices.duplicate(true)
+
+
+func preview_typed_reality_choice(choice_id: String) -> String:
+	for choice in conversation_choices:
+		if str(choice.get("id", "")) == choice_id:
+			return _sentence_with_legacy(str(choice.get("sentence", "")))
+	return ""
+
+
+func select_typed_reality_choice(choice_id: String) -> bool:
+	if conversation_phase != "choosing":
+		return false
+	var sentence := preview_typed_reality_choice(choice_id)
+	if sentence.is_empty():
+		return false
+	conversation_selected_choice_id = choice_id
+	conversation_clean_sentence = sentence
+	conversation_revealed_units = []
+	conversation_reveal_index = 0
+	conversation_understood = false
+	conversation_understanding_rolls = []
+	conversation_phase = "typing"
+	return true
+
+
+func advance_typed_reality_character() -> Dictionary:
+	var result := {
+		"advanced": false,
+		"completed": false,
+		"action_spent": false,
+		"understood": false,
+		"locked_out": false,
+	}
+	if conversation_phase != "typing":
+		return result
+	if conversation_reveal_index >= conversation_clean_sentence.length():
+		return result
+	var clean_character := conversation_clean_sentence.substr(conversation_reveal_index, 1)
+	var roll := _conversation_roll("character", conversation_reveal_index, 0)
+	var corrupted := roll < pollution
+	var display_character := clean_character
+	if corrupted:
+		display_character = _conversation_corruption_text(roll, conversation_reveal_index)
+	conversation_revealed_units.append({
+		"clean": clean_character,
+		"display": display_character,
+		"corrupted": corrupted,
+		"roll": roll,
+	})
+	conversation_reveal_index += 1
+	result["advanced"] = true
+	if conversation_reveal_index < conversation_clean_sentence.length():
+		return result
+
+	result["completed"] = true
+	if not spend_action("typed-reality-dialogue"):
+		conversation_phase = "result"
+		conversation_feedback = "今天已经没有能说出口的行动。"
+		return result
+	result["action_spent"] = true
+	conversation_attempts += 1
+	reality_dialogue_count += 1
+	last_clean_sentence = conversation_clean_sentence
+	last_polluted_sentence = get_typed_reality_spoken_sentence()
+	var understood := _resolve_typed_reality_understanding()
+	conversation_understood = understood
+	result["understood"] = understood
+	if understood:
+		conversation_phase = "result"
+		conversation_feedback = "%s听懂了你的意思。" % conversation_actor_label
+		return result
+
+	last_relationship_residue_gain = clampi(1 + int(pollution / 18.0) + legacy_rules.size(), 1, 14)
+	relationship_residue = clampi(relationship_residue + last_relationship_residue_gain, 0, 100)
+	if conversation_attempts >= 3:
+		conversation_phase = "locked_out"
+		conversation_feedback = "%s第三次移开了视线。" % conversation_actor_label
+		result["locked_out"] = true
+		return result
+
+	conversation_phase = "choosing"
+	conversation_feedback = "%s没有听懂。再试一次（%d/3）。" % [conversation_actor_label, conversation_attempts]
+	conversation_selected_choice_id = ""
+	conversation_clean_sentence = ""
+	conversation_revealed_units = []
+	conversation_reveal_index = 0
+	return result
+
+
+func get_typed_reality_spoken_sentence() -> String:
+	var pieces: Array[String] = []
+	for unit in conversation_revealed_units:
+		pieces.append(str(unit.get("display", "")))
+	return "".join(pieces)
+
+
+func get_typed_reality_unrevealed_suffix() -> String:
+	if conversation_clean_sentence.is_empty() or conversation_reveal_index >= conversation_clean_sentence.length():
+		return ""
+	return conversation_clean_sentence.substr(conversation_reveal_index)
+
+
+func _sentence_with_legacy(base_sentence: String) -> String:
+	var sentence := base_sentence.strip_edges()
+	while sentence.ends_with("。") or sentence.ends_with("！") or sentence.ends_with("？"):
+		sentence = sentence.substr(0, sentence.length() - 1)
+	for rule in legacy_rules:
+		var required_text := str(rule.get("required_text", "")).strip_edges()
+		if required_text.is_empty() or sentence.contains(required_text):
+			continue
+		sentence += "，" + required_text
+	return sentence + "。"
+
+
+func _conversation_corruption_text(roll: int, character_index: int) -> String:
+	if not completed_memes.is_empty() and posmod(roll + character_index, 3) == 0:
+		var meme_index := posmod(roll + conversation_attempts + character_index, completed_memes.size())
+		var meme: Dictionary = completed_memes[meme_index]
+		var meme_text := str(meme.get("title", meme.get("text", ""))).strip_edges()
+		if not meme_text.is_empty():
+			return meme_text.substr(0, mini(4, meme_text.length()))
+	return REALITY_CORRUPTION_GLYPHS[posmod(roll + character_index, REALITY_CORRUPTION_GLYPHS.size())]
+
+
+func _resolve_typed_reality_understanding() -> bool:
+	conversation_understanding_rolls = []
+	var legacy_penalty := legacy_rules.size() * 6
+	var clear_chance := clampi(100 - pollution - legacy_penalty, 5, 96)
+	npc_understanding = clear_chance
+	var check_count := 3 if conversation_actor_type == "merchant" else 1
+	var understood := false
+	for check_index in check_count:
+		var roll := _conversation_roll("understanding", conversation_reveal_index, check_index)
+		conversation_understanding_rolls.append(roll)
+		if roll < clear_chance:
+			understood = true
+	return understood
+
+
+func _conversation_roll(channel: String, character_index: int, check_index: int) -> int:
+	var key := "%s|%s|%d|%d|%d|%d|%s" % [
+		conversation_actor_id,
+		conversation_selected_choice_id,
+		day,
+		conversation_attempts,
+		character_index,
+		check_index,
+		channel,
+	]
+	return posmod(int(hash(key)), 100)
+
+
 func settle_day_if_needed() -> bool:
 	if not needs_day_settlement:
 		return false
@@ -384,6 +600,7 @@ func settle_day_if_needed() -> bool:
 	dialogue_blanks.clear()
 	reality_sentence_slots.clear()
 	reset_reality_phase_for_day()
+	reset_typed_reality_conversation()
 	daily_emotion_slot_id = _emotion_slot_for_day(day)
 	daily_arcana_card_id = _arcana_for_day(day)
 	daily_arcana_bought = false
