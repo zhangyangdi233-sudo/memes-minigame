@@ -3,6 +3,7 @@ extends Node3D
 const MemeGameStateScript = preload("res://scripts/meme_game_state.gd")
 const DraggableButtonScript = preload("res://scripts/ui/draggable_button.gd")
 const DropButtonScript = preload("res://scripts/ui/drop_button.gd")
+const RealityFloorGeneratorScript = preload("res://scripts/reality_floor_generator.gd")
 
 const PALETTE_1 := {
 	"name": "palette_1",
@@ -48,6 +49,11 @@ const ARCANA_SHEET_COLUMNS := 3
 const ARCANA_SHEET_ROWS := 2
 const ARCANA_SHEET_COUNT := ARCANA_SHEET_COLUMNS * ARCANA_SHEET_ROWS
 const SOCIAL_FEED_WHEEL_STEP := 2
+const REALITY_MOVE_SPEED := 3.3
+const REALITY_ACCELERATION := 14.0
+const REALITY_MOUSE_SENSITIVITY := 0.085
+const REALITY_INTERACTION_DISTANCE := 2.25
+const CINEMATIC_ASPECT_RATIO := 2.35
 const SOCIAL_POST_CARDS := [
 	{
 		"id": "floor_13", "poster_cell": 0, "caption": "旧教学楼昨晚多出一层", "handle": "塔下施工档案",
@@ -272,11 +278,21 @@ var _camera: Camera3D
 var _road: Node3D
 var _phone_rig: Node3D
 var _npc: Node3D
+var _reality_player: CharacterBody3D
+var _reality_floor
+var _reality_built_floor := 0
+var _reality_yaw := 0.0
+var _reality_pitch := 0.0
+var _nearby_reality_actor: Area3D
+var _active_reality_actor: Area3D
+var _reality_interaction_active := false
 var _canvas: CanvasLayer
 var _ui_root: Control
 var _texture_cache: Dictionary = {}
 var _phone_down_backdrop_image: TextureRect
 var _hand_phone_image: TextureRect
+var _cinematic_top_bar: ColorRect
+var _cinematic_bottom_bar: ColorRect
 var _stats_label: Label
 var _actions_label: Label
 var _hud_panel: PanelContainer
@@ -376,8 +392,16 @@ func _process(delta: float) -> void:
 	if _camera == null:
 		return
 	if _game_started:
+		_ensure_reality_floor_current()
+		_refresh_nearby_reality_actor()
 		_apply_responsive_layouts_if_needed()
 	_animate_world(delta)
+
+
+func _physics_process(delta: float) -> void:
+	if not _game_started or _reality_player == null:
+		return
+	_update_reality_player(delta)
 
 
 func _input(event: InputEvent) -> void:
@@ -399,6 +423,37 @@ func _input(event: InputEvent) -> void:
 		if _dragged_window == _meme_bank_window:
 			_avoid_meme_bank_overlaps()
 		_dragged_window = null
+
+
+func _unhandled_input(event: InputEvent) -> void:
+	if _input_locked or not _game_started:
+		return
+	if event is InputEventKey and event.pressed and not event.echo:
+		if event.is_action_pressed("reality_interact"):
+			_try_reality_interaction()
+			get_viewport().set_input_as_handled()
+			return
+		if event.is_action_pressed("reality_phone"):
+			_toggle_view_state()
+			get_viewport().set_input_as_handled()
+			return
+		if event.keycode == KEY_ESCAPE:
+			if _reality_interaction_active:
+				_exit_reality_interaction()
+			else:
+				Input.set_mouse_mode(Input.MOUSE_MODE_VISIBLE)
+			get_viewport().set_input_as_handled()
+			return
+	if game.view_state != "npc_up" or _reality_interaction_active:
+		return
+	if event is InputEventMouseButton and event.button_index == MOUSE_BUTTON_LEFT and event.pressed:
+		Input.set_mouse_mode(Input.MOUSE_MODE_CAPTURED)
+		get_viewport().set_input_as_handled()
+	elif event is InputEventMouseMotion and Input.mouse_mode == Input.MOUSE_MODE_CAPTURED:
+		var motion := event as InputEventMouseMotion
+		_reality_yaw -= motion.relative.x * REALITY_MOUSE_SENSITIVITY
+		_reality_pitch = clampf(_reality_pitch - motion.relative.y * REALITY_MOUSE_SENSITIVITY, -68.0, 72.0)
+		get_viewport().set_input_as_handled()
 
 
 func new_game() -> void:
@@ -428,6 +483,12 @@ func new_game() -> void:
 	_dragged_window = null
 	_drag_offset = Vector2.ZERO
 	_last_responsive_layout_size = Vector2.ZERO
+	_reality_built_floor = 0
+	_reality_yaw = 0.0
+	_reality_pitch = 0.0
+	_nearby_reality_actor = null
+	_active_reality_actor = null
+	_reality_interaction_active = false
 	log_text = "你低头，手机边框从视野下方亮起来。"
 	_build_world()
 	_build_ui()
@@ -441,6 +502,10 @@ func show_main_menu() -> void:
 	_input_locked = false
 	_phone_art_alpha = 0.0
 	_phone_launcher_open = false
+	_reality_interaction_active = false
+	_active_reality_actor = null
+	_nearby_reality_actor = null
+	Input.set_mouse_mode(Input.MOUSE_MODE_VISIBLE)
 	_build_world()
 	_build_main_menu()
 	_sync_audio_state(true)
@@ -450,8 +515,12 @@ func set_view_state(value: String) -> void:
 	if _input_locked:
 		return
 	if game.set_view_state(value):
+		_reality_interaction_active = false
+		_active_reality_actor = null
+		_nearby_reality_actor = null
+		Input.set_mouse_mode(Input.MOUSE_MODE_VISIBLE)
 		if value == "npc_up":
-			log_text = "你放下手机，视线抬到对方脸上。"
+			log_text = "你放下手机，走廊重新获得纵深。"
 			_meme_bank_open = false
 			_phone_launcher_open = false
 		else:
@@ -475,6 +544,8 @@ func _toggle_view_state() -> void:
 func begin_reality_player_turn() -> void:
 	if _input_locked:
 		return
+	if not _reality_interaction_active:
+		return
 	if game.begin_reality_player_turn():
 		log_text = "你开始在脑内拼一句尽量普通的话。"
 	_render()
@@ -494,12 +565,33 @@ func _build_world() -> void:
 	add_child(_camera)
 	_camera.current = true
 	_camera.fov = 58.0
+	_ensure_reality_input_map()
+
+	_reality_player = CharacterBody3D.new()
+	_reality_player.name = "RealityPlayer"
+	_reality_player.motion_mode = CharacterBody3D.MOTION_MODE_GROUNDED
+	_reality_player.collision_layer = 1
+	_reality_player.collision_mask = 1
+	add_child(_reality_player)
+	var player_collision := CollisionShape3D.new()
+	player_collision.name = "PlayerCollision"
+	var player_capsule := CapsuleShape3D.new()
+	player_capsule.radius = 0.34
+	player_capsule.height = 1.72
+	player_collision.shape = player_capsule
+	player_collision.position.y = 0.88
+	_reality_player.add_child(player_collision)
 
 	var light := DirectionalLight3D.new()
 	light.name = "StreetLight"
 	light.rotation_degrees = Vector3(-55.0, 20.0, 0.0)
-	light.light_energy = 1.1
+	light.light_energy = 0.25
 	add_child(light)
+
+	_reality_floor = RealityFloorGeneratorScript.new()
+	_reality_floor.name = "RealityFloor"
+	add_child(_reality_floor)
+	_rebuild_reality_floor()
 
 	_road = Node3D.new()
 	_road.name = "Road"
@@ -566,6 +658,135 @@ func _build_world() -> void:
 	_canvas.name = "CanvasLayer"
 	add_child(_canvas)
 	_build_audio_players()
+
+
+func _ensure_reality_input_map() -> void:
+	_set_key_action("reality_forward", [KEY_W, KEY_UP])
+	_set_key_action("reality_back", [KEY_S, KEY_DOWN])
+	_set_key_action("reality_left", [KEY_A, KEY_LEFT])
+	_set_key_action("reality_right", [KEY_D, KEY_RIGHT])
+	_set_key_action("reality_interact", [KEY_F])
+	_set_key_action("reality_phone", [KEY_TAB])
+
+
+func _set_key_action(action_name: StringName, keycodes: Array) -> void:
+	if not InputMap.has_action(action_name):
+		InputMap.add_action(action_name)
+	InputMap.action_erase_events(action_name)
+	for keycode in keycodes:
+		var key_event := InputEventKey.new()
+		key_event.physical_keycode = int(keycode)
+		InputMap.action_add_event(action_name, key_event)
+
+
+func _rebuild_reality_floor() -> void:
+	if _reality_floor == null or game == null:
+		return
+	var npc_texture := _load_runtime_texture(NPC_SIGNAL_PORTRAIT_PATH)
+	_reality_floor.rebuild(game.tower_floor, _active_palette(), npc_texture)
+	_reality_built_floor = game.tower_floor
+	_reality_interaction_active = false
+	_active_reality_actor = null
+	_nearby_reality_actor = null
+	if _reality_player != null:
+		_reality_player.position = _reality_floor.start_position()
+		_reality_player.velocity = Vector3.ZERO
+	_reality_yaw = 0.0
+	_reality_pitch = 0.0
+
+
+func _ensure_reality_floor_current() -> void:
+	if _reality_floor == null or game == null:
+		return
+	if _reality_built_floor != game.tower_floor:
+		_rebuild_reality_floor()
+
+
+func _room_count_for_floor(floor_number: int) -> int:
+	return RealityFloorGeneratorScript.room_count_for_floor(floor_number)
+
+
+func _npc_count_for_floor(floor_number: int) -> int:
+	return RealityFloorGeneratorScript.npc_count_for_floor(floor_number)
+
+
+func _update_reality_player(delta: float) -> void:
+	var can_walk: bool = game.view_state == "npc_up" and not _reality_interaction_active and not _input_locked
+	var input_vector := Vector2.ZERO
+	if can_walk:
+		input_vector = Input.get_vector("reality_left", "reality_right", "reality_forward", "reality_back")
+	var local_direction := Vector3(input_vector.x, 0.0, input_vector.y)
+	var world_direction := Basis(Vector3.UP, deg_to_rad(_reality_yaw)) * local_direction
+	if world_direction.length_squared() > 0.001:
+		world_direction = world_direction.normalized()
+	var target_velocity := world_direction * REALITY_MOVE_SPEED
+	_reality_player.velocity.x = move_toward(_reality_player.velocity.x, target_velocity.x, REALITY_ACCELERATION * delta)
+	_reality_player.velocity.z = move_toward(_reality_player.velocity.z, target_velocity.z, REALITY_ACCELERATION * delta)
+	if not _reality_player.is_on_floor():
+		_reality_player.velocity.y -= 18.0 * delta
+	else:
+		_reality_player.velocity.y = 0.0
+	_reality_player.rotation.y = deg_to_rad(_reality_yaw)
+	_reality_player.move_and_slide()
+
+
+func _refresh_nearby_reality_actor() -> void:
+	var previous_actor := _nearby_reality_actor
+	if game.view_state != "npc_up" or _reality_interaction_active or _reality_floor == null or _reality_player == null:
+		_nearby_reality_actor = null
+		if previous_actor != null:
+			_render_world_prompt()
+			if _world_prompt != null:
+				_world_prompt.visible = false
+		return
+	var nearest: Area3D = null
+	var nearest_distance := REALITY_INTERACTION_DISTANCE
+	for actor in _reality_floor.get_interactable_actors():
+		var offset: Vector3 = actor.position - _reality_player.position
+		offset.y = 0.0
+		var distance: float = offset.length()
+		if distance <= nearest_distance:
+			nearest = actor
+			nearest_distance = distance
+	_nearby_reality_actor = nearest
+	if previous_actor != nearest:
+		_render_world_prompt()
+		if _world_prompt != null:
+			_world_prompt.visible = nearest != null
+
+
+func _try_reality_interaction() -> bool:
+	if game.view_state != "npc_up":
+		return false
+	if _reality_interaction_active:
+		_exit_reality_interaction()
+		return true
+	_refresh_nearby_reality_actor()
+	if _nearby_reality_actor == null:
+		return false
+	_active_reality_actor = _nearby_reality_actor
+	_reality_interaction_active = true
+	game.reset_reality_phase_for_day()
+	Input.set_mouse_mode(Input.MOUSE_MODE_VISIBLE)
+	log_text = "你停在%s面前。" % _active_actor_display_name()
+	_render()
+	_sync_audio_state(false)
+	return true
+
+
+func _exit_reality_interaction(should_render: bool = true) -> void:
+	_reality_interaction_active = false
+	_active_reality_actor = null
+	game.reset_reality_phase_for_day()
+	if should_render:
+		_render()
+		_sync_audio_state(false)
+
+
+func _active_actor_display_name() -> String:
+	if _active_reality_actor == null:
+		return "对方"
+	return str(_active_reality_actor.get_meta("display_name", "对方"))
 
 
 func _build_audio_players() -> void:
@@ -812,17 +1033,24 @@ func _build_ui() -> void:
 	_phone_down_backdrop_image.z_index = 1
 	_ui_root.add_child(_phone_down_backdrop_image)
 	_hand_phone_image = null
+	_build_cinematic_bars()
 
 	_build_apple_hud()
 
-	_world_prompt = _label("", 20, _theme_color("ink"))
+	_world_prompt = _label("", 18, _theme_color("surface"))
 	_world_prompt.name = "WorldPrompt"
-	_world_prompt.set_anchors_preset(Control.PRESET_TOP_LEFT)
-	_world_prompt.offset_left = 282
-	_world_prompt.offset_top = 28
-	_world_prompt.offset_right = 742
-	_world_prompt.offset_bottom = 128
+	_world_prompt.set_anchors_preset(Control.PRESET_BOTTOM_WIDE)
+	_world_prompt.offset_left = 520
+	_world_prompt.offset_top = -162
+	_world_prompt.offset_right = -520
+	_world_prompt.offset_bottom = -108
+	_world_prompt.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
+	_world_prompt.vertical_alignment = VERTICAL_ALIGNMENT_CENTER
 	_world_prompt.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
+	_world_prompt.set_meta("on_dark", true)
+	_world_prompt.add_theme_color_override("font_outline_color", Color("050705"))
+	_world_prompt.add_theme_constant_override("outline_size", 6)
+	_world_prompt.z_index = 10
 	_ui_root.add_child(_world_prompt)
 
 	_phone_panel = _panel()
@@ -1249,6 +1477,43 @@ func _build_vhs_overlay() -> void:
 	_vhs_overlay.add_child(side_noise)
 
 
+func _build_cinematic_bars() -> void:
+	_cinematic_top_bar = ColorRect.new()
+	_cinematic_top_bar.name = "CinematicTopBar"
+	_cinematic_top_bar.color = Color("050705")
+	_cinematic_top_bar.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	_cinematic_top_bar.z_index = 8
+	_ui_root.add_child(_cinematic_top_bar)
+
+	_cinematic_bottom_bar = ColorRect.new()
+	_cinematic_bottom_bar.name = "CinematicBottomBar"
+	_cinematic_bottom_bar.color = Color("050705")
+	_cinematic_bottom_bar.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	_cinematic_bottom_bar.z_index = 8
+	_ui_root.add_child(_cinematic_bottom_bar)
+	_layout_cinematic_bars()
+
+
+func _layout_cinematic_bars() -> void:
+	if _cinematic_top_bar == null or _cinematic_bottom_bar == null:
+		return
+	var viewport_size := _viewport_size()
+	var picture_height := viewport_size.x / CINEMATIC_ASPECT_RATIO
+	var bar_height := clampf((viewport_size.y - picture_height) * 0.5, 28.0, viewport_size.y * 0.18)
+	_cinematic_top_bar.set_anchors_preset(Control.PRESET_TOP_WIDE)
+	_cinematic_top_bar.offset_left = 0.0
+	_cinematic_top_bar.offset_top = 0.0
+	_cinematic_top_bar.offset_right = 0.0
+	_cinematic_top_bar.offset_bottom = bar_height
+	_cinematic_bottom_bar.set_anchors_preset(Control.PRESET_BOTTOM_WIDE)
+	_cinematic_bottom_bar.offset_left = 0.0
+	_cinematic_bottom_bar.offset_top = -bar_height
+	_cinematic_bottom_bar.offset_right = 0.0
+	_cinematic_bottom_bar.offset_bottom = 0.0
+	_cinematic_top_bar.set_meta("target_aspect_ratio", CINEMATIC_ASPECT_RATIO)
+	_cinematic_bottom_bar.set_meta("target_aspect_ratio", CINEMATIC_ASPECT_RATIO)
+
+
 func _build_settings_window() -> void:
 	_settings_window = _panel()
 	_settings_window.name = "SettingsWindow"
@@ -1647,12 +1912,14 @@ func _apply_responsive_layouts_if_needed(force: bool = false) -> void:
 		_apply_meme_bank_popup_layout(desired_bank_layout)
 	_apply_social_detail_window_layout()
 	_apply_reality_layout()
+	_layout_cinematic_bars()
 
 
 func _render() -> void:
 	if game.ending_unlocked:
 		_render_ending()
 		return
+	_ensure_reality_floor_current()
 	_render_status()
 	_render_world_prompt()
 	_render_app()
@@ -1702,8 +1969,13 @@ func _render_world_prompt() -> void:
 	var plan := _day_plan()
 	if game.view_state == "phone_down":
 		_world_prompt.text = "DAY %d. %s\n路面在脚下滑动。手机 App 的窗口浮在屏幕旁边。" % [game.day, plan["title"]]
+	elif _reality_interaction_active:
+		_world_prompt.text = "%s：%s" % [_active_actor_display_name(), _corrupt(str(plan["line"]))]
+	elif _nearby_reality_actor != null:
+		var action := "交易" if str(_nearby_reality_actor.get_meta("actor_type", "npc")) == "merchant" else "交谈"
+		_world_prompt.text = "F  %s · %s" % [action, str(_nearby_reality_actor.get_meta("display_name", "对方"))]
 	else:
-		_world_prompt.text = "%s：%s" % [plan["speaker"], _corrupt(str(plan["line"]))]
+		_world_prompt.text = ""
 
 
 func _render_app() -> void:
@@ -2790,7 +3062,11 @@ func _render_reality() -> void:
 
 	var plan := _day_plan()
 	if _npc_chat_label != null:
-		_npc_chat_label.text = "%s\n%s" % [str(plan["speaker"]), _corrupt(str(plan["line"]))]
+		var speaker := _active_actor_display_name() if _reality_interaction_active else str(plan["speaker"])
+		var line := str(plan["line"])
+		if _active_reality_actor != null and str(_active_reality_actor.get_meta("actor_type", "npc")) == "merchant":
+			line = "我只收还能被别人听懂的东西。你要开口吗？"
+		_npc_chat_label.text = "%s\n%s" % [speaker, _corrupt(line)]
 
 	for tile in game.get_reality_tile_options():
 		var btn = DraggableButtonScript.new()
@@ -2875,23 +3151,34 @@ func _update_visibility() -> void:
 		_view_toggle_button.text = "放下手机" if in_phone else "拿起手机"
 	if _settings_window != null:
 		_settings_window.visible = _settings_open and _game_started
+	if _desk_log != null:
+		_desk_log.visible = in_phone
 	if _vhs_overlay != null:
 		_vhs_overlay.visible = _vhs_enabled and _game_started
 	if _world_prompt != null:
-		_world_prompt.visible = false
-	var composing: bool = (not in_phone) and game.reality_phase == "player_composing"
-	var result: bool = (not in_phone) and game.reality_phase == "reality_result"
-	_npc_chat_bubble.visible = not in_phone
+		_world_prompt.visible = (not in_phone) and (not _reality_interaction_active) and _nearby_reality_actor != null
+	var interaction_visible := (not in_phone) and _reality_interaction_active
+	var composing: bool = interaction_visible and game.reality_phase == "player_composing"
+	var result: bool = interaction_visible and game.reality_phase == "reality_result"
+	_npc_chat_bubble.visible = interaction_visible
 	_reality_dim_overlay.visible = composing
 	if _npc_focus_image != null:
-		_npc_focus_image.visible = not in_phone
+		_npc_focus_image.visible = interaction_visible
 	_player_portrait.visible = composing
 	_thought_word_layer.visible = composing
 	_reality_panel.visible = composing or result
+	if _reality_floor != null:
+		_reality_floor.visible = not in_phone
+	if _reality_player != null:
+		_reality_player.visible = not in_phone
 	if _npc != null:
 		_npc.visible = false
 	if _phone_rig != null:
 		_phone_rig.visible = false
+	if _cinematic_top_bar != null:
+		_cinematic_top_bar.visible = _game_started
+	if _cinematic_bottom_bar != null:
+		_cinematic_bottom_bar.visible = _game_started
 
 
 func _animate_world(delta: float) -> void:
@@ -2902,10 +3189,19 @@ func _animate_world(delta: float) -> void:
 		_animate_vhs(delta)
 		return
 	var phone_target := Vector3(0.0, 0.15, -1.15) if game.view_state == "phone_down" else Vector3(1.45, -0.8, -1.0)
-	var camera_target_pos := Vector3(0.0, 1.45, 2.2) if game.view_state == "phone_down" else Vector3(0.0, 1.62, 2.7)
-	var camera_target_rot := Vector3(-54.0, 0.0, 0.0) if game.view_state == "phone_down" else Vector3(-8.0, 0.0, 0.0)
-	_camera.position = _camera.position.lerp(camera_target_pos, minf(1.0, delta * 5.0))
-	_camera.rotation_degrees = _camera.rotation_degrees.lerp(camera_target_rot, minf(1.0, delta * 5.0))
+	var camera_target_pos := Vector3(0.0, 1.45, 2.2)
+	var camera_target_rot := Vector3(-54.0, 0.0, 0.0)
+	if game.view_state == "npc_up" and _reality_player != null:
+		camera_target_pos = _reality_player.position + Vector3(0.0, 1.56, 0.0)
+		camera_target_rot = Vector3(_reality_pitch, _reality_yaw, 0.0)
+	var camera_lerp := minf(1.0, delta * (7.0 if game.view_state == "npc_up" else 5.0))
+	_camera.position = _camera.position.lerp(camera_target_pos, camera_lerp)
+	var current_rotation := _camera.rotation_degrees
+	current_rotation.x = lerpf(current_rotation.x, camera_target_rot.x, camera_lerp)
+	current_rotation.y = rad_to_deg(lerp_angle(deg_to_rad(current_rotation.y), deg_to_rad(camera_target_rot.y), camera_lerp))
+	current_rotation.z = lerpf(current_rotation.z, 0.0, camera_lerp)
+	_camera.rotation_degrees = current_rotation
+	_camera.fov = lerpf(_camera.fov, 52.0 if _reality_interaction_active else 58.0, minf(1.0, delta * 4.0))
 	if _phone_rig != null:
 		_phone_rig.position = _phone_rig.position.lerp(phone_target, minf(1.0, delta * 6.0))
 		_phone_rig.rotation_degrees = Vector3(68.0, 0.0, 0.0)
@@ -3332,6 +3628,8 @@ func _build_player_portrait() -> Control:
 
 
 func _apply_world_theme() -> void:
+	if _reality_floor != null:
+		_reality_floor.apply_palette(_active_palette())
 	if _road != null:
 		for index in _road.get_child_count():
 			var tile := _road.get_child(index) as MeshInstance3D

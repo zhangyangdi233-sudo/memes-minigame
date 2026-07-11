@@ -9,11 +9,21 @@ Standalone Godot 4.6 game built from the third-chapter meme prototype. It combin
 3. Build around the day's signal hand for extra propagation base and multiplier.
 4. Buy up to two signal-arcana cards, then use them to rewrite a meme, reroll a hand, or amplify one publish.
 5. Publish for heat and money while accepting the hand and arcana pollution risks.
-6. Ascend the tower, keep one permanent modifier, and carry the previous floor's hottest meme into reality as a legacy rule.
+6. Put the phone away and explore the current tower floor as a first-person 3D space.
+7. Approach a billboard NPC or the floor merchant, press `F`, and carry the previous floor's hottest meme into reality as a legacy rule.
 
 Each day has five effective actions. Navigation, window movement, preview placement, and editing do not spend actions.
 
 The social phone starts with an empty Following channel. Following accounts and liking posts from Discover are free and persist across days; Nearby remains unavailable because the device has no location signal.
+
+## Reality Controls
+
+- `WASD` or arrow keys: move through the generated rooms.
+- Mouse: click the world to capture the cursor and look around; `Esc` releases it.
+- `F`: talk to the nearby NPC or merchant.
+- `Tab`: raise or lower the phone.
+
+The first floor starts with four rooms. Each ascent adds two or three rooms, reduces the ordinary NPC population from five toward two, and always keeps one merchant. Some rooms contain signal items while others are deliberately empty. The cinematic bars stay fixed, while phone and App windows render above them.
 
 ## Run
 
@@ -38,3 +48,4 @@ HOME=/Users/zhang/Documents/游戏/.godot_home /Users/zhang/Documents/游戏/God
 ```
 
 The rendered publish-layout capture tool is `res://tools/capture_publish_scene.gd`.
+The generated-floor regression test is `res://tests/test_reality_world.gd`, and `res://tools/capture_reality_scene.gd` captures the walking view.

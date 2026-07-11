@@ -1128,12 +1128,20 @@ func _run() -> void:
 			_assert_true(not babel_app_window.visible, "NPC view should hide Babel app window")
 			_assert_true(not shop_app_window.visible, "NPC view should hide shop app window")
 		if npc_bubble != null and dim_overlay != null and player_portrait != null and thought_layer != null and puzzle_frame != null:
-			_assert_true(npc_bubble.visible, "NPC view should first show the right-side NPC chat bubble")
-			_assert_true(npc_focus_image != null and npc_focus_image.visible, "NPC speaking phase should show the generated classmate at screen center")
+			_assert_true(not npc_bubble.visible, "free-walking NPC view should not open dialogue before an F interaction")
+			_assert_true(npc_focus_image != null and not npc_focus_image.visible, "free-walking NPC view should keep the old conversation portrait hidden")
 			_assert_true(not dim_overlay.visible, "NPC speaking phase should not dim the background yet")
 			_assert_true(not player_portrait.visible, "NPC speaking phase should hide player portrait")
 			_assert_true(not thought_layer.visible, "NPC speaking phase should hide thought words")
 			_assert_true(not puzzle_frame.visible, "NPC speaking phase should hide the language puzzle frame")
+		var reality_player := _find_node_by_name(root, "RealityPlayer") as CharacterBody3D
+		var reality_merchant := _find_node_by_name(root, "Merchant") as Area3D
+		if reality_player != null and reality_merchant != null and root.has_method("_try_reality_interaction"):
+			reality_player.position = reality_merchant.position + Vector3(0.0, 0.0, 1.4)
+			root._refresh_nearby_reality_actor()
+			_assert_true(root._try_reality_interaction(), "approaching a billboard actor and pressing F should enter reality dialogue")
+			_assert_true(npc_bubble.visible, "F interaction should reveal the NPC dialogue layer")
+			_assert_true(npc_focus_image != null and npc_focus_image.visible, "F interaction should reveal the focused conversation portrait")
 		root.game.legacy_rules = [
 			{
 				"id": "legacy-1",

@@ -24,9 +24,13 @@ func _capture() -> void:
 		main.new_game()
 	if main.has_method("set_view_state"):
 		main.set_view_state("npc_up")
-	if main.has_method("begin_reality_player_turn"):
-		main.begin_reality_player_turn()
-	for frame in 12:
+	main._phone_art_alpha = 0.0
+	if main._phone_down_backdrop_image != null:
+		main._phone_down_backdrop_image.visible = false
+	if main.get("_reality_player") != null:
+		main._reality_player.position = Vector3(0.45, 0.08, 1.45)
+		main._reality_yaw = -72.0
+	for frame in 72:
 		await process_frame
 	var viewport_texture := root.get_texture()
 	if viewport_texture == null:

@@ -89,7 +89,15 @@ func _run() -> void:
 	await process_frame
 	var npc_bubble := _find_node_by_name(game_root, "NPCChatBubble") as PanelContainer
 	var phone_tab := _find_node_by_name(game_root, "PhoneTab") as Button
-	_assert_true(npc_bubble != null and npc_bubble.visible, "small-view NPC mode should show the NPC chat bubble")
+	_assert_true(npc_bubble != null and not npc_bubble.visible, "small-view walking mode should wait for an F interaction before showing dialogue")
+	var reality_player := _find_node_by_name(game_root, "RealityPlayer") as CharacterBody3D
+	var reality_merchant := _find_node_by_name(game_root, "Merchant") as Area3D
+	if reality_player != null and reality_merchant != null:
+		reality_player.position = reality_merchant.position + Vector3(0.0, 0.0, 1.4)
+		game_root._refresh_nearby_reality_actor()
+		game_root._try_reality_interaction()
+	await process_frame
+	_assert_true(npc_bubble != null and npc_bubble.visible, "small-view F interaction should show the NPC chat bubble")
 	if npc_bubble != null:
 		_assert_true(_inside_rect(npc_bubble, viewport_rect), "small-view NPC chat bubble should stay inside the viewport")
 	if game_root.has_method("begin_reality_player_turn"):

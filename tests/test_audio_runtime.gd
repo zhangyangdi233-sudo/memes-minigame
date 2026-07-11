@@ -44,6 +44,12 @@ func _run() -> void:
 		_assert_true(reality.volume_db > phone.volume_db, "raising the camera should crossfade toward room ambience")
 		_assert_near(reality.volume_db, -21.0, 0.2, "NPC speaking mix should reach its target volume")
 
+	var player := game_root.get_node_or_null("RealityPlayer") as CharacterBody3D
+	var merchant := game_root.get_node_or_null("RealityFloor/Actors/Merchant") as Area3D
+	if player != null and merchant != null:
+		player.position = merchant.position + Vector3(0.0, 0.0, 1.4)
+		game_root._refresh_nearby_reality_actor()
+		game_root._try_reality_interaction()
 	game_root.begin_reality_player_turn()
 	await create_timer(0.65).timeout
 	if reality != null:
