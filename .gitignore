@@ -8,6 +8,8 @@
 # Local logs and crash dumps
 *.log
 *.tmp
+__pycache__/
+*.pyc
 
 # Exported builds
 builds/
@@ -16,4 +18,3 @@ exports/
 *.exe
 *.pck
 *.zip
-
