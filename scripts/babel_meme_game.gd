@@ -358,6 +358,12 @@ var _action_spend_label: Label
 var _action_spend_tween: Tween
 var _action_spend_after_actions := -1
 var _action_spend_should_settle := false
+var _day_transition_overlay: Control
+var _day_transition_day_label: Label
+var _day_transition_meta_label: Label
+var _day_transition_rule: ColorRect
+var _day_transition_tween: Tween
+var _day_transition_settled := false
 var _meme_bank_open := false
 var _phone_popup_expanded := true
 var _phone_launcher_open := true
@@ -479,6 +485,7 @@ func new_game() -> void:
 	_app_bodies = {}
 	_action_spend_after_actions = -1
 	_action_spend_should_settle = false
+	_day_transition_settled = false
 	_draggable_windows = {}
 	_dragged_window = null
 	_drag_offset = Vector2.ZERO
@@ -544,6 +551,9 @@ func _toggle_view_state() -> void:
 
 
 func _build_world() -> void:
+	if _day_transition_tween != null and _day_transition_tween.is_valid():
+		_day_transition_tween.kill()
+	_day_transition_tween = null
 	if _audio_tween != null and _audio_tween.is_valid():
 		_audio_tween.kill()
 	_audio_tween = null
@@ -1336,6 +1346,7 @@ func _build_ui() -> void:
 
 	_build_action_spend_overlay()
 	_build_settings_window()
+	_build_day_transition_overlay()
 	_build_flashback_overlay()
 	_apply_responsive_layouts_if_needed(true)
 
@@ -3466,7 +3477,7 @@ func _toggle_meme_bank() -> void:
 	if _input_locked:
 		return
 	if not _should_show_meme_bank():
-		log_text = "梗仓库只露出一个角，等发布或合成时再打开。"
+		log_text = "梗仓库只在社交发布页出现。"
 		_render_status()
 		return
 	_meme_bank_open = not _meme_bank_open
@@ -3560,16 +3571,11 @@ func _should_show_meme_bank() -> bool:
 	if game.view_state != "phone_down":
 		return false
 	var social_publish_open := bool(_open_app_windows.get("social", false)) and _social_screen == "publish"
-	var notebook_open := bool(_open_app_windows.get("notebook", false))
-	return social_publish_open or notebook_open
+	return social_publish_open
 
 
 func _should_peek_meme_bank() -> bool:
-	if _should_show_meme_bank():
-		return false
-	if game.view_state == "phone_down":
-		return true
-	return game.reality_phase == "npc_speaking"
+	return false
 
 
 func _avoid_meme_bank_overlaps() -> void:
@@ -3905,18 +3911,15 @@ func _finish_action_spend_animation() -> void:
 		_action_spend_label.scale = Vector2.ONE
 	if _hud_actions_label != null:
 		_hud_actions_label.scale = Vector2.ONE
-	_set_input_locked(false)
-
-	var settled := false
-	if _action_spend_should_settle and _settle_day_and_present_rewards():
-		selected_token_id = ""
-		selected_meme_id = ""
-		if not game.event_log.is_empty():
-			log_text = game.event_log[0]
-		settled = true
+	var should_transition := _action_spend_should_settle
 	_action_spend_should_settle = false
+	if should_transition:
+		_action_spend_after_actions = -1
+		_play_day_transition()
+		return
+	_set_input_locked(false)
 	_render()
-	if not settled and _hud_actions_label != null and _action_spend_after_actions >= 0:
+	if _hud_actions_label != null and _action_spend_after_actions >= 0:
 		_hud_actions_label.text = _action_text(_action_spend_after_actions)
 	_action_spend_after_actions = -1
 
@@ -3931,6 +3934,118 @@ func _action_spend_center_position() -> Vector2:
 	var viewport_size := _viewport_size()
 	var label_size := _action_spend_label.custom_minimum_size if _action_spend_label != null else Vector2(620, 92)
 	return (viewport_size - label_size) * 0.5
+
+
+func _build_day_transition_overlay() -> void:
+	_day_transition_overlay = Control.new()
+	_day_transition_overlay.name = "DayTransitionOverlay"
+	_day_transition_overlay.set_anchors_preset(Control.PRESET_FULL_RECT)
+	_day_transition_overlay.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	_day_transition_overlay.visible = false
+	_day_transition_overlay.z_index = 95
+	_day_transition_overlay.set_meta("duration_seconds", 3.6)
+	_ui_root.add_child(_day_transition_overlay)
+
+	var background := ColorRect.new()
+	background.name = "DayTransitionBlack"
+	background.color = Color("050705")
+	background.set_anchors_preset(Control.PRESET_FULL_RECT)
+	_day_transition_overlay.add_child(background)
+
+	_day_transition_rule = ColorRect.new()
+	_day_transition_rule.name = "DayTransitionRule"
+	_day_transition_rule.color = _theme_color("flash_text")
+	_day_transition_rule.set_anchors_preset(Control.PRESET_CENTER)
+	_day_transition_rule.offset_left = -620
+	_day_transition_rule.offset_top = -8
+	_day_transition_rule.offset_right = 620
+	_day_transition_rule.offset_bottom = 8
+	_day_transition_rule.pivot_offset = Vector2(620, 8)
+	_day_transition_rule.rotation = deg_to_rad(-5.0)
+	_day_transition_overlay.add_child(_day_transition_rule)
+
+	_day_transition_day_label = _label("DAY 01", 96, _theme_color("surface"))
+	_day_transition_day_label.name = "DayTransitionDayLabel"
+	_day_transition_day_label.set_meta("on_dark", true)
+	_day_transition_day_label.set_anchors_preset(Control.PRESET_CENTER)
+	_day_transition_day_label.offset_left = -520
+	_day_transition_day_label.offset_top = -168
+	_day_transition_day_label.offset_right = 520
+	_day_transition_day_label.offset_bottom = -28
+	_day_transition_day_label.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
+	_day_transition_day_label.vertical_alignment = VERTICAL_ALIGNMENT_CENTER
+	_day_transition_day_label.pivot_offset = Vector2(520, 70)
+	_day_transition_overlay.add_child(_day_transition_day_label)
+
+	_day_transition_meta_label = _label("", 20, _theme_color("muted"))
+	_day_transition_meta_label.name = "DayTransitionMetaLabel"
+	_day_transition_meta_label.set_meta("on_dark", true)
+	_day_transition_meta_label.set_anchors_preset(Control.PRESET_CENTER)
+	_day_transition_meta_label.offset_left = -440
+	_day_transition_meta_label.offset_top = 44
+	_day_transition_meta_label.offset_right = 440
+	_day_transition_meta_label.offset_bottom = 112
+	_day_transition_meta_label.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
+	_day_transition_meta_label.vertical_alignment = VERTICAL_ALIGNMENT_CENTER
+	_day_transition_overlay.add_child(_day_transition_meta_label)
+
+
+func _play_day_transition() -> void:
+	if _day_transition_overlay == null:
+		_settle_day_and_present_rewards()
+		_set_input_locked(false)
+		_render()
+		return
+	if _day_transition_tween != null and _day_transition_tween.is_valid():
+		_day_transition_tween.kill()
+	_day_transition_settled = false
+	_set_input_locked(true)
+	_day_transition_overlay.visible = true
+	_day_transition_overlay.modulate = Color(1, 1, 1, 0)
+	_day_transition_day_label.text = "DAY %02d" % game.day
+	_day_transition_day_label.scale = Vector2(0.86, 0.86)
+	_day_transition_meta_label.text = "TODAY'S ACTIONS DEPLETED  /  楼层 %d" % game.tower_floor
+	_day_transition_rule.scale = Vector2(0.04, 1.0)
+	if not is_inside_tree():
+		return
+	_day_transition_tween = create_tween()
+	_day_transition_tween.set_parallel(true)
+	_day_transition_tween.tween_property(_day_transition_overlay, "modulate:a", 1.0, 0.55).set_trans(Tween.TRANS_QUINT).set_ease(Tween.EASE_IN_OUT)
+	_day_transition_tween.tween_property(_day_transition_rule, "scale:x", 1.0, 0.72).set_trans(Tween.TRANS_QUINT).set_ease(Tween.EASE_IN_OUT)
+	_day_transition_tween.set_parallel(false)
+	_day_transition_tween.tween_property(_day_transition_day_label, "scale", Vector2.ONE, 0.58).set_trans(Tween.TRANS_QUINT).set_ease(Tween.EASE_IN_OUT)
+	_day_transition_tween.tween_interval(0.55)
+	_day_transition_tween.tween_callback(_commit_day_transition_settlement)
+	_day_transition_tween.tween_interval(0.95)
+	_day_transition_tween.tween_property(_day_transition_overlay, "modulate:a", 0.0, 0.80).set_trans(Tween.TRANS_QUINT).set_ease(Tween.EASE_IN_OUT)
+	_day_transition_tween.tween_callback(_finish_day_transition)
+
+
+func _commit_day_transition_settlement() -> void:
+	if _day_transition_settled:
+		return
+	_day_transition_settled = true
+	if _settle_day_and_present_rewards():
+		selected_token_id = ""
+		selected_meme_id = ""
+		if not game.event_log.is_empty():
+			log_text = game.event_log[0]
+	_day_transition_day_label.text = "DAY %02d" % game.day
+	_day_transition_meta_label.text = "NEXT SIGNAL ACQUIRED  /  楼层 %d" % game.tower_floor
+
+
+func _finish_day_transition() -> void:
+	if _day_transition_tween != null and _day_transition_tween.is_valid():
+		_day_transition_tween.kill()
+	_day_transition_tween = null
+	if not _day_transition_settled:
+		_commit_day_transition_settlement()
+	if _day_transition_overlay != null:
+		_day_transition_overlay.visible = false
+		_day_transition_overlay.modulate = Color.WHITE
+	_set_input_locked(false)
+	_sync_audio_state(false)
+	_render()
 
 
 func _build_flashback_overlay() -> void:
@@ -4078,6 +4193,8 @@ func _set_input_locked(value: bool) -> void:
 		_flashback_overlay.mouse_filter = Control.MOUSE_FILTER_STOP if value else Control.MOUSE_FILTER_IGNORE
 	if _action_spend_overlay != null:
 		_action_spend_overlay.mouse_filter = Control.MOUSE_FILTER_STOP if value and _action_spend_overlay.visible else Control.MOUSE_FILTER_IGNORE
+	if _day_transition_overlay != null:
+		_day_transition_overlay.mouse_filter = Control.MOUSE_FILTER_STOP if value and _day_transition_overlay.visible else Control.MOUSE_FILTER_IGNORE
 
 
 func _render_ending() -> void:

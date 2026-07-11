@@ -14,7 +14,11 @@ Standalone Godot 4.6 game built from the third-chapter meme prototype. It combin
 
 Each day has five effective actions. Navigation, window movement, preview placement, and editing do not spend actions.
 
+After the fifth normal action, the inline action pulse hands off to a 3.6-second internationalist day transition before settlement restores five actions. The one-time 60% pollution flashback keeps its own direct black-screen jump and does not stack this transition.
+
 The social phone starts with an empty Following channel. Following accounts and liking posts from Discover are free and persist across days; Nearby remains unavailable because the device has no location signal.
+
+The meme bank is hidden globally. It appears only as a small attached file window on the social Publish page, where it can still be expanded and dragged; feed browsing, notebook crafting, phone home, and reality walking expose no corner tab.
 
 ## Reality Controls
 
@@ -52,4 +56,4 @@ HOME=/Users/zhang/Documents/游戏/.godot_home /Users/zhang/Documents/游戏/God
 ```
 
 The rendered publish-layout capture tool is `res://tools/capture_publish_scene.gd`.
-The generated-floor regression test is `res://tests/test_reality_world.gd`. `res://tools/capture_reality_scene.gd` captures the walking view, while `res://tools/capture_dialogue_scene.gd` captures the subtitle and response layout.
+The generated-floor regression test is `res://tests/test_reality_world.gd`, and the transition/context test is `res://tests/test_day_transition.gd`. Capture tools cover walking, dialogue, merchant inventory, and the next-day frame under `res://tools/`.

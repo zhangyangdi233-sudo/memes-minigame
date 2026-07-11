@@ -914,28 +914,11 @@ func _run() -> void:
 		meme_bank_tab = _find_node_by_name(root, "MemeBankTab") as Button
 		meme_bank_content = _find_node_by_name(root, "MemeBankContent") as Control
 		if meme_bank_popup != null and meme_bank_tab != null and meme_bank_content != null:
-			_assert_true(meme_bank_popup.visible, "meme bank should still peek from the bottom during passive social browsing")
-			_assert_true(str(meme_bank_tab.text).contains("◢"), "passive meme bank should only expose a corner")
-			_assert_true(bool(meme_bank_tab.get_meta("meme_bank_peek", false)), "passive meme bank tab should use the small file-corner mode")
-			_assert_true(meme_bank_popup.size.x <= 48.0 and meme_bank_popup.size.y <= 48.0, "passive meme bank corner should stay visually small")
-			_assert_true(meme_bank_tab.custom_minimum_size.x <= 44.0 and meme_bank_tab.custom_minimum_size.y <= 44.0, "passive meme bank touch corner should not become a large floating button")
-			if social_app_window != null:
-				_assert_true(not _controls_overlap(meme_bank_popup, social_app_window), "passive meme bank corner should not cover the social phone")
-			if social_bottom_nav != null:
-				_assert_true(not _controls_overlap(meme_bank_popup, social_bottom_nav), "passive meme bank corner should not cover the social bottom navigation")
-			if social_home_indicator != null:
-				_assert_true(not _controls_overlap(meme_bank_popup, social_home_indicator), "passive meme bank corner should not cover the social home indicator")
-			if view_toggle_button != null:
-				_assert_true(not _controls_overlap(meme_bank_popup, view_toggle_button), "passive meme bank corner should not cover the put-phone button")
-			if international_hud != null:
-				_assert_true(not _controls_overlap(meme_bank_popup, international_hud), "passive meme bank corner should not cover the HUD rail")
-			if hud_actions_label != null:
-				_assert_true(not _controls_overlap(meme_bank_popup, hud_actions_label), "passive meme bank corner should not cover today's actions")
-			if international_hud != null:
-				_assert_true(international_hud.z_index > meme_bank_popup.z_index, "HUD rail should render above the meme bank so today's actions never get covered")
-			_assert_true(not meme_bank_content.visible, "passive meme bank peek should not reveal drawer content")
+			_assert_true(not meme_bank_popup.visible, "meme bank should be completely hidden during passive social browsing")
+			_assert_true(not root._should_show_meme_bank() and not root._should_peek_meme_bank(), "passive social browsing should expose neither drawer nor corner peek")
+			_assert_true(not meme_bank_content.visible, "hidden passive meme bank should not reveal drawer content")
 		root._toggle_meme_bank()
-		_assert_true(not meme_bank_content.visible, "passive meme bank corner should not open outside publish or crafting contexts")
+		_assert_true(not meme_bank_popup.visible and not meme_bank_content.visible, "meme bank should not open outside the social publish page")
 		var create_for_bank := _find_node_by_name(root, "SocialNavCreate") as Button
 		if create_for_bank != null:
 			create_for_bank.pressed.emit()
@@ -956,6 +939,7 @@ func _run() -> void:
 			if view_toggle_button != null:
 				_assert_true(not _controls_overlap(meme_bank_popup, view_toggle_button), "collapsed publish meme bank should not cover the put-phone button")
 		root.game.set_active_app("notebook")
+		root._open_app_windows["social"] = false
 		var notebook_size_before_render := notebook_app_window.size if notebook_app_window != null else Vector2.ZERO
 		root._render()
 		var notebook_scroll := _find_node_by_name(root, "NotebookCraftScroll") as ScrollContainer
@@ -986,27 +970,10 @@ func _run() -> void:
 			_assert_true(notebook_craft_button.custom_minimum_size.y >= 56.0, "confirm craft button should use a comfortable touch target")
 		if meme_bank_tab != null and meme_bank_popup != null and meme_bank_content != null:
 			_assert_true(_is_descendant_of(meme_bank_tab, meme_bank_popup), "meme bank tab and drawer should be one popup object")
-			_assert_true(meme_bank_popup.visible, "notebook view should show the integrated meme bank popup")
-			_assert_true(meme_bank_popup.size.x >= meme_bank_tab.custom_minimum_size.x, "collapsed notebook meme bank should be wide enough for its tab text")
-			if social_app_window != null:
-				_assert_true(not _controls_overlap(meme_bank_popup, social_app_window), "collapsed notebook meme bank should not cover the social phone")
-			if notebook_app_window != null:
-				_assert_true(not _controls_overlap(meme_bank_popup, notebook_app_window), "collapsed notebook meme bank should not cover the notebook phone")
-			if view_toggle_button != null:
-				_assert_true(not _controls_overlap(meme_bank_popup, view_toggle_button), "collapsed notebook meme bank should not cover the put-phone button")
-			_assert_true(not meme_bank_content.visible, "meme bank content should start collapsed")
+			_assert_true(not meme_bank_popup.visible, "notebook crafting should keep the meme bank hidden")
+			_assert_true(not meme_bank_content.visible, "hidden notebook meme bank should keep content closed")
 			root._toggle_meme_bank()
-			_assert_true(meme_bank_content.visible, "toggling meme bank should open the drawer content")
-			if social_app_window != null:
-				_assert_true(not _controls_overlap(meme_bank_popup, social_app_window), "opened meme bank drawer should not cover the social phone")
-			if notebook_app_window != null:
-				_assert_true(not _controls_overlap(meme_bank_popup, notebook_app_window), "opened meme bank drawer should not cover the notebook phone")
-			if view_toggle_button != null:
-				_assert_true(not _controls_overlap(meme_bank_popup, view_toggle_button), "opened meme bank drawer should not cover the put-phone button")
-			if hud_actions_label != null:
-				_assert_true(not _controls_overlap(meme_bank_popup, hud_actions_label), "opened meme bank drawer should not cover today's actions")
-			root._toggle_meme_bank()
-			_assert_true(not meme_bank_content.visible, "toggling meme bank again should collapse the drawer content")
+			_assert_true(not meme_bank_popup.visible and not meme_bank_content.visible, "notebook should not be able to open the publish-only meme bank")
 		root.game._queue_ascent_reward(1)
 		root.game.set_active_app("babel")
 		root._render()
@@ -1105,16 +1072,8 @@ func _run() -> void:
 		meme_bank_tab = _find_node_by_name(root, "MemeBankTab") as Button
 		meme_bank_content = _find_node_by_name(root, "MemeBankContent") as Control
 		if meme_bank_popup != null and meme_bank_tab != null and meme_bank_content != null:
-			_assert_true(meme_bank_popup.visible, "meme bank should still peek from the bottom during NPC speaking")
-			_assert_true(str(meme_bank_tab.text).contains("◢"), "NPC speaking meme bank should only expose a corner")
-			_assert_true(meme_bank_popup.size.x <= 48.0 and meme_bank_popup.size.y <= 48.0, "NPC speaking meme bank peek should stay visually small")
-			_assert_true(not meme_bank_content.visible, "NPC speaking meme bank peek should not reveal drawer content")
-			if root.has_method("_meme_bank_overlap_targets"):
-				var hidden_nav_targets: Array = root._meme_bank_overlap_targets()
-				var hidden_bottom_nav := _find_node_by_name(root, "SocialBottomNav") as Control
-				var hidden_home_indicator := _find_node_by_name(root, "SocialHomeIndicator") as Control
-				_assert_true(hidden_bottom_nav == null or not hidden_nav_targets.has(hidden_bottom_nav), "hidden social bottom navigation should not steer the NPC-view meme bank corner")
-				_assert_true(hidden_home_indicator == null or not hidden_nav_targets.has(hidden_home_indicator), "hidden social home indicator should not steer the NPC-view meme bank corner")
+			_assert_true(not meme_bank_popup.visible, "reality walking and NPC dialogue should hide the meme bank completely")
+			_assert_true(not meme_bank_content.visible, "hidden reality meme bank should not reveal drawer content")
 			if hand_phone_image != null and camera != null and root.has_method("_animate_world"):
 				var alpha_before_take := hand_phone_image.modulate.a
 				var backdrop_alpha_before_take := phone_down_backdrop_image.modulate.a if phone_down_backdrop_image != null else 0.0
