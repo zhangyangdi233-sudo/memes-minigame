@@ -20,6 +20,7 @@ var useful_item_count: int = 0
 var map_width: float = MIN_MAP_WIDTH
 var map_length: float = MIN_MAP_LENGTH
 var _actors: Array[Area3D] = []
+var _items: Array[Area3D] = []
 var _environment: WorldEnvironment
 
 
@@ -61,6 +62,25 @@ func get_interactable_actors() -> Array[Area3D]:
 		if is_instance_valid(actor):
 			live_actors.append(actor)
 	return live_actors
+
+
+func get_interactable_items() -> Array[Area3D]:
+	var live_items: Array[Area3D] = []
+	for item in _items:
+		if is_instance_valid(item) and item.visible and not bool(item.get_meta("collected", false)):
+			live_items.append(item)
+	return live_items
+
+
+func sync_collected_items(collected_ids: Array[String]) -> void:
+	for item in _items:
+		if not is_instance_valid(item):
+			continue
+		var collected := str(item.get_meta("item_id", "")) in collected_ids
+		item.set_meta("collected", collected)
+		item.visible = not collected
+		item.monitoring = not collected
+		item.monitorable = not collected
 
 
 func start_position() -> Vector3:
@@ -109,6 +129,7 @@ func apply_palette(palette: Dictionary) -> void:
 
 func _clear_floor() -> void:
 	_actors.clear()
+	_items.clear()
 	_environment = null
 	for child in get_children():
 		remove_child(child)
@@ -291,13 +312,26 @@ func _add_air_wall(parent: Node3D, node_name: String, size: Vector3, position: V
 
 func _build_useful_item(parent: Node3D, room_index: int, position: Vector3, palette: Dictionary) -> void:
 	useful_item_count += 1
+	var definitions := [
+		{"label": "信号筹码", "effect": "publish_base", "value": 8, "description": "下一次发布的传播基础 +8。"},
+		{"label": "回声镜片", "effect": "publish_multiplier", "value": 1.15, "description": "下一次发布的总倍率 ×1.15。"},
+		{"label": "清晰线", "effect": "clarity", "value": 7, "description": "立即恢复 7 点清晰。"},
+	]
+	var definition: Dictionary = definitions[posmod(int(room_index / 3) + built_floor, definitions.size())]
 	var item := Area3D.new()
 	item.name = "UsefulItem%02d" % room_index
 	item.position = position
+	item.collision_layer = 2
+	item.collision_mask = 0
 	item.set_meta("useful_item", true)
 	item.set_meta("room_index", room_index)
 	item.set_meta("item_id", "signal_fragment_%d_%d" % [built_floor, room_index])
+	item.set_meta("display_name", str(definition.get("label", "街区遗物")))
+	item.set_meta("item_effect", str(definition.get("effect", "")))
+	item.set_meta("item_value", definition.get("value", 0))
+	item.set_meta("item_description", str(definition.get("description", "")))
 	parent.add_child(item)
+	_items.append(item)
 	var pedestal := MeshInstance3D.new()
 	pedestal.name = "Pedestal"
 	var pedestal_mesh := BoxMesh.new()
@@ -307,18 +341,33 @@ func _build_useful_item(parent: Node3D, room_index: int, position: Vector3, pale
 	pedestal.set_meta("theme_role", "wall_dark")
 	pedestal.material_override = _material("wall_dark", palette, false)
 	item.add_child(pedestal)
-	var shard := MeshInstance3D.new()
-	shard.name = "SignalShard"
-	var shard_mesh := SphereMesh.new()
-	shard_mesh.radius = 0.22
-	shard_mesh.height = 0.58
-	shard_mesh.radial_segments = 6
-	shard_mesh.rings = 4
-	shard.mesh = shard_mesh
-	shard.position.y = 0.78
-	shard.set_meta("theme_role", "item")
-	shard.material_override = _material("item", palette, true)
-	item.add_child(shard)
+	var shard_material := _material("item", palette, true)
+	var lower_shard := MeshInstance3D.new()
+	lower_shard.name = "SignalShardLower"
+	var lower_mesh := CylinderMesh.new()
+	lower_mesh.top_radius = 0.20
+	lower_mesh.bottom_radius = 0.0
+	lower_mesh.height = 0.34
+	lower_mesh.radial_segments = 6
+	lower_mesh.rings = 1
+	lower_shard.mesh = lower_mesh
+	lower_shard.position.y = 0.64
+	lower_shard.set_meta("theme_role", "item")
+	lower_shard.material_override = shard_material
+	item.add_child(lower_shard)
+	var upper_shard := MeshInstance3D.new()
+	upper_shard.name = "SignalShardUpper"
+	var upper_mesh := CylinderMesh.new()
+	upper_mesh.top_radius = 0.0
+	upper_mesh.bottom_radius = 0.20
+	upper_mesh.height = 0.44
+	upper_mesh.radial_segments = 6
+	upper_mesh.rings = 1
+	upper_shard.mesh = upper_mesh
+	upper_shard.position.y = 1.03
+	upper_shard.set_meta("theme_role", "item")
+	upper_shard.material_override = shard_material
+	item.add_child(upper_shard)
 	var collision := CollisionShape3D.new()
 	var shape := SphereShape3D.new()
 	shape.radius = 0.52

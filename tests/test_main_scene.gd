@@ -756,6 +756,7 @@ func _run() -> void:
 				_assert_true(str(publish_contract_text_after_nav.text).contains("奖励") and str(publish_contract_text_after_nav.text).contains("污染"), "daily signal hand should reveal both reward and pollution risk before publishing")
 			if publish_score_text_after_nav != null:
 				_assert_true(str(publish_score_text_after_nav.text).contains("传播基础") and str(publish_score_text_after_nav.text).contains("共鸣倍率") and str(publish_score_text_after_nav.text).contains("牌型倍率"), "publish score breakdown should label base, resonance, and signal-hand multipliers")
+				_assert_true(str(publish_score_text_after_nav.text).contains("遗物倍率"), "publish score breakdown should reserve a visible multiplier row for street relics")
 			if composer_after_nav != null and publish_scroll_after_nav != null:
 				_assert_true(_is_descendant_of(composer_after_nav, publish_scroll_after_nav), "publish composer should scroll inside the phone instead of stretching the phone")
 			if publish_button_after_nav != null and publish_action_bar_after_nav != null and publish_scroll_after_nav != null:

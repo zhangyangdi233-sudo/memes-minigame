@@ -212,6 +212,8 @@ var daily_arcana_bought: bool = false
 var pending_arcana_effects: Dictionary = {}
 var signal_contract_offset: int = 0
 var arcana_sequence: int = 0
+var collected_world_item_ids: Array[String] = []
+var pending_world_item_effects: Dictionary = {}
 
 var permanent_modifiers: Array = []
 var pending_ascent_reward_choices: Array = []
@@ -287,6 +289,8 @@ func new_run() -> void:
 	pending_arcana_effects = {}
 	signal_contract_offset = 0
 	arcana_sequence = 0
+	collected_world_item_ids = []
+	pending_world_item_effects = {}
 	permanent_modifiers = []
 	pending_ascent_reward_choices = []
 	pending_ascent_reward_floor = 0
@@ -330,6 +334,36 @@ func set_view_state(value: String) -> bool:
 		phone_open = false
 		active_app_window = ""
 		reset_reality_phase_for_day()
+	return true
+
+
+func is_world_item_collected(item_id: String) -> bool:
+	return item_id in collected_world_item_ids
+
+
+func collect_world_item(item_data: Dictionary) -> bool:
+	var item_id := str(item_data.get("id", "")).strip_edges()
+	var effect := str(item_data.get("effect", "")).strip_edges()
+	var label := str(item_data.get("label", "街区遗物")).strip_edges()
+	if item_id.is_empty() or item_id in collected_world_item_ids:
+		return false
+	match effect:
+		"publish_base":
+			pending_world_item_effects["base_bonus"] = int(pending_world_item_effects.get("base_bonus", 0)) + int(item_data.get("value", 0))
+		"publish_multiplier":
+			var current_multiplier := float(pending_world_item_effects.get("multiplier", 1.0))
+			pending_world_item_effects["multiplier"] = snappedf(current_multiplier * float(item_data.get("value", 1.0)), 0.01)
+		"clarity":
+			clarity = clampi(clarity + int(item_data.get("value", 0)), 0, 100)
+		_:
+			return false
+	collected_world_item_ids.append(item_id)
+	if effect != "clarity":
+		var labels: Array = pending_world_item_effects.get("labels", []).duplicate()
+		if label not in labels:
+			labels.append(label)
+		pending_world_item_effects["labels"] = labels
+	event_log.push_front("拾取街区遗物：%s。%s" % [label, str(item_data.get("description", "信号已经写入。"))])
 	return true
 
 
@@ -1032,6 +1066,9 @@ func confirm_dialogue() -> bool:
 	var arcana_labels: Array = breakdown.get("active_arcana_labels", [])
 	if not arcana_labels.is_empty():
 		event_log.push_front("玄牌结算：%s。" % " / ".join(arcana_labels))
+	var world_item_labels: Array = breakdown.get("active_world_item_labels", [])
+	if not world_item_labels.is_empty():
+		event_log.push_front("街区遗物结算：%s。" % " / ".join(world_item_labels))
 	heat = clampi(heat + heat_gain, 0, 999)
 	var previous_pollution := pollution
 	pollution = clampi(pollution + pollution_gain, 0, 100)
@@ -1048,6 +1085,7 @@ func confirm_dialogue() -> bool:
 	published_memes.push_front(record)
 	dialogue_blanks.clear()
 	pending_arcana_effects.clear()
+	pending_world_item_effects.clear()
 	return true
 
 
@@ -1309,7 +1347,8 @@ func _calculate_publish_breakdown(meme: Dictionary, matching_tags: Array) -> Dic
 	var empty_base_bonus := int(round(_modifier_total("empty_base"))) if ("空位" in tags or "沉默" in tags) else 0
 	var contract_base_bonus := int(contract_result.get("base_bonus", 0)) if bool(contract_result.get("matched", false)) else 0
 	var arcana_base_bonus := int(pending_arcana_effects.get("base_bonus", 0))
-	var base_value := 12 + rarity * 6 + matching_tags.size() * 8 + empty_base_bonus + int(round(source_base_bonus)) + contract_base_bonus + arcana_base_bonus
+	var world_item_base_bonus := int(pending_world_item_effects.get("base_bonus", 0))
+	var base_value := 12 + rarity * 6 + matching_tags.size() * 8 + empty_base_bonus + int(round(source_base_bonus)) + contract_base_bonus + arcana_base_bonus + world_item_base_bonus
 	var synergy_step := 0.25 + _modifier_total("synergy_step") + source_synergy_step
 	var synergy_multiplier := 1.0 + matching_tags.size() * synergy_step
 	var pollution_multiplier := 1.0 + float(pollution) / 100.0 * 0.65 + _modifier_total("pollution_bonus") + source_pollution_bonus
@@ -1321,7 +1360,8 @@ func _calculate_publish_breakdown(meme: Dictionary, matching_tags: Array) -> Dic
 	var repeat_multiplier := minf(1.0, maxf(0.28, 1.0 - effective_repeat_count * 0.18 + source_repeat_relief))
 	var contract_multiplier := float(contract_result.get("multiplier", 1.0)) if bool(contract_result.get("matched", false)) else 1.0
 	var arcana_multiplier := float(pending_arcana_effects.get("multiplier", 1.0))
-	var total_multiplier := snappedf(synergy_multiplier * pollution_multiplier * emotion_multiplier * repeat_multiplier * contract_multiplier * arcana_multiplier, 0.01)
+	var world_item_multiplier := float(pending_world_item_effects.get("multiplier", 1.0))
+	var total_multiplier := snappedf(synergy_multiplier * pollution_multiplier * emotion_multiplier * repeat_multiplier * contract_multiplier * arcana_multiplier * world_item_multiplier, 0.01)
 	var score := maxi(1, int(round(base_value * total_multiplier)))
 	var active_modifier_labels: Array[String] = []
 	for modifier in permanent_modifiers:
@@ -1354,6 +1394,9 @@ func _calculate_publish_breakdown(meme: Dictionary, matching_tags: Array) -> Dic
 		"arcana_force_contract": force_contract,
 		"arcana_repeat_grace": arcana_repeat_grace,
 		"active_arcana_labels": (pending_arcana_effects.get("labels", []) as Array).duplicate(),
+		"world_item_base_bonus": world_item_base_bonus,
+		"world_item_multiplier": snappedf(world_item_multiplier, 0.01),
+		"active_world_item_labels": (pending_world_item_effects.get("labels", []) as Array).duplicate(),
 		"total_multiplier": total_multiplier,
 		"repeat_count": repeat_count,
 		"effective_repeat_count": effective_repeat_count,

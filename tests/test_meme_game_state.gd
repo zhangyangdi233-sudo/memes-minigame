@@ -22,6 +22,7 @@ func _run() -> void:
 		return
 	test_navigation_is_free_and_five_actions_mark_day_end()
 	test_social_follow_and_like_toggles_are_free_and_persistent()
+	test_world_items_are_free_one_shot_publish_modifiers()
 	test_pick_token_costs_action_and_adds_notebook_token()
 	test_buy_emotion_slot_costs_action_and_editing_is_free()
 	test_craft_uses_two_core_slots_and_optional_emotion_text()
@@ -91,6 +92,59 @@ func test_social_follow_and_like_toggles_are_free_and_persistent() -> void:
 	_assert_true(game.is_social_post_liked("missing_window"), "liked posts should survive day settlement")
 	_assert_true(not game.toggle_social_follow("塔下夜巡"), "pressing follow again should unfollow the account")
 	_assert_true(not game.toggle_social_like("missing_window"), "pressing like again should remove the like")
+
+
+func test_world_items_are_free_one_shot_publish_modifiers() -> void:
+	var game: RefCounted = _state_script.new()
+	game.new_run()
+	var meme := {
+		"id": "world-item-meme",
+		"title": "街区测试",
+		"text": "信号，仍在回响？",
+		"tags": ["日常"],
+		"rarity": 1,
+		"pollution_bias": 0,
+		"clarity_bias": 0,
+		"emotion_count": 0,
+		"source_passives": [],
+	}
+	var plain: Dictionary = game.get_publish_breakdown(meme)
+	var actions_before: int = game.actions_remaining
+	_assert_true(game.collect_world_item({
+		"id": "street-chip",
+		"label": "信号筹码",
+		"effect": "publish_base",
+		"value": 8,
+		"description": "下一次发布的传播基础 +8。",
+	}), "a street chip should be collectable")
+	_assert_true(game.collect_world_item({
+		"id": "street-lens",
+		"label": "回声镜片",
+		"effect": "publish_multiplier",
+		"value": 1.15,
+		"description": "下一次发布的总倍率 ×1.15。",
+	}), "an echo lens should stack with the street chip")
+	_assert_true(not game.collect_world_item({"id": "street-chip", "effect": "publish_base", "value": 8}), "the same world item id should never be collected twice")
+	_assert_eq(game.actions_remaining, actions_before, "exploration pickups should not spend today's actions")
+	_assert_true(game.is_world_item_collected("street-chip"), "collected world item ids should persist in the run")
+	var boosted: Dictionary = game.get_publish_breakdown(meme)
+	_assert_eq(int(boosted.get("world_item_base_bonus", 0)), 8, "street chip should add eight publish base")
+	_assert_true(absf(float(boosted.get("world_item_multiplier", 1.0)) - 1.15) < 0.001, "echo lens should add its separate publish multiplier")
+	_assert_true(int(boosted.get("score", 0)) > int(plain.get("score", 0)), "world items should materially improve the propagation preview")
+	_assert_eq((boosted.get("active_world_item_labels", []) as Array).size(), 2, "publish preview should name both armed world items")
+
+	game.clarity = 70
+	_assert_true(game.collect_world_item({"id": "clear-thread", "label": "清晰线", "effect": "clarity", "value": 7}), "clarity thread should be collectable")
+	_assert_eq(game.clarity, 77, "clarity thread should restore clarity immediately")
+	_assert_eq((game.pending_world_item_effects.get("labels", []) as Array).size(), 2, "immediate clarity items should not pollute the pending publish labels")
+
+	game.completed_memes = [meme]
+	game.place_meme_in_blank("blank_1", "world-item-meme")
+	_assert_true(game.confirm_dialogue(), "a world-item-boosted meme should publish normally")
+	_assert_true(game.pending_world_item_effects.is_empty(), "successful publication should consume all pending world-item modifiers")
+	var consumed: Dictionary = game.get_publish_breakdown(meme)
+	_assert_eq(int(consumed.get("world_item_base_bonus", 0)), 0, "consumed street chip should not affect the next preview")
+	_assert_eq(float(consumed.get("world_item_multiplier", 1.0)), 1.0, "consumed echo lens should not affect the next preview")
 
 
 func test_pick_token_costs_action_and_adds_notebook_token() -> void:

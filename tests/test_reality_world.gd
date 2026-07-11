@@ -55,6 +55,11 @@ func _run() -> void:
 	_assert_eq(int(floor_root.get_meta("ordinary_npc_count", 0)), 5, "first floor should contain five ordinary NPCs")
 	_assert_true(int(floor_root.get_meta("useful_item_count", 0)) > 0, "some first-floor rooms should contain useful items")
 	_assert_true(int(floor_root.get_meta("useful_item_count", 0)) < int(floor_root.get_meta("room_count", 0)), "some rooms should remain empty")
+	var useful_item := _find_useful_item(floor_root)
+	_assert_true(useful_item != null, "a useful street lot should expose a real pickup Area3D")
+	if useful_item != null:
+		_assert_true(not str(useful_item.get_meta("item_effect", "")).is_empty(), "world pickup should carry a gameplay effect")
+		_assert_true(not str(useful_item.get_meta("item_description", "")).is_empty(), "world pickup should explain its effect in the F prompt")
 	_assert_eq(str(floor_root.get_meta("layout_mode", "")), "shared_street", "reality floor should be one shared open street instead of isolated NPC boxes")
 	var map_width := float(floor_root.get_meta("map_width", 0.0))
 	var map_length := float(floor_root.get_meta("map_length", 0.0))
@@ -118,6 +123,21 @@ func _run() -> void:
 		player.velocity = Vector3(0.0, -12.0, 0.0)
 		game_root._update_reality_player(0.016)
 		_assert_true(player.position.y >= 0.0, "falling below the street should recover the player onto a safe spawn")
+	if player != null and useful_item != null:
+		var item_id := str(useful_item.get_meta("item_id", ""))
+		player.global_position = useful_item.global_position + Vector3(0.0, 0.0, 1.2)
+		game_root._refresh_nearby_reality_actor()
+		_assert_true(game_root._nearby_reality_item == useful_item, "approaching a street relic should select it ahead of distant actors")
+		var actions_before_pickup := int(game_root.game.actions_remaining)
+		_assert_true(game_root._try_reality_interaction(), "F should collect the nearby street relic")
+		_assert_true(game_root.game.is_world_item_collected(item_id), "collected street relic should persist in run state")
+		_assert_eq(game_root.game.actions_remaining, actions_before_pickup, "collecting a street relic should not spend an action")
+		_assert_true(not useful_item.visible and bool(useful_item.get_meta("collected", false)), "collected street relic should disappear from the current floor")
+		game_root._rebuild_reality_floor()
+		floor_root = game_root.get_node_or_null("RealityFloor") as Node3D
+		var rebuilt_item := _find_item_by_id(floor_root, item_id)
+		_assert_true(rebuilt_item != null and not rebuilt_item.visible, "rebuilding a floor should not respawn an already collected relic")
+		merchant = _find_actor(floor_root, "merchant")
 	if player != null and merchant != null:
 		player.position = merchant.position + Vector3(0.0, 0.0, 1.4)
 		game_root._refresh_nearby_reality_actor()
@@ -173,6 +193,26 @@ func _count_actors(node: Node, actor_type: String) -> int:
 	for child in node.get_children():
 		count += _count_actors(child, actor_type)
 	return count
+
+
+func _find_useful_item(node: Node) -> Area3D:
+	if node is Area3D and bool(node.get_meta("useful_item", false)):
+		return node as Area3D
+	for child in node.get_children():
+		var found := _find_useful_item(child)
+		if found != null:
+			return found
+	return null
+
+
+func _find_item_by_id(node: Node, item_id: String) -> Area3D:
+	if node is Area3D and str(node.get_meta("item_id", "")) == item_id:
+		return node as Area3D
+	for child in node.get_children():
+		var found := _find_item_by_id(child, item_id)
+		if found != null:
+			return found
+	return null
 
 
 func _find_node_by_name(node: Node, node_name: String) -> Node:

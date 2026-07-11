@@ -284,6 +284,7 @@ var _reality_pitch := 0.0
 var _reality_last_safe_position := Vector3.ZERO
 var _reality_mouse_look_enabled := false
 var _nearby_reality_actor: Area3D
+var _nearby_reality_item: Area3D
 var _active_reality_actor: Area3D
 var _reality_interaction_active := false
 var _canvas: CanvasLayer
@@ -499,6 +500,7 @@ func new_game() -> void:
 	_reality_pitch = 0.0
 	_set_reality_mouse_look(false)
 	_nearby_reality_actor = null
+	_nearby_reality_item = null
 	_active_reality_actor = null
 	_reality_interaction_active = false
 	log_text = "你低头，手机边框从视野下方亮起来。"
@@ -517,6 +519,7 @@ func show_main_menu() -> void:
 	_reality_interaction_active = false
 	_active_reality_actor = null
 	_nearby_reality_actor = null
+	_nearby_reality_item = null
 	_set_reality_mouse_look(false)
 	_build_world()
 	_build_main_menu()
@@ -530,6 +533,7 @@ func set_view_state(value: String) -> void:
 		_reality_interaction_active = false
 		_active_reality_actor = null
 		_nearby_reality_actor = null
+		_nearby_reality_item = null
 		_reality_hover_choice_id = ""
 		game.reset_typed_reality_conversation()
 		if value == "npc_up":
@@ -696,10 +700,12 @@ func _rebuild_reality_floor() -> void:
 		return
 	var npc_texture := _load_runtime_texture(NPC_SIGNAL_PORTRAIT_PATH)
 	_reality_floor.rebuild(game.tower_floor, _active_palette(), npc_texture)
+	_reality_floor.sync_collected_items(game.collected_world_item_ids)
 	_reality_built_floor = game.tower_floor
 	_reality_interaction_active = false
 	_active_reality_actor = null
 	_nearby_reality_actor = null
+	_nearby_reality_item = null
 	if _reality_player != null:
 		_reality_last_safe_position = _reality_floor.start_position()
 		_reality_player.position = _reality_last_safe_position
@@ -772,14 +778,17 @@ func _recover_reality_player() -> void:
 
 func _refresh_nearby_reality_actor() -> void:
 	var previous_actor := _nearby_reality_actor
+	var previous_item := _nearby_reality_item
 	if game.view_state != "npc_up" or _reality_interaction_active or _reality_floor == null or _reality_player == null:
 		_nearby_reality_actor = null
-		if previous_actor != null:
+		_nearby_reality_item = null
+		if previous_actor != null or previous_item != null:
 			_render_world_prompt()
 			if _world_prompt != null:
 				_world_prompt.visible = false
 		return
 	var nearest: Area3D = null
+	var nearest_kind := ""
 	var nearest_distance := REALITY_INTERACTION_DISTANCE
 	for actor in _reality_floor.get_interactable_actors():
 		var offset: Vector3 = actor.position - _reality_player.position
@@ -787,9 +796,19 @@ func _refresh_nearby_reality_actor() -> void:
 		var distance: float = offset.length()
 		if distance <= nearest_distance:
 			nearest = actor
+			nearest_kind = "actor"
 			nearest_distance = distance
-	_nearby_reality_actor = nearest
-	if previous_actor != nearest:
+	for item in _reality_floor.get_interactable_items():
+		var item_offset: Vector3 = item.position - _reality_player.position
+		item_offset.y = 0.0
+		var item_distance: float = item_offset.length()
+		if item_distance <= nearest_distance:
+			nearest = item
+			nearest_kind = "item"
+			nearest_distance = item_distance
+	_nearby_reality_actor = nearest if nearest_kind == "actor" else null
+	_nearby_reality_item = nearest if nearest_kind == "item" else null
+	if previous_actor != _nearby_reality_actor or previous_item != _nearby_reality_item:
 		_render_world_prompt()
 		if _world_prompt != null:
 			_world_prompt.visible = nearest != null
@@ -802,6 +821,8 @@ func _try_reality_interaction() -> bool:
 		_exit_reality_interaction()
 		return true
 	_refresh_nearby_reality_actor()
+	if _nearby_reality_item != null:
+		return _collect_nearby_reality_item()
 	if _nearby_reality_actor == null:
 		return false
 	_active_reality_actor = _nearby_reality_actor
@@ -821,6 +842,30 @@ func _try_reality_interaction() -> bool:
 	log_text = "你停在%s面前。" % _active_actor_display_name()
 	_render()
 	_sync_audio_state(false)
+	return true
+
+
+func _collect_nearby_reality_item() -> bool:
+	if _nearby_reality_item == null:
+		return false
+	var item := _nearby_reality_item
+	var item_data := {
+		"id": str(item.get_meta("item_id", "")),
+		"label": str(item.get_meta("display_name", "街区遗物")),
+		"effect": str(item.get_meta("item_effect", "")),
+		"value": item.get_meta("item_value", 0),
+		"description": str(item.get_meta("item_description", "")),
+	}
+	if not game.collect_world_item(item_data):
+		return false
+	item.set_meta("collected", true)
+	item.visible = false
+	item.monitoring = false
+	item.monitorable = false
+	_nearby_reality_item = null
+	if not game.event_log.is_empty():
+		log_text = game.event_log[0]
+	_render()
 	return true
 
 
@@ -2049,6 +2094,11 @@ func _render_world_prompt() -> void:
 		_world_prompt.text = "DAY %d. %s\n路面在脚下滑动。手机 App 的窗口浮在屏幕旁边。" % [game.day, plan["title"]]
 	elif _reality_interaction_active:
 		_world_prompt.text = "%s：%s" % [_active_actor_display_name(), _corrupt(str(plan["line"]))]
+	elif _nearby_reality_item != null:
+		_world_prompt.text = "F  拾取 · %s\n%s" % [
+			str(_nearby_reality_item.get_meta("display_name", "街区遗物")),
+			str(_nearby_reality_item.get_meta("item_description", "信号已经写入。")),
+		]
 	elif _nearby_reality_actor != null:
 		var action := "交易" if str(_nearby_reality_actor.get_meta("actor_type", "npc")) == "merchant" else "交谈"
 		_world_prompt.text = "F  %s · %s" % [action, str(_nearby_reality_actor.get_meta("display_name", "对方"))]
@@ -3020,7 +3070,7 @@ func _render_publish() -> void:
 
 func _publish_breakdown_text(breakdown: Dictionary, is_preview: bool) -> String:
 	if breakdown.is_empty():
-		return "传播基础 / 筹码  --\n共鸣倍率  ×--\n牌型倍率  ×--\n玄牌倍率  ×--\n预计传播  --"
+		return "传播基础 / 筹码  --\n共鸣倍率  ×--\n牌型倍率  ×--\n玄牌倍率  ×--\n遗物倍率  ×--\n预计传播  --"
 	var prefix := "预计传播" if is_preview else "本次传播"
 	var repeated := int(breakdown.get("repeat_count", 0))
 	var repeat_note := "\n重复衰减  ×%.2f" % float(breakdown.get("repeat_multiplier", 1.0)) if repeated > 0 else ""
@@ -3030,16 +3080,20 @@ func _publish_breakdown_text(breakdown: Dictionary, is_preview: bool) -> String:
 	var source_note := "\n来源被动  %s" % " / ".join(source_passives) if not source_passives.is_empty() else ""
 	var contract_multiplier := float(breakdown.get("contract_multiplier", 1.0))
 	var arcana_multiplier := float(breakdown.get("arcana_multiplier", 1.0))
+	var world_item_multiplier := float(breakdown.get("world_item_multiplier", 1.0))
 	var total_multiplier := float(breakdown.get("total_multiplier", 1.0))
-	var separated_multiplier := contract_multiplier * arcana_multiplier
+	var separated_multiplier := contract_multiplier * arcana_multiplier * world_item_multiplier
 	var resonance_multiplier := total_multiplier / separated_multiplier if separated_multiplier > 0.0 else total_multiplier
 	var contract_bonus := int(breakdown.get("contract_base_bonus", 0))
 	var arcana_bonus := int(breakdown.get("arcana_base_bonus", 0))
+	var world_item_bonus := int(breakdown.get("world_item_base_bonus", 0))
 	var base_parts: Array[String] = []
 	if contract_bonus > 0:
 		base_parts.append("牌型 +%d" % contract_bonus)
 	if arcana_bonus > 0:
 		base_parts.append("玄牌 +%d" % arcana_bonus)
+	if world_item_bonus > 0:
+		base_parts.append("遗物 +%d" % world_item_bonus)
 	var base_note := "（%s）" % " / ".join(base_parts) if not base_parts.is_empty() else ""
 	var arcana_labels: Array = breakdown.get("active_arcana_labels", [])
 	var arcana_risk := int(breakdown.get("arcana_pollution_risk", 0))
@@ -3047,17 +3101,21 @@ func _publish_breakdown_text(breakdown: Dictionary, is_preview: bool) -> String:
 		" / ".join(arcana_labels),
 		" · +%d 污染" % arcana_risk if arcana_risk > 0 else "",
 	] if not arcana_labels.is_empty() else ""
-	return "传播基础 / 筹码  %d%s\n共鸣倍率  ×%.2f\n牌型倍率  ×%.2f\n玄牌倍率  ×%.2f\n总倍率  ×%.2f%s%s%s%s\n%s  %d" % [
+	var world_item_labels: Array = breakdown.get("active_world_item_labels", [])
+	var world_item_note := "\n街区遗物  %s" % " / ".join(world_item_labels) if not world_item_labels.is_empty() else ""
+	return "传播基础 / 筹码  %d%s\n共鸣倍率  ×%.2f\n牌型倍率  ×%.2f\n玄牌倍率  ×%.2f\n遗物倍率  ×%.2f\n总倍率  ×%.2f%s%s%s%s%s\n%s  %d" % [
 		int(breakdown.get("base_value", 0)),
 		base_note,
 		resonance_multiplier,
 		contract_multiplier,
 		arcana_multiplier,
+		world_item_multiplier,
 		total_multiplier,
 		repeat_note,
 		modifier_note,
 		source_note,
 		arcana_note,
+		world_item_note,
 		prefix,
 		int(breakdown.get("score", 0)),
 	]
@@ -3258,6 +3316,7 @@ func _advance_typed_reality_character() -> bool:
 		_reality_interaction_active = false
 		_active_reality_actor = null
 		_nearby_reality_actor = null
+		_nearby_reality_item = null
 		_set_reality_mouse_look(true)
 	if bool(result.get("action_spent", false)):
 		_after_effective_action(actions_before)
@@ -3311,7 +3370,7 @@ func _update_visibility() -> void:
 	if _vhs_overlay != null:
 		_vhs_overlay.visible = _vhs_enabled and _game_started
 	if _world_prompt != null:
-		_world_prompt.visible = (not in_phone) and (not _reality_interaction_active) and _nearby_reality_actor != null
+		_world_prompt.visible = (not in_phone) and (not _reality_interaction_active) and (_nearby_reality_actor != null or _nearby_reality_item != null)
 	var interaction_visible := (not in_phone) and _reality_interaction_active
 	if _reality_subtitle_panel != null:
 		_reality_subtitle_panel.visible = interaction_visible
@@ -4477,6 +4536,7 @@ func _settle_day_and_present_rewards() -> bool:
 	_reality_interaction_active = false
 	_active_reality_actor = null
 	_nearby_reality_actor = null
+	_nearby_reality_item = null
 	_reality_hover_choice_id = ""
 	selected_token_id = ""
 	selected_meme_id = ""
