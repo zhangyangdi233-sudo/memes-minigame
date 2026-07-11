@@ -28,6 +28,7 @@ const POLLUTION_PALETTE_5 := {
 }
 
 const PHONE_DOWN_BACKDROP_PATH := "res://assets/generated/world/phone_down_backdrop.png"
+const NPC_SIGNAL_PORTRAIT_PATH := "res://assets/generated/world/npc_signal_portrait.png"
 const PLAYER_PORTRAIT_TEXTURE_PATH := "res://assets/generated/ui/player_portrait.png"
 const NO_SIGNAL_ICON_PATH := "res://assets/generated/ui/no_signal_icon.png"
 const HUD_DAY_ICON_PATH := "res://assets/generated/ui/hud_day_icon.png"
@@ -348,6 +349,10 @@ var _open_app_windows: Dictionary = {}
 var _social_screen := "home"
 var _social_channel := "发现"
 var _social_detail_post_index := 0
+var _social_detail_open := false
+var _social_detail_window: PanelContainer
+var _social_detail_body: VBoxContainer
+var _social_detail_title: Label
 var _draggable_windows: Dictionary = {}
 var _dragged_window: Control
 var _drag_offset := Vector2.ZERO
@@ -409,6 +414,7 @@ func new_game() -> void:
 	_social_screen = "home"
 	_social_channel = "发现"
 	_social_detail_post_index = 0
+	_social_detail_open = false
 	_app_windows = {}
 	_app_titles = {}
 	_app_bodies = {}
@@ -911,10 +917,11 @@ func _build_ui() -> void:
 	_view_toggle_button.pressed.connect(_toggle_view_state)
 	_ui_root.add_child(_view_toggle_button)
 
-	_build_app_window("social", "社交媒体 App", "SocialAppWindow", -760.0, 20.0, -270.0, 880.0)
+	_build_app_window("social", "社交媒体 App", "SocialAppWindow", -809.0, 28.0, -389.0, 880.0)
 	_build_app_window("babel", "巴别塔 App", "BabelAppWindow", -1032.0, 96.0, -592.0, 676.0)
 	_build_app_window("shop", "情绪槽商店", "ShopAppWindow", -1000.0, 124.0, -560.0, 704.0)
 	_build_app_window("notebook", "笔记本 App", "NotebookAppWindow", -968.0, 152.0, -528.0, 732.0)
+	_build_social_detail_window()
 
 	_reality_dim_overlay = ColorRect.new()
 	_reality_dim_overlay.name = "RealityDimOverlay"
@@ -931,7 +938,16 @@ func _build_ui() -> void:
 	_reality_dim_overlay.material = reality_dim_material
 	_ui_root.add_child(_reality_dim_overlay)
 
-	_npc_focus_image = null
+	_npc_focus_image = TextureRect.new()
+	_npc_focus_image.name = "NPCFocusImage"
+	_npc_focus_image.texture = _load_runtime_texture(NPC_SIGNAL_PORTRAIT_PATH)
+	_npc_focus_image.set_meta("asset_path", NPC_SIGNAL_PORTRAIT_PATH)
+	_npc_focus_image.set_meta("generated_with", "imagegen")
+	_npc_focus_image.expand_mode = TextureRect.EXPAND_IGNORE_SIZE
+	_npc_focus_image.stretch_mode = TextureRect.STRETCH_KEEP_ASPECT_CENTERED
+	_npc_focus_image.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	_npc_focus_image.z_index = 11
+	_ui_root.add_child(_npc_focus_image)
 
 	_npc_chat_bubble = _panel()
 	_npc_chat_bubble.name = "NPCChatBubble"
@@ -1113,6 +1129,8 @@ func _build_apple_hud() -> void:
 	_hud_actions_label.set_meta("action_animation_mode", "inline_pulse")
 	_hud_actions_label.set_meta("hud_action_label", true)
 	_hud_actions_label.custom_minimum_size = Vector2(118, 70)
+	_hud_actions_label.size_flags_horizontal = Control.SIZE_SHRINK_CENTER
+	_hud_actions_label.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
 	_hud_actions_label.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
 	box.add_child(_hud_actions_label)
 	_actions_label = _hud_actions_label
@@ -1390,6 +1408,81 @@ func _build_app_window(app_id: String, title: String, node_name: String, left: f
 		_app_body = body
 
 
+func _build_social_detail_window() -> void:
+	_social_detail_window = _panel()
+	_social_detail_window.name = "SocialDetailWindow"
+	_social_detail_window.set_meta("detail_dark_panel", true)
+	_social_detail_window.clip_contents = true
+	_social_detail_window.z_index = 24
+	_ui_root.add_child(_social_detail_window)
+	_apply_social_detail_window_layout()
+
+	var shell := VBoxContainer.new()
+	shell.name = "SocialDetailShell"
+	shell.add_theme_constant_override("separation", 8)
+	_social_detail_window.add_child(shell)
+
+	var header := HBoxContainer.new()
+	header.name = "SocialDetailWindowHeader"
+	header.custom_minimum_size.y = 56
+	header.mouse_filter = Control.MOUSE_FILTER_STOP
+	header.add_theme_constant_override("separation", 8)
+	shell.add_child(header)
+
+	_social_detail_title = _label("塔层 1/5", 18, _theme_color("surface"))
+	_social_detail_title.name = "SocialDetailWindowHandle"
+	_social_detail_title.set_meta("on_dark", true)
+	_social_detail_title.mouse_filter = Control.MOUSE_FILTER_STOP
+	_social_detail_title.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+	header.add_child(_social_detail_title)
+	_make_draggable_window(_social_detail_window, "social-detail", header)
+	_make_draggable_window(_social_detail_window, "social-detail", _social_detail_title)
+
+	var close_button := Button.new()
+	close_button.name = "SocialDetailWindowCloseButton"
+	close_button.text = "X"
+	close_button.custom_minimum_size = Vector2(56, 56)
+	close_button.pressed.connect(_close_social_detail_window)
+	header.add_child(close_button)
+
+	var detail_scroll := ScrollContainer.new()
+	detail_scroll.name = "SocialDetailScroll"
+	detail_scroll.size_flags_vertical = Control.SIZE_EXPAND_FILL
+	detail_scroll.horizontal_scroll_mode = ScrollContainer.SCROLL_MODE_SHOW_NEVER
+	detail_scroll.vertical_scroll_mode = ScrollContainer.SCROLL_MODE_AUTO
+	shell.add_child(detail_scroll)
+
+	_social_detail_body = VBoxContainer.new()
+	_social_detail_body.name = "SocialDetailBody"
+	_social_detail_body.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+	_social_detail_body.add_theme_constant_override("separation", 8)
+	detail_scroll.add_child(_social_detail_body)
+	_social_detail_window.visible = false
+
+
+func _apply_social_detail_window_layout() -> void:
+	if _social_detail_window == null:
+		return
+	var viewport_size := _viewport_size()
+	_social_detail_window.set_anchors_preset(Control.PRESET_TOP_RIGHT)
+	if viewport_size.x >= 900.0:
+		_social_detail_window.offset_left = -379.0
+		_social_detail_window.offset_top = 96.0
+		_social_detail_window.offset_right = -24.0
+		_social_detail_window.offset_bottom = minf(850.0, viewport_size.y - 24.0)
+		return
+	var safe_left := 12.0
+	if _hud_panel != null:
+		safe_left = _hud_panel.offset_right + 10.0
+	var right_margin := 12.0
+	var available_width := maxf(220.0, viewport_size.x - safe_left - right_margin)
+	var target_width := minf(376.0, available_width)
+	_social_detail_window.offset_right = -right_margin
+	_social_detail_window.offset_left = _social_detail_window.offset_right - target_width
+	_social_detail_window.offset_top = 20.0
+	_social_detail_window.offset_bottom = viewport_size.y - 12.0
+
+
 func _apply_app_window_layout(window: Control, app_id: String, left: float, top: float, right: float, bottom: float) -> void:
 	var viewport_size := _viewport_size()
 	if viewport_size.x >= 900.0:
@@ -1493,6 +1586,15 @@ func _apply_reality_layout() -> void:
 	var portrait_width := 132.0 if compact else 206.0
 	var portrait_height := 188.0 if compact else 276.0
 	var portrait_left := safe_left
+	if _npc_focus_image != null:
+		var npc_width := 280.0 if compact else 440.0
+		var npc_height := npc_width * 1.5
+		var npc_center_x := viewport_size.x * 0.5
+		_npc_focus_image.set_anchors_preset(Control.PRESET_TOP_LEFT)
+		_npc_focus_image.offset_left = npc_center_x - npc_width * 0.5
+		_npc_focus_image.offset_top = 54.0 if compact else 64.0
+		_npc_focus_image.offset_right = npc_center_x + npc_width * 0.5
+		_npc_focus_image.offset_bottom = _npc_focus_image.offset_top + npc_height
 	if _player_portrait != null:
 		_player_portrait.set_anchors_preset(Control.PRESET_BOTTOM_LEFT)
 		_player_portrait.offset_left = portrait_left
@@ -1539,6 +1641,7 @@ func _apply_responsive_layouts_if_needed(force: bool = false) -> void:
 		var desired_bank_layout := "open" if _meme_bank_open else ("collapsed" if show_meme_bank else "peek")
 		_meme_bank_layout_mode = desired_bank_layout
 		_apply_meme_bank_popup_layout(desired_bank_layout)
+	_apply_social_detail_window_layout()
 	_apply_reality_layout()
 
 
@@ -1585,6 +1688,8 @@ func _action_text(actions: int) -> String:
 func _action_pips(actions: int) -> String:
 	var pips := ""
 	for index in game.max_actions_per_day:
+		if index > 0:
+			pips += " "
 		pips += "●" if index < actions else "○"
 	return pips
 
@@ -1616,6 +1721,7 @@ func _render_app() -> void:
 			"social":
 				_app_title.text = "社交媒体 App"
 				_render_social_app()
+	_render_social_detail_companion()
 
 
 func _render_babel_app() -> void:
@@ -1662,12 +1768,12 @@ func _render_social_app() -> void:
 	_app_body.add_child(phone_view)
 
 	var phone_box := VBoxContainer.new()
-	phone_box.add_theme_constant_override("separation", 8)
+	phone_box.add_theme_constant_override("separation", 4)
 	phone_view.add_child(phone_box)
 
 	var status_bar := HBoxContainer.new()
 	status_bar.name = "SocialPhoneStatusBar"
-	status_bar.custom_minimum_size.y = 64
+	status_bar.custom_minimum_size.y = 52
 	status_bar.mouse_filter = Control.MOUSE_FILTER_STOP
 	status_bar.add_theme_constant_override("separation", 6)
 	phone_box.add_child(status_bar)
@@ -1702,12 +1808,13 @@ func _render_social_app() -> void:
 	drag_grip.color = _theme_color("accent")
 	drag_grip.modulate.a = 0.45
 	drag_grip.mouse_filter = Control.MOUSE_FILTER_IGNORE
-	drag_grip.custom_minimum_size = Vector2(68, 4)
+	drag_grip.custom_minimum_size = Vector2(36, 3)
+	drag_grip.size_flags_vertical = Control.SIZE_SHRINK_CENTER
 	status_bar.add_child(drag_grip)
 	var close_social := Button.new()
 	close_social.name = "SocialAppInlineCloseButton"
 	close_social.text = "X"
-	close_social.custom_minimum_size = Vector2(64, 64)
+	close_social.custom_minimum_size = Vector2(48, 48)
 	close_social.pressed.connect(_close_app_window.bind("social"))
 	status_bar.add_child(close_social)
 
@@ -1875,7 +1982,18 @@ func _social_caption(post: Dictionary, _post_index: int) -> String:
 	return str(post.get("caption", "未命名信号")).substr(0, 12)
 
 
-func _render_social_detail_page(parent: VBoxContainer) -> void:
+func _render_social_detail_companion() -> void:
+	if _social_detail_body == null:
+		return
+	_clear(_social_detail_body)
+	if not _social_detail_open:
+		return
+	if _social_detail_title != null:
+		_social_detail_title.text = "塔层 %d/%d" % [game.tower_floor, MemeGameStateScript.MAX_TOWER_FLOOR]
+	_render_social_detail_page(_social_detail_body, true)
+
+
+func _render_social_detail_page(parent: VBoxContainer, companion: bool = false) -> void:
 	var detail_page := VBoxContainer.new()
 	detail_page.name = "SocialPostDetailPage"
 	detail_page.size_flags_vertical = Control.SIZE_EXPAND_FILL
@@ -1884,21 +2002,34 @@ func _render_social_detail_page(parent: VBoxContainer) -> void:
 
 	var post := _social_post_for_index(_social_detail_post_index)
 
-	var top_row := HBoxContainer.new()
-	top_row.add_theme_constant_override("separation", 8)
-	detail_page.add_child(top_row)
-	var back := Button.new()
-	back.name = "SocialBackToHome"
-	back.text = "‹"
-	back.custom_minimum_size = Vector2(76, 56)
-	back.pressed.connect(_close_social_detail_window)
-	top_row.add_child(back)
-	var title := _label("@%s" % post["handle"], 18, _theme_color("accent"))
-	title.size_flags_horizontal = Control.SIZE_EXPAND_FILL
-	top_row.add_child(title)
-	var floor_label := _label("塔层 %d/%d" % [game.tower_floor, MemeGameStateScript.MAX_TOWER_FLOOR], 16, _theme_color("ink"))
-	floor_label.name = "SocialDetailTowerFloor"
-	top_row.add_child(floor_label)
+	if companion:
+		var companion_meta := HBoxContainer.new()
+		companion_meta.add_theme_constant_override("separation", 8)
+		detail_page.add_child(companion_meta)
+		var companion_handle := _label("@%s" % post["handle"], 15, _theme_color("surface"))
+		companion_handle.set_meta("on_dark", true)
+		companion_handle.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+		companion_meta.add_child(companion_handle)
+		var floor_marker := _label("信号档案", 13, _theme_color("muted"))
+		floor_marker.name = "SocialDetailSignalArchive"
+		floor_marker.set_meta("on_dark", true)
+		companion_meta.add_child(floor_marker)
+	else:
+		var top_row := HBoxContainer.new()
+		top_row.add_theme_constant_override("separation", 8)
+		detail_page.add_child(top_row)
+		var back := Button.new()
+		back.name = "SocialBackToHome"
+		back.text = "‹"
+		back.custom_minimum_size = Vector2(76, 56)
+		back.pressed.connect(_close_social_detail_window)
+		top_row.add_child(back)
+		var title := _label("@%s" % post["handle"], 18, _theme_color("accent"))
+		title.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+		top_row.add_child(title)
+		var floor_label := _label("塔层 %d/%d" % [game.tower_floor, MemeGameStateScript.MAX_TOWER_FLOOR], 16, _theme_color("ink"))
+		floor_label.name = "SocialDetailTowerFloor"
+		top_row.add_child(floor_label)
 
 	var detail_card := _panel()
 	detail_card.name = "SocialPostDetailCard"
@@ -1909,7 +2040,7 @@ func _render_social_detail_page(parent: VBoxContainer) -> void:
 	detail_box.add_theme_constant_override("separation", 9)
 	detail_card.add_child(detail_box)
 	var media := PanelContainer.new()
-	media.custom_minimum_size.y = 274
+	media.custom_minimum_size.y = 320 if companion else 274
 	media.set_meta("poster_frame", true)
 	media.add_theme_stylebox_override("panel", _style(_theme_color("muted"), _theme_color("accent")))
 	detail_box.add_child(media)
@@ -1919,7 +2050,7 @@ func _render_social_detail_page(parent: VBoxContainer) -> void:
 	media_texture.texture = _social_poster_texture(poster_cell)
 	media_texture.set_meta("poster_sheet_path", SOCIAL_POSTER_SHEET_PATH)
 	media_texture.set_meta("poster_sheet_cell", poster_cell % SOCIAL_POSTER_COUNT)
-	media_texture.custom_minimum_size = Vector2(300, 274)
+	media_texture.custom_minimum_size = Vector2(300, 320 if companion else 274)
 	media_texture.size_flags_horizontal = Control.SIZE_EXPAND_FILL
 	media_texture.size_flags_vertical = Control.SIZE_EXPAND_FILL
 	media_texture.expand_mode = TextureRect.EXPAND_IGNORE_SIZE
@@ -2065,8 +2196,8 @@ func _set_social_screen(screen: String) -> void:
 	if _input_locked:
 		return
 	_social_screen = screen
-	if screen != "detail":
-		_social_channel = "发现"
+	_social_detail_open = false
+	_social_channel = "发现"
 	_render()
 
 
@@ -2075,10 +2206,12 @@ func _on_social_channel_pressed(channel: String) -> void:
 		return
 	_social_channel = channel
 	if channel == "塔下":
-		_social_screen = "detail"
+		_social_screen = "home"
 		_social_detail_post_index = 0
+		_social_detail_open = true
 	else:
 		_social_screen = "home"
+		_social_detail_open = false
 	_render()
 
 
@@ -2086,8 +2219,9 @@ func _open_social_post(post_index: int) -> void:
 	if _input_locked:
 		return
 	_social_detail_post_index = post_index
-	_social_screen = "detail"
-	_social_channel = "塔下"
+	_social_detail_open = true
+	if _social_detail_window != null:
+		_social_detail_window.move_to_front()
 	_render()
 
 
@@ -2095,6 +2229,8 @@ func _on_social_card_gui_input(event: InputEvent, post_index: int) -> void:
 	if _input_locked:
 		return
 	if event is InputEventMouseButton and event.button_index == MOUSE_BUTTON_LEFT and event.pressed:
+		_open_social_post(post_index)
+	elif event is InputEventScreenTouch and event.pressed:
 		_open_social_post(post_index)
 
 
@@ -2384,6 +2520,8 @@ func _update_visibility() -> void:
 		var app_window := _app_windows[app_id] as Control
 		if app_window != null:
 			app_window.visible = in_phone and bool(_open_app_windows.get(app_id, false))
+	if _social_detail_window != null:
+		_social_detail_window.visible = in_phone and _social_detail_open and bool(_open_app_windows.get("social", false))
 	if _publish_panel != null:
 		_publish_panel.visible = false
 	var show_meme_bank := _should_show_meme_bank()
@@ -2416,12 +2554,12 @@ func _update_visibility() -> void:
 	_npc_chat_bubble.visible = not in_phone
 	_reality_dim_overlay.visible = composing
 	if _npc_focus_image != null:
-		_npc_focus_image.visible = composing
+		_npc_focus_image.visible = not in_phone
 	_player_portrait.visible = composing
 	_thought_word_layer.visible = composing
 	_reality_panel.visible = composing or result
 	if _npc != null:
-		_npc.visible = not in_phone
+		_npc.visible = false
 	if _phone_rig != null:
 		_phone_rig.visible = false
 
@@ -2581,6 +2719,8 @@ func _close_app_window(app_id: String) -> void:
 	if _input_locked:
 		return
 	_open_app_windows[app_id] = false
+	if app_id == "social":
+		_social_detail_open = false
 	if game.active_app_window == app_id:
 		game.active_app_window = ""
 		for candidate in ["social", "babel", "shop", "notebook"]:
@@ -2612,8 +2752,9 @@ func _open_phone_launcher() -> void:
 func _close_social_detail_window() -> void:
 	if _input_locked:
 		return
-	_social_screen = "home"
-	_social_channel = "发现"
+	_social_detail_open = false
+	if _social_channel == "塔下":
+		_social_channel = "发现"
 	log_text = "关闭社交详情。"
 	_render()
 

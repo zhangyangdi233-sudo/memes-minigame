@@ -52,11 +52,23 @@ func _run() -> void:
 		_assert_true(_inside_rect(social_bottom_nav, viewport_rect), "small-view social bottom nav should stay reachable")
 	if social_inline_close != null:
 		_assert_true(_inside_rect(social_inline_close, viewport_rect), "small-view social close button should stay reachable")
-		_assert_true(social_inline_close.custom_minimum_size.x >= 60.0, "small-view social close target should remain large")
+		_assert_true(social_inline_close.custom_minimum_size.x >= 44.0, "small-view social close target should meet mobile touch guidance")
 	if view_toggle != null:
 		_assert_true(_inside_rect(view_toggle, viewport_rect), "small-view put-phone button should stay reachable")
 	if meme_bank != null and actions_label != null:
 		_assert_true(not meme_bank.get_global_rect().intersects(actions_label.get_global_rect()), "small-view meme bank corner should not cover today's actions")
+	if game_root.has_method("_open_social_post"):
+		game_root._open_social_post(0)
+		await process_frame
+		var detail_window := _find_node_by_name(game_root, "SocialDetailWindow") as PanelContainer
+		var detail_close := _find_node_by_name(game_root, "SocialDetailWindowCloseButton") as Button
+		_assert_true(detail_window != null and detail_window.visible, "small view should open the independent post detail companion")
+		if detail_window != null:
+			_assert_true(_inside_rect(detail_window, viewport_rect), "small-view detail companion should stay inside the viewport")
+		if detail_close != null:
+			detail_close.pressed.emit()
+			_assert_true(detail_window != null and not detail_window.visible, "small-view detail close should return focus to the phone feed")
+		social_inline_close = _find_node_by_name(game_root, "SocialAppInlineCloseButton") as Button
 
 	if social_inline_close != null:
 		social_inline_close.pressed.emit()
@@ -84,14 +96,16 @@ func _run() -> void:
 		game_root.begin_reality_player_turn()
 	await process_frame
 	var dim_overlay := _find_node_by_name(game_root, "RealityDimOverlay") as ColorRect
+	var npc_focus := _find_node_by_name(game_root, "NPCFocusImage") as TextureRect
 	var player_portrait := _find_node_by_name(game_root, "PlayerPortrait") as Control
 	var thought_layer := _find_node_by_name(game_root, "ThoughtWordLayer") as Control
 	var puzzle_frame := _find_node_by_name(game_root, "LanguagePuzzleFrame") as PanelContainer
 	_assert_true(dim_overlay != null and dim_overlay.visible, "small-view player turn should show the dim overlay")
+	_assert_true(npc_focus != null and npc_focus.visible, "small-view player turn should keep the generated NPC portrait visible")
 	_assert_true(player_portrait != null and player_portrait.visible, "small-view player turn should show the player portrait")
 	_assert_true(thought_layer != null and thought_layer.visible, "small-view player turn should show thought words")
 	_assert_true(puzzle_frame != null and puzzle_frame.visible, "small-view player turn should show the language puzzle")
-	for control in [player_portrait, thought_layer, puzzle_frame, phone_tab]:
+	for control in [npc_focus, player_portrait, thought_layer, puzzle_frame, phone_tab]:
 		if control != null and control.visible:
 			_assert_true(_inside_rect(control, viewport_rect), "small-view reality control should stay inside the viewport: %s" % control.name)
 	if hud != null and player_portrait != null:

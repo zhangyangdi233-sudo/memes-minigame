@@ -25,6 +25,7 @@ ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 
 CURATED_IMAGEGEN_ASSETS = {
 	"assets/generated/world/phone_down_backdrop.png": "b47f8772e40da13dada074bc3518be9fef4368ff9941dca35826bd576a49e6fe",
+	"assets/generated/world/npc_signal_portrait.png": "440d89e06cbb96b63570885939d02e08382d4464fbe24b9874a08907716517fa",
 	"assets/generated/social/poster_sheet.png": "76ae2647761ba61c4923f161f49d9e09f142042d26088b37b267a9db1d059594",
 }
 

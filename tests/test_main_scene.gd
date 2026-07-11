@@ -66,6 +66,7 @@ func _run() -> void:
 		for asset_path in [
 			"res://assets/generated/ASSET_PROVENANCE.md",
 			"res://assets/generated/world/phone_down_backdrop.png",
+			"res://assets/generated/world/npc_signal_portrait.png",
 			"res://assets/generated/ui/player_portrait.png",
 			"res://assets/generated/ui/no_signal_icon.png",
 			"res://assets/generated/ui/hud_day_icon.png",
@@ -406,17 +407,17 @@ func _run() -> void:
 			_assert_true(view_toggle_button.offset_right <= 620.0, "put-phone button should sit outside the main phone window instead of being covered by it")
 		if hud_actions_label != null:
 			_assert_true(str(hud_actions_label.text).contains("今日行动"), "HUD actions label should use the new action copy")
-			_assert_true(str(hud_actions_label.text).contains("●●●●●"), "HUD actions label should start with five available action dots")
+			_assert_true(str(hud_actions_label.text).contains("● ● ● ● ●"), "HUD actions label should start with five spaced action dots")
 			_assert_eq(str(hud_actions_label.get_meta("action_animation_mode", "")), "inline_pulse", "action spend animation should be an inline pulse")
 		if action_overlay != null:
 			_assert_true(not action_overlay.visible, "action spend overlay should start hidden")
 		if root.has_method("_play_action_spend_animation") and root.has_method("_finish_action_spend_animation") and action_overlay != null and action_label != null:
 			root._play_action_spend_animation(5, 4)
 			_assert_true(not action_overlay.visible, "playing action spend animation should not show a fullscreen overlay")
-			_assert_true(str(hud_actions_label.text).contains("●●●●●"), "action spend pulse should begin with the before-spend dots")
+			_assert_true(str(hud_actions_label.text).contains("● ● ● ● ●"), "action spend pulse should begin with the before-spend dots")
 			root._finish_action_spend_animation()
 			_assert_true(not action_overlay.visible, "finishing action spend animation should hide the overlay")
-			_assert_true(str(hud_actions_label.text).contains("●●●●○"), "finishing action spend animation should leave HUD with the after-spend dots")
+			_assert_true(str(hud_actions_label.text).contains("● ● ● ● ○"), "finishing action spend animation should leave HUD with the after-spend dots")
 			phone_popup = _find_node_by_name(root, "PhonePopup") as PanelContainer
 			phone_tab = _find_node_by_name(root, "PhoneTab") as Button
 			phone_content = _find_node_by_name(root, "PhoneContent") as Control
@@ -495,12 +496,12 @@ func _run() -> void:
 				_assert_true(handle.has_meta("drag_handle"), "visible window title/status text should be directly draggable")
 		for close_button in [babel_close, social_inline_close, shop_close, notebook_close]:
 			if close_button != null:
-				_assert_true(close_button.custom_minimum_size.x >= 56.0 and close_button.custom_minimum_size.y >= 56.0, "window close buttons should use comfortable 56px touch targets")
+				_assert_true(close_button.custom_minimum_size.x >= 44.0 and close_button.custom_minimum_size.y >= 44.0, "window close buttons should meet mobile touch-target guidance")
 		_assert_true(social_phone_view != null, "social app should render as a phone app viewport")
 		_assert_true(social_status_bar != null, "social app should include a phone-style status bar")
 		if social_status_bar != null:
 			_assert_true(social_status_bar.has_meta("drag_handle"), "social phone status bar should be the visible drag handle")
-			_assert_true(social_status_bar.custom_minimum_size.y >= 60.0, "social phone status bar should leave enough draggable area beside the close button")
+			_assert_true(social_status_bar.custom_minimum_size.y >= 48.0, "social phone status bar should leave enough draggable area beside the close button")
 		_assert_true(social_drag_grip != null, "social phone status bar should include a visible drag grip")
 		if social_drag_grip != null:
 			_assert_true(social_drag_grip.mouse_filter == Control.MOUSE_FILTER_IGNORE, "social drag grip should not steal phone status-bar dragging")
@@ -562,17 +563,17 @@ func _run() -> void:
 				var tower_feed := _find_node_by_name(root, "SocialFeedMasonry") as HBoxContainer
 				var tower_detail_window := _find_node_by_name(root, "SocialDetailWindow") as PanelContainer
 				_assert_true(tower_detail_page != null, "pressing Tower should open the secondary detail page")
-				_assert_true(tower_feed == null, "Tower secondary page should replace the feed inside the same phone")
-				_assert_true(tower_detail_window == null, "pressing Tower should not create a second phone window")
-				if tower_detail_page != null:
-					_assert_true(_is_descendant_of(tower_detail_page, social_app_window), "Tower page should stay inside the main social phone")
+				_assert_true(tower_feed != null, "opening the Tower companion should preserve the phone feed underneath")
+				_assert_true(tower_detail_window != null and tower_detail_window.visible, "pressing Tower should open the reference-style companion window")
+				if tower_detail_page != null and tower_detail_window != null:
+					_assert_true(_is_descendant_of(tower_detail_page, tower_detail_window), "Tower page should live inside its independent companion window")
 				var discover_after_tower := _find_node_by_name(root, "SocialChannelTab发现") as Button
 				if discover_after_tower != null:
 					discover_after_tower.pressed.emit()
-		if social_post_card != null:
-			_assert_true(social_post_card.mouse_filter == Control.MOUSE_FILTER_STOP, "social post cards should be directly clickable")
-			_assert_true(social_detail_window == null, "social post details should not create a second floating phone window")
-			_assert_true(social_detail_close == null, "social detail should use the in-app back button instead of a second-window close button")
+			if social_post_card != null:
+				_assert_true(social_post_card.mouse_filter == Control.MOUSE_FILTER_STOP, "social post cards should be directly clickable")
+				_assert_true(social_detail_window != null and not social_detail_window.visible, "social detail companion should exist but start closed")
+				_assert_true(social_detail_close != null, "social detail companion should expose its own close button")
 			if social_app_window != null:
 				_assert_true(social_app_window.has_meta("phone_shell"), "social app window should use the thick phone-shell style")
 				_assert_true(not social_app_window.has_meta("drag_handle"), "social app body should not be the drag handle because it steals phone interactions")
@@ -589,9 +590,14 @@ func _run() -> void:
 		_assert_true(flashback_overlay != null, "scene should expose a full-screen pollution flashback overlay")
 		_assert_true(npc_bubble != null, "scene should expose the NPC chat bubble")
 		_assert_true(dim_overlay != null, "scene should expose the reality dim overlay")
-		_assert_true(npc_focus_image == null, "NPC brightness should come from the dim-overlay cutout instead of duplicating removed NPC art")
+		_assert_true(npc_focus_image != null, "reality view should expose the generated signal-classmate portrait")
+		if npc_focus_image != null:
+			_assert_true(npc_focus_image.texture != null, "generated NPC portrait should load as a runtime texture")
+			_assert_eq(str(npc_focus_image.get_meta("asset_path", "")), "res://assets/generated/world/npc_signal_portrait.png", "reality view should use the new curated NPC asset without restoring the retired filename")
+			if dim_overlay != null:
+				_assert_true(npc_focus_image.z_index > dim_overlay.z_index, "NPC portrait should remain bright above the reality dim layer")
 		if dim_overlay != null:
-			_assert_true(dim_overlay.material is ShaderMaterial, "reality dim overlay should cut a bright opening around the centered NPC")
+			_assert_true(dim_overlay.material is ShaderMaterial, "reality dim overlay should preserve the centered NPC focus treatment")
 		_assert_true(player_portrait != null, "scene should expose the player portrait")
 		if player_portrait != null:
 			var player_portrait_image := _find_node_by_name(player_portrait, "PlayerPortraitImage") as TextureRect
@@ -642,13 +648,14 @@ func _run() -> void:
 				var social_width := social_app_window.offset_right - social_app_window.offset_left
 				var social_height := social_app_window.offset_bottom - social_app_window.offset_top
 				var current_social_feed_masonry := _find_node_by_name(root, "SocialFeedMasonry") as HBoxContainer
-				_assert_true(social_width >= 470.0, "social app window should leave two readable masonry columns")
-				_assert_true(social_width <= 520.0, "social app window should stay close to the reference phone width")
+				_assert_true(social_width >= 410.0, "social app window should leave two readable masonry columns")
+				_assert_true(social_width <= 430.0, "social app window should match the reference phone width")
 				_assert_true(social_height >= 840.0, "social app window should use the available vertical phone space")
-				_assert_true(social_height / maxf(1.0, social_width) >= 1.70, "social app window should keep a tall mobile composition")
+				_assert_true(social_height / maxf(1.0, social_width) >= 2.0, "social app window should use a true tall-phone composition")
+				_assert_true(social_height / maxf(1.0, social_width) <= 2.1, "social app window should not become an excessively narrow strip")
 				var viewport_width := float(ProjectSettings.get_setting("display/window/size/viewport_width", 1600))
 				var social_left := viewport_width + social_app_window.offset_left
-				_assert_true(social_left >= viewport_width * 0.50 and social_left <= viewport_width * 0.60, "main social phone should occupy the central-right reference position")
+				_assert_true(social_left >= viewport_width * 0.46 and social_left <= viewport_width * 0.54, "main social phone should occupy the central-right reference position")
 				_assert_true(current_social_feed_masonry != null and _is_descendant_of(current_social_feed_masonry, social_app_window), "social feed grid should live inside the social app window")
 		if social_bottom_nav != null and social_feed_scroll != null:
 			_assert_true(not _is_descendant_of(social_bottom_nav, social_feed_scroll), "bottom nav should not scroll away with the feed")
@@ -743,25 +750,27 @@ func _run() -> void:
 				var detail_after_card := _find_node_by_name(root, "SocialPostDetailPage") as VBoxContainer
 				var back_from_detail := _find_node_by_name(root, "SocialBackToHome") as Button
 				var feed_on_detail := _find_node_by_name(root, "SocialFeedMasonry") as HBoxContainer
-				var detail_floor := _find_node_by_name(root, "SocialDetailTowerFloor") as Label
+				var detail_floor := _find_node_by_name(root, "SocialDetailWindowHandle") as Label
 				var detail_media_texture := _find_node_by_name(root, "SocialDetailPostTexture") as TextureRect
 				var detail_signal_profile := _find_node_by_name(root, "SocialCardSignalProfile") as Label
 				var detail_window_after_card := _find_node_by_name(root, "SocialDetailWindow") as PanelContainer
-				_assert_true(detail_window_after_card == null, "opening a post should not show a second phone window")
-				_assert_true(detail_after_card != null, "opening a post should show a dedicated post detail page inside the main social phone")
-				if detail_after_card != null and social_app_window != null:
-					_assert_true(_is_descendant_of(detail_after_card, social_app_window), "post detail page should be contained by the main social app window")
-				_assert_true(back_from_detail != null, "post detail page should expose a close/back button")
-				if back_from_detail != null:
-					_assert_true(back_from_detail.custom_minimum_size.y >= 56.0, "social secondary-page back button should be as easy to tap as close buttons")
-				_assert_true(feed_on_detail == null, "opening a post should replace the feed instead of showing two phone pages")
+				_assert_true(detail_window_after_card != null and detail_window_after_card.visible, "opening a post should show the independent companion window")
+				_assert_true(detail_after_card != null, "opening a post should populate the companion detail page")
+				if detail_after_card != null and detail_window_after_card != null:
+					_assert_true(_is_descendant_of(detail_after_card, detail_window_after_card), "post detail page should be contained by the companion window")
+				_assert_true(back_from_detail == null, "companion detail should use its window close button instead of an in-phone back button")
+				_assert_true(feed_on_detail != null, "opening a post should preserve the two-column feed inside the phone")
 				_assert_true(detail_floor != null, "tower floor should only appear inside a social app secondary page")
 				if detail_floor != null:
 					_assert_true(str(detail_floor.text).contains("塔层"), "social detail page should label tower floor")
 				_assert_true(detail_media_texture != null and detail_media_texture.texture != null, "social detail should reuse generated post artwork")
 				_assert_true(detail_signal_profile != null and str(detail_signal_profile.text).contains("信号偏向"), "social detail should expose the card's build-facing signal profile")
-				if back_from_detail != null:
-					back_from_detail.pressed.emit()
+				if social_detail_close != null:
+					var detail_position_before: Vector2 = root._window_position_for_test("social-detail")
+					_assert_true(root._move_window_for_test("social-detail", Vector2(-24, 12)), "detail companion should be draggable as its own window")
+					_assert_true(root._window_position_for_test("social-detail") != detail_position_before, "dragging detail companion should preserve its independent position")
+					social_detail_close.pressed.emit()
+					_assert_true(not detail_window_after_card.visible, "closing detail should hide only the companion window")
 					_assert_true(_find_node_by_name(root, "SocialHomePage") != null, "closing detail should keep the home page available")
 			else:
 				_assert_true(false, "scene should expose a post open fallback after returning from profile")
@@ -1044,6 +1053,7 @@ func _run() -> void:
 			_assert_true(not shop_app_window.visible, "NPC view should hide shop app window")
 		if npc_bubble != null and dim_overlay != null and player_portrait != null and thought_layer != null and puzzle_frame != null:
 			_assert_true(npc_bubble.visible, "NPC view should first show the right-side NPC chat bubble")
+			_assert_true(npc_focus_image != null and npc_focus_image.visible, "NPC speaking phase should show the generated classmate at screen center")
 			_assert_true(not dim_overlay.visible, "NPC speaking phase should not dim the background yet")
 			_assert_true(not player_portrait.visible, "NPC speaking phase should hide player portrait")
 			_assert_true(not thought_layer.visible, "NPC speaking phase should hide thought words")
@@ -1069,6 +1079,7 @@ func _run() -> void:
 			_assert_true(remaining_brightness >= 0.70 and remaining_brightness <= 0.80, "player composing dim overlay should keep background brightness around 70-80 percent")
 			_assert_true(absf(float(dim_overlay.get_meta("target_background_brightness", 0.0)) - remaining_brightness) < 0.001, "dim overlay should document its intended background brightness")
 			_assert_true(dim_overlay.material is ShaderMaterial, "player composing phase should keep the centered NPC bright through a shader cutout")
+			_assert_true(npc_focus_image != null and npc_focus_image.visible, "player composing phase should keep the NPC portrait visible")
 			_assert_true(player_portrait.visible, "player composing phase should show the player portrait")
 			_assert_true(player_portrait.z_index > dim_overlay.z_index, "player portrait should remain bright above the dim overlay")
 			if international_hud != null:
