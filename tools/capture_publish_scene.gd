@@ -1,6 +1,6 @@
 extends SceneTree
 
-const OUTPUT_PATH := "/Users/zhang/Documents/游戏/babel-meme-game/tools/current_reality_view.png"
+const OUTPUT_PATH := "/Users/zhang/Documents/游戏/babel-meme-game/tools/current_publish_view.png"
 const VIEW_SIZE := Vector2i(1672, 941)
 const HEADLESS_CAPTURE_ERROR := "Screenshot capture requires a rendered display. Run this tool without --headless from a GUI session."
 
@@ -22,15 +22,24 @@ func _capture() -> void:
 	root.add_child(main)
 	if main.has_method("new_game"):
 		main.new_game()
-	if main.has_method("set_view_state"):
-		main.set_view_state("npc_up")
-	main._phone_art_alpha = 0.0
-	if main._phone_down_backdrop_image != null:
-		main._phone_down_backdrop_image.visible = false
-	if main.get("_reality_player") != null:
-		main._reality_player.position = main._reality_floor.start_position()
-		main._reality_yaw = 0.0
-	for frame in 72:
+	main.game.completed_memes = [{
+		"id": "capture-contract",
+		"title": "双声回路样本",
+		"text": "哈吉米，今天为什么还要追问？",
+		"tags": ["哈吉米", "追问", "焦虑"],
+		"rarity": 2,
+		"pollution_bias": 2,
+		"emotion_count": 1,
+	}]
+	main.game.owned_arcana_cards = [
+		{"uid": "capture-moon", "id": "moon", "bought_day": 1},
+		{"uid": "capture-star", "id": "star", "bought_day": 1},
+	]
+	main.game.use_arcana_card("capture-moon")
+	main.game.place_meme_in_blank("blank_1", "capture-contract")
+	if main.has_method("_set_social_screen"):
+		main._set_social_screen("publish")
+	for frame in 8:
 		await process_frame
 	var viewport_texture := root.get_texture()
 	if viewport_texture == null:

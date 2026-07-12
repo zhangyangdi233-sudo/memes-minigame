@@ -1,6 +1,6 @@
 extends SceneTree
 
-const OUTPUT_PATH := "/Users/zhang/Documents/游戏/babel-meme-game/tools/current_reality_view.png"
+const OUTPUT_PATH := "/Users/zhang/Documents/游戏/babel-meme-game/tools/current_merchant_view.png"
 const VIEW_SIZE := Vector2i(1672, 941)
 const HEADLESS_CAPTURE_ERROR := "Screenshot capture requires a rendered display. Run this tool without --headless from a GUI session."
 
@@ -20,17 +20,23 @@ func _capture() -> void:
 		return
 	var main := scene.instantiate()
 	root.add_child(main)
-	if main.has_method("new_game"):
-		main.new_game()
-	if main.has_method("set_view_state"):
-		main.set_view_state("npc_up")
+	main.new_game()
+	main.set_view_state("npc_up")
 	main._phone_art_alpha = 0.0
 	if main._phone_down_backdrop_image != null:
 		main._phone_down_backdrop_image.visible = false
-	if main.get("_reality_player") != null:
-		main._reality_player.position = main._reality_floor.start_position()
-		main._reality_yaw = 0.0
-	for frame in 72:
+	var player := main.get_node_or_null("RealityPlayer") as CharacterBody3D
+	var merchant := main.get_node_or_null("RealityFloor/Actors/Merchant") as Area3D
+	if player != null and merchant != null:
+		player.position = merchant.position + Vector3(0.0, 0.0, 1.4)
+		main._refresh_nearby_reality_actor()
+		main._try_reality_interaction()
+		main.game.conversation_selected_choice_id = "ask_goods"
+		main.game.conversation_understood = true
+		main.game.conversation_phase = "result"
+		main.game.conversation_feedback = "信号商人听懂了你的意思。"
+		main._render()
+	for frame in 16:
 		await process_frame
 	var viewport_texture := root.get_texture()
 	if viewport_texture == null:

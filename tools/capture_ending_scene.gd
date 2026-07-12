@@ -1,6 +1,6 @@
 extends SceneTree
 
-const OUTPUT_PATH := "/Users/zhang/Documents/游戏/babel-meme-game/tools/current_reality_view.png"
+const OUTPUT_PATH := "/Users/zhang/Documents/游戏/babel-meme-game/tools/current_ending_view.png"
 const VIEW_SIZE := Vector2i(1672, 941)
 const HEADLESS_CAPTURE_ERROR := "Screenshot capture requires a rendered display. Run this tool without --headless from a GUI session."
 
@@ -20,17 +20,12 @@ func _capture() -> void:
 		return
 	var main := scene.instantiate()
 	root.add_child(main)
-	if main.has_method("new_game"):
-		main.new_game()
-	if main.has_method("set_view_state"):
-		main.set_view_state("npc_up")
-	main._phone_art_alpha = 0.0
-	if main._phone_down_backdrop_image != null:
-		main._phone_down_backdrop_image.visible = false
-	if main.get("_reality_player") != null:
-		main._reality_player.position = main._reality_floor.start_position()
-		main._reality_yaw = 0.0
-	for frame in 72:
+	main.new_game()
+	main.game.tower_floor = 5
+	main.game.ending_unlocked = true
+	main.game.relationship_residue = 64
+	main._render()
+	for frame in 12:
 		await process_frame
 	var viewport_texture := root.get_texture()
 	if viewport_texture == null:

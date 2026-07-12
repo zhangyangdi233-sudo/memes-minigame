@@ -1,12 +1,15 @@
 #!/usr/bin/env python3
-"""Generate project-local PNG art for the Babel meme prototype.
+"""Generate fallback UI art and verify curated imagegen assets.
 
-The script intentionally uses only the Python standard library so the project
-can regenerate its placeholder production art without external packages.
+The composition-defining images are curated imagegen outputs and must not
+be overwritten by the procedural fallback generator. This script intentionally
+uses only the Python standard library.
 """
 
 from __future__ import annotations
 
+import argparse
+import hashlib
 import math
 import os
 import random
@@ -19,6 +22,13 @@ Color = tuple[int, int, int, int]
 Point = tuple[int, int]
 
 ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
+
+CURATED_IMAGEGEN_ASSETS = {
+	"assets/generated/world/phone_down_backdrop.png": "b47f8772e40da13dada074bc3518be9fef4368ff9941dca35826bd576a49e6fe",
+	"assets/generated/world/npc_signal_portrait.png": "440d89e06cbb96b63570885939d02e08382d4464fbe24b9874a08907716517fa",
+	"assets/generated/social/poster_sheet.png": "76ae2647761ba61c4923f161f49d9e09f142042d26088b37b267a9db1d059594",
+	"assets/generated/ui/arcana_sheet.png": "ca52ccc5d003c7a7786fd8f3157fc134a1f7426cf488ef78fc3eb98ece10e7bc",
+}
 
 INK: Color = (16, 20, 15, 255)
 BG: Color = (54, 91, 45, 255)
@@ -358,14 +368,28 @@ def generate_poster(index: int) -> None:
 	c.save(f"assets/generated/social/poster_{index:02d}.png")
 
 
+def verify_curated_assets() -> None:
+	for relative_path, expected_hash in CURATED_IMAGEGEN_ASSETS.items():
+		path = os.path.join(ROOT, relative_path)
+		if not os.path.exists(path):
+			raise FileNotFoundError(f"Missing curated imagegen asset: {relative_path}")
+		with open(path, "rb") as asset_file:
+			actual_hash = hashlib.sha256(asset_file.read()).hexdigest()
+		if actual_hash != expected_hash:
+			raise RuntimeError(f"Curated asset changed unexpectedly: {relative_path}")
+
+
 def main() -> None:
-	generate_road()
-	generate_hand_phone()
-	generate_npc()
+	parser = argparse.ArgumentParser()
+	parser.add_argument("--verify", action="store_true", help="verify curated imagegen assets without writing files")
+	args = parser.parse_args()
+	verify_curated_assets()
+	if args.verify:
+		return
+	# These small UI pieces are intentionally reproducible locally. Retired road,
+	# phone, NPC, and split-poster placeholders are no longer generated.
 	generate_player_portrait()
 	generate_icons()
-	for index in range(12):
-		generate_poster(index)
 
 
 if __name__ == "__main__":

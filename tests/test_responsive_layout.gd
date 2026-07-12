@@ -52,11 +52,23 @@ func _run() -> void:
 		_assert_true(_inside_rect(social_bottom_nav, viewport_rect), "small-view social bottom nav should stay reachable")
 	if social_inline_close != null:
 		_assert_true(_inside_rect(social_inline_close, viewport_rect), "small-view social close button should stay reachable")
-		_assert_true(social_inline_close.custom_minimum_size.x >= 60.0, "small-view social close target should remain large")
+		_assert_true(social_inline_close.custom_minimum_size.x >= 44.0, "small-view social close target should meet mobile touch guidance")
 	if view_toggle != null:
 		_assert_true(_inside_rect(view_toggle, viewport_rect), "small-view put-phone button should stay reachable")
-	if meme_bank != null and actions_label != null:
-		_assert_true(not meme_bank.get_global_rect().intersects(actions_label.get_global_rect()), "small-view meme bank corner should not cover today's actions")
+	if meme_bank != null:
+		_assert_true(not meme_bank.visible, "small-view passive social browsing should hide the publish-only meme bank")
+	if game_root.has_method("_open_social_post"):
+		game_root._open_social_post(0)
+		await process_frame
+		var detail_window := _find_node_by_name(game_root, "SocialDetailWindow") as PanelContainer
+		var detail_close := _find_node_by_name(game_root, "SocialDetailWindowCloseButton") as Button
+		_assert_true(detail_window != null and detail_window.visible, "small view should open the independent post detail companion")
+		if detail_window != null:
+			_assert_true(_inside_rect(detail_window, viewport_rect), "small-view detail companion should stay inside the viewport")
+		if detail_close != null:
+			detail_close.pressed.emit()
+			_assert_true(detail_window != null and not detail_window.visible, "small-view detail close should return focus to the phone feed")
+		social_inline_close = _find_node_by_name(game_root, "SocialAppInlineCloseButton") as Button
 
 	if social_inline_close != null:
 		social_inline_close.pressed.emit()
@@ -72,6 +84,58 @@ func _run() -> void:
 	_assert_true(phone_content != null and phone_content.visible, "small-view phone home should expose app icons")
 	if phone_social_icon != null:
 		_assert_true(_inside_rect(phone_social_icon, viewport_rect), "small-view phone app icons should stay reachable")
+	if game_root.has_method("set_view_state"):
+		game_root.set_view_state("npc_up")
+	await process_frame
+	var reality_subtitle := _find_node_by_name(game_root, "RealitySubtitlePanel") as PanelContainer
+	var reality_choices := _find_node_by_name(game_root, "RealityResponseChoices") as HBoxContainer
+	var phone_tab := _find_node_by_name(game_root, "PhoneTab") as Button
+	_assert_true(reality_subtitle != null and not reality_subtitle.visible, "small-view walking mode should wait for an F interaction before showing subtitles")
+	var reality_player := _find_node_by_name(game_root, "RealityPlayer") as CharacterBody3D
+	var reality_merchant := _find_node_by_name(game_root, "Merchant") as Area3D
+	if reality_player != null and reality_merchant != null:
+		reality_player.position = reality_merchant.position + Vector3(0.0, 0.0, 1.4)
+		game_root._refresh_nearby_reality_actor()
+		game_root._try_reality_interaction()
+	await process_frame
+	_assert_true(reality_subtitle != null and reality_subtitle.visible, "small-view F interaction should show the movie subtitle")
+	_assert_true(reality_choices != null and reality_choices.visible and reality_choices.get_child_count() == 3, "small-view dialogue should fit all three response choices")
+	if reality_subtitle != null:
+		_assert_true(_inside_rect(reality_subtitle, viewport_rect), "small-view movie subtitle should stay inside the viewport")
+	if reality_choices != null:
+		_assert_true(_inside_rect(reality_choices, viewport_rect), "small-view response choices should stay inside the viewport")
+	var first_choice_id := str(game_root.game.get_typed_reality_choices()[0].get("id", ""))
+	game_root._on_reality_choice_hovered(first_choice_id)
+	var intent_preview := _find_node_by_name(game_root, "RealityIntentPreview") as Label
+	_assert_true(intent_preview != null and intent_preview.visible, "small-view hover should reveal the full intended sentence")
+	if intent_preview != null:
+		_assert_true(_inside_rect(intent_preview, viewport_rect), "small-view intent preview should stay inside the viewport")
+		if reality_subtitle != null:
+			_assert_true(not intent_preview.get_global_rect().intersects(reality_subtitle.get_global_rect()), "small-view intent preview should not cover the subtitle")
+	game_root._on_reality_choice_selected(first_choice_id)
+	await process_frame
+	var typing_line := _find_node_by_name(game_root, "RealityTypingLine") as RichTextLabel
+	var typing_progress := _find_node_by_name(game_root, "RealityTypingProgress") as Label
+	_assert_true(typing_line != null and typing_line.visible, "small-view selected response should become the per-key typing line")
+	_assert_true(typing_progress != null and typing_progress.visible, "small-view typing should expose concise progress")
+	_assert_true(_find_node_by_name(game_root, "LanguagePuzzleFrame") == null, "small-view dialogue should not restore the retired Florence puzzle")
+	for control in [typing_line, typing_progress, reality_subtitle, phone_tab]:
+		if control != null and control.visible:
+			_assert_true(_inside_rect(control, viewport_rect), "small-view reality control should stay inside the viewport: %s" % control.name)
+	if hud != null and typing_line != null:
+		_assert_true(typing_line.get_global_rect().position.x >= hud.get_global_rect().end.x + 8.0, "small-view typing line should keep clear of the HUD rail")
+	game_root.game.conversation_actor_type = "merchant"
+	game_root.game.conversation_selected_choice_id = "ask_goods"
+	game_root.game.conversation_understood = true
+	game_root.game.conversation_phase = "result"
+	game_root._render()
+	var merchant_offer := _find_node_by_name(game_root, "RealityMerchantOffer") as PanelContainer
+	var merchant_buy := _find_node_by_name(game_root, "RealityMerchantBuyButton") as Button
+	_assert_true(merchant_offer != null and merchant_offer.visible, "small-view understood merchant should show its item offer")
+	if merchant_offer != null:
+		_assert_true(_inside_rect(merchant_offer, viewport_rect), "small-view merchant offer should stay inside the viewport")
+	if merchant_buy != null:
+		_assert_true(_inside_rect(merchant_buy, viewport_rect), "small-view merchant purchase control should stay reachable")
 	game_root.queue_free()
 
 

@@ -1,6 +1,6 @@
 extends SceneTree
 
-const OUTPUT_PATH := "/Users/zhang/Documents/游戏/babel-meme-game/tools/current_reality_view.png"
+const OUTPUT_PATH := "/Users/zhang/Documents/游戏/babel-meme-game/tools/current_relic_view.png"
 const VIEW_SIZE := Vector2i(1672, 941)
 const HEADLESS_CAPTURE_ERROR := "Screenshot capture requires a rendered display. Run this tool without --headless from a GUI session."
 
@@ -20,17 +20,24 @@ func _capture() -> void:
 		return
 	var main := scene.instantiate()
 	root.add_child(main)
-	if main.has_method("new_game"):
-		main.new_game()
-	if main.has_method("set_view_state"):
-		main.set_view_state("npc_up")
+	main.new_game()
+	main.set_view_state("npc_up")
 	main._phone_art_alpha = 0.0
 	if main._phone_down_backdrop_image != null:
 		main._phone_down_backdrop_image.visible = false
-	if main.get("_reality_player") != null:
-		main._reality_player.position = main._reality_floor.start_position()
-		main._reality_yaw = 0.0
-	for frame in 72:
+	var player := main.get_node_or_null("RealityPlayer") as CharacterBody3D
+	var items: Array[Area3D] = main._reality_floor.get_interactable_items()
+	if player == null or items.is_empty():
+		push_error("Unable to find a street relic for capture")
+		quit(1)
+		return
+	var item := items[0]
+	player.global_position = item.global_position + Vector3(0.0, 0.0, 2.05)
+	var item_direction: Vector3 = item.global_position - player.global_position
+	main._reality_yaw = rad_to_deg(atan2(-item_direction.x, -item_direction.z))
+	main._reality_pitch = -15.0
+	main._refresh_nearby_reality_actor()
+	for frame in 48:
 		await process_frame
 	var viewport_texture := root.get_texture()
 	if viewport_texture == null:

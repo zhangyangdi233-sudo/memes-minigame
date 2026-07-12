@@ -1,6 +1,6 @@
 extends SceneTree
 
-const OUTPUT_PATH := "/Users/zhang/Documents/游戏/babel-meme-game/tools/current_reality_view.png"
+const OUTPUT_PATH := "/Users/zhang/Documents/游戏/babel-meme-game/tools/current_day_transition.png"
 const VIEW_SIZE := Vector2i(1672, 941)
 const HEADLESS_CAPTURE_ERROR := "Screenshot capture requires a rendered display. Run this tool without --headless from a GUI session."
 
@@ -20,17 +20,19 @@ func _capture() -> void:
 		return
 	var main := scene.instantiate()
 	root.add_child(main)
-	if main.has_method("new_game"):
-		main.new_game()
-	if main.has_method("set_view_state"):
-		main.set_view_state("npc_up")
-	main._phone_art_alpha = 0.0
-	if main._phone_down_backdrop_image != null:
-		main._phone_down_backdrop_image.visible = false
-	if main.get("_reality_player") != null:
-		main._reality_player.position = main._reality_floor.start_position()
-		main._reality_yaw = 0.0
-	for frame in 72:
+	main.new_game()
+	main.game.actions_remaining = 0
+	main.game.needs_day_settlement = true
+	main.game.day_ended_reason = "capture-transition"
+	main._play_day_transition()
+	if main._day_transition_tween != null and main._day_transition_tween.is_valid():
+		main._day_transition_tween.kill()
+	main._day_transition_tween = null
+	main._day_transition_overlay.modulate = Color.WHITE
+	main._day_transition_rule.scale = Vector2.ONE
+	main._day_transition_day_label.scale = Vector2.ONE
+	main._commit_day_transition_settlement()
+	for frame in 8:
 		await process_frame
 	var viewport_texture := root.get_texture()
 	if viewport_texture == null:
