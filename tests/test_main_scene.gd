@@ -636,7 +636,13 @@ func _run() -> void:
 			root._open_phone_launcher()
 			var phone_width := phone_popup.offset_right - phone_popup.offset_left
 			var phone_height := phone_popup.offset_bottom - phone_popup.offset_top
+			var launcher_wallpaper := _find_node_by_name(root, "PhoneLauncherWallpaper") as TextureRect
 			_assert_true(phone_content.visible, "clicking the attached phone dock should expand the phone home")
+			_assert_true(launcher_wallpaper != null and launcher_wallpaper.texture != null, "phone home should use a real illustrated wallpaper behind the app grid")
+			_assert_true(social_app_window == null or not social_app_window.visible, "opening the phone launcher should temporarily clear app windows from behind the device")
+			_assert_true(phone_handle != null and phone_handle.get_theme_color("font_color").get_luminance() > root._theme_color("ink").get_luminance() + 0.25, "phone launcher title should remain legible on its dark device header")
+			if launcher_wallpaper != null:
+				_assert_true(str(launcher_wallpaper.get_meta("asset_path", "")).contains("assets/generated/1/"), "phone wallpaper should use the owner's supplied mood imagery")
 			_assert_true(phone_width >= 420.0 and phone_height >= 700.0, "expanded phone home should be large enough for the app grid")
 			_assert_true(phone_height / maxf(1.0, phone_width) >= 1.68, "expanded phone home should keep a modern tall-phone aspect ratio")
 			_assert_true(phone_height / maxf(1.0, phone_width) <= 1.78, "expanded phone home should keep the selected 1.72 ratio")
@@ -811,6 +817,7 @@ func _run() -> void:
 				_assert_true(detail_like_button != null and detail_like_button.custom_minimum_size.y >= 44.0, "post detail should expose a touch-sized like control")
 				_assert_true(detail_follow_button != null and detail_follow_button.custom_minimum_size.y >= 44.0, "post detail should expose a touch-sized follow control")
 				if social_detail_close != null:
+					_assert_true(social_detail_close.get_theme_color("font_color").get_luminance() > root._theme_color("ink").get_luminance() + 0.25, "detail close glyph should remain visible on the dark companion window")
 					var detail_position_before: Vector2 = root._window_position_for_test("social-detail")
 					_assert_true(root._move_window_for_test("social-detail", Vector2(-24, 12)), "detail companion should be draggable as its own window")
 					_assert_true(root._window_position_for_test("social-detail") != detail_position_before, "dragging detail companion should preserve its independent position")

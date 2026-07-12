@@ -36,6 +36,7 @@ const HUD_DAY_ICON_PATH := "res://assets/generated/ui/hud_day_icon.png"
 const HUD_POLLUTION_ICON_PATH := "res://assets/generated/ui/hud_pollution_icon.png"
 const HUD_MONEY_ICON_PATH := "res://assets/generated/ui/hud_money_icon.png"
 const HUD_SETTINGS_ICON_PATH := "res://assets/generated/ui/hud_settings_icon.png"
+const PHONE_LAUNCHER_WALLPAPER_PATH := "res://assets/generated/1/IMG_4835.PNG"
 const SOCIAL_POSTER_SHEET_PATH := "res://assets/generated/social/poster_sheet.png"
 const ARCANA_SHEET_PATH := "res://assets/generated/ui/arcana_sheet.png"
 const PHONE_AMBIENCE_PATH := "res://assets/generated/audio/phone_road_loop.wav"
@@ -1198,6 +1199,7 @@ func _build_ui() -> void:
 
 	_phone_title = _label("BABEL / PHONE", 18, _theme_color("accent"))
 	_phone_title.name = "PhoneWindowHandle"
+	_phone_title.set_meta("on_dark", true)
 	_phone_title.mouse_filter = Control.MOUSE_FILTER_STOP
 	_phone_title.size_flags_horizontal = Control.SIZE_EXPAND_FILL
 	phone_header.add_child(_phone_title)
@@ -1210,12 +1212,13 @@ func _build_ui() -> void:
 	phone_signal_icon.mouse_filter = Control.MOUSE_FILTER_IGNORE
 	phone_header.add_child(phone_signal_icon)
 	var phone_signal := _label("无信号", 13, _theme_color("accent"))
+	phone_signal.set_meta("on_dark", true)
 	phone_signal.mouse_filter = Control.MOUSE_FILTER_IGNORE
 	phone_header.add_child(phone_signal)
 	var phone_close := Button.new()
 	phone_close.name = "PhoneHomeCloseButton"
 	phone_close.text = "X"
-	phone_close.set_meta("window_close_button", true)
+	phone_close.set_meta("dark_window_close_button", true)
 	phone_close.custom_minimum_size = Vector2(56, 56)
 	phone_close.pressed.connect(set_view_state.bind("npc_up"))
 	phone_header.add_child(phone_close)
@@ -1227,15 +1230,31 @@ func _build_ui() -> void:
 	phone_screen.set_meta("phone_surface", true)
 	phone_screen.size_flags_vertical = Control.SIZE_EXPAND_FILL
 	_phone_content.add_child(phone_screen)
+	var launcher_wallpaper := TextureRect.new()
+	launcher_wallpaper.name = "PhoneLauncherWallpaper"
+	launcher_wallpaper.texture = _load_runtime_texture(PHONE_LAUNCHER_WALLPAPER_PATH)
+	launcher_wallpaper.set_meta("asset_path", PHONE_LAUNCHER_WALLPAPER_PATH)
+	launcher_wallpaper.expand_mode = TextureRect.EXPAND_IGNORE_SIZE
+	launcher_wallpaper.stretch_mode = TextureRect.STRETCH_KEEP_ASPECT_COVERED
+	launcher_wallpaper.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	launcher_wallpaper.modulate = Color(1.0, 1.0, 1.0, 0.78)
+	phone_screen.add_child(launcher_wallpaper)
+	var launcher_tint := ColorRect.new()
+	launcher_tint.name = "PhoneLauncherTint"
+	launcher_tint.color = Color(_theme_color("ink"), 0.42)
+	launcher_tint.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	phone_screen.add_child(launcher_tint)
 	var screen_box := VBoxContainer.new()
 	screen_box.name = "PhoneLauncherScreen"
 	screen_box.add_theme_constant_override("separation", 14)
 	phone_screen.add_child(screen_box)
-	var launcher_eyebrow := _label("NO SIGNAL  /  APP LAUNCHER", 12, _theme_color("accent"))
+	var launcher_eyebrow := _label("NO SIGNAL  /  APP LAUNCHER", 12, _theme_color("muted"))
 	launcher_eyebrow.name = "PhoneLauncherEyebrow"
+	launcher_eyebrow.set_meta("on_dark", true)
 	screen_box.add_child(launcher_eyebrow)
-	var launcher_title := _label("选择一个窗口", 25, _theme_color("ink"))
+	var launcher_title := _label("选择一个窗口", 25, _theme_color("surface"))
 	launcher_title.name = "PhoneLauncherTitle"
+	launcher_title.set_meta("on_dark", true)
 	screen_box.add_child(launcher_title)
 	var launcher_rule := ColorRect.new()
 	launcher_rule.name = "PhoneLauncherRule"
@@ -1262,8 +1281,9 @@ func _build_ui() -> void:
 		button.size_flags_horizontal = Control.SIZE_EXPAND_FILL
 		button.pressed.connect(_on_app_pressed.bind(app["id"]))
 		app_grid.add_child(button)
-	var launcher_note := _label("每个 App 会在手机旁打开独立窗口。", 13, _theme_color("accent"))
+	var launcher_note := _label("每个 App 会在手机旁打开独立窗口。", 13, _theme_color("surface"))
 	launcher_note.name = "PhoneLauncherNote"
+	launcher_note.set_meta("on_dark", true)
 	launcher_note.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
 	screen_box.add_child(launcher_note)
 	var launcher_spacer := Control.new()
@@ -1889,7 +1909,7 @@ func _build_social_detail_window() -> void:
 	var close_button := Button.new()
 	close_button.name = "SocialDetailWindowCloseButton"
 	close_button.text = "X"
-	close_button.set_meta("window_close_button", true)
+	close_button.set_meta("dark_window_close_button", true)
 	close_button.custom_minimum_size = Vector2(56, 56)
 	close_button.pressed.connect(_close_social_detail_window)
 	header.add_child(close_button)
@@ -3458,9 +3478,9 @@ func _update_visibility() -> void:
 	for app_id in _app_windows.keys():
 		var app_window := _app_windows[app_id] as Control
 		if app_window != null:
-			app_window.visible = in_phone and bool(_open_app_windows.get(app_id, false))
+			app_window.visible = in_phone and not _phone_launcher_open and bool(_open_app_windows.get(app_id, false))
 	if _social_detail_window != null:
-		_social_detail_window.visible = in_phone and _social_detail_open and bool(_open_app_windows.get("social", false))
+		_social_detail_window.visible = in_phone and not _phone_launcher_open and _social_detail_open and bool(_open_app_windows.get("social", false))
 	if _publish_panel != null:
 		_publish_panel.visible = false
 	var show_meme_bank := _should_show_meme_bank()
@@ -3790,6 +3810,8 @@ func _make_draggable_window(window: Control, window_id: String, handle: Control)
 func _should_show_meme_bank() -> bool:
 	if game.view_state != "phone_down":
 		return false
+	if _phone_launcher_open:
+		return false
 	var social_publish_open := bool(_open_app_windows.get("social", false)) and _social_screen == "publish"
 	return social_publish_open
 
@@ -3989,6 +4011,13 @@ func _apply_ui_theme(node: Node = null) -> void:
 			button.add_theme_stylebox_override("normal", _launcher_app_style(_theme_color("ink"), _theme_color("muted")))
 			button.add_theme_stylebox_override("hover", _launcher_app_style(_theme_color("muted"), _theme_color("ink")))
 			button.add_theme_stylebox_override("pressed", _launcher_app_style(_theme_color("bg"), _theme_color("ink")))
+		elif button.has_meta("dark_window_close_button"):
+			button.add_theme_color_override("font_color", _theme_color("surface"))
+			button.add_theme_color_override("font_hover_color", _theme_color("ink"))
+			button.add_theme_color_override("font_pressed_color", _theme_color("ink"))
+			button.add_theme_stylebox_override("normal", _window_close_style(Color(_theme_color("ink"), 0.0), _theme_color("muted")))
+			button.add_theme_stylebox_override("hover", _window_close_style(_theme_color("muted"), _theme_color("surface")))
+			button.add_theme_stylebox_override("pressed", _window_close_style(_theme_color("surface"), _theme_color("surface")))
 		elif button.has_meta("window_close_button"):
 			button.add_theme_color_override("font_color", _theme_color("ink"))
 			button.add_theme_color_override("font_hover_color", _theme_color("surface"))

@@ -167,12 +167,12 @@ func _build_environment(palette: Dictionary) -> void:
 	environment.background_color = _style_background_color(palette)
 	environment.ambient_light_source = Environment.AMBIENT_SOURCE_COLOR
 	environment.ambient_light_color = _style_ambient_color(palette)
-	environment.ambient_light_energy = 0.28 if district_style == "night_white_blocks" else 0.72
+	environment.ambient_light_energy = 0.22 if district_style == "night_white_blocks" else (0.58 if district_style == "overgrown_gallery" else 0.78)
 	environment.reflected_light_source = Environment.REFLECTION_SOURCE_DISABLED
 	environment.fog_enabled = true
 	environment.fog_light_color = _style_fog_color(palette)
-	environment.fog_light_energy = 0.34 if district_style == "night_white_blocks" else 0.58
-	environment.fog_density = (0.018 if district_style == "night_white_blocks" else 0.007) + built_floor * 0.0015
+	environment.fog_light_energy = 0.28 if district_style == "night_white_blocks" else 0.52
+	environment.fog_density = (0.012 if district_style == "night_white_blocks" else 0.005) + built_floor * 0.0012
 	environment.fog_height = 1.1
 	environment.fog_height_density = 0.16
 	_environment.environment = environment
@@ -181,8 +181,8 @@ func _build_environment(palette: Dictionary) -> void:
 	var key_light := DirectionalLight3D.new()
 	key_light.name = "RealityKeyLight"
 	key_light.rotation_degrees = Vector3(-48.0, -34.0, 0.0)
-	key_light.light_color = Color("FFD48C") if district_style == "night_white_blocks" else _color(palette, "surface")
-	key_light.light_energy = 0.34 if district_style == "night_white_blocks" else 1.08
+	key_light.light_color = Color("DCE8E1") if district_style == "night_white_blocks" else Color("FFF3D3")
+	key_light.light_energy = 0.46 if district_style == "night_white_blocks" else (1.65 if district_style == "overgrown_gallery" else 1.32)
 	key_light.shadow_enabled = true
 	add_child(key_light)
 
@@ -191,7 +191,7 @@ func _build_architecture(palette: Dictionary) -> void:
 	var architecture := Node3D.new()
 	architecture.name = "Architecture"
 	add_child(architecture)
-	var ground_role := "grass" if district_style == "night_white_blocks" else ("gallery_floor" if district_style == "overgrown_gallery" else "ground")
+	var ground_role := "grass" if district_style == "night_white_blocks" else ("gallery_floor" if district_style == "overgrown_gallery" else "sunlit_paving")
 	var street_ground := _add_box(
 		architecture,
 		"StreetGround",
@@ -215,9 +215,9 @@ func _build_architecture(palette: Dictionary) -> void:
 
 func _build_sunlit_brick_street(parent: Node3D, palette: Dictionary) -> void:
 	_add_box(parent, "MainRoad", Vector3(STREET_WIDTH, 0.025, map_length - 1.0), Vector3(0.0, 0.008, 0.0), "road", palette, false)
-	var sidewalk_width := (map_width - STREET_WIDTH) * 0.5
+	var sidewalk_width := 3.15
 	for side in [-1.0, 1.0]:
-		_add_box(parent, "Sidewalk%s" % ("West" if side < 0.0 else "East"), Vector3(sidewalk_width, 0.055, map_length - 1.0), Vector3(side * (STREET_WIDTH * 0.5 + sidewalk_width * 0.5), 0.018, 0.0), "sidewalk", palette, false)
+		_add_box(parent, "Sidewalk%s" % ("West" if side < 0.0 else "East"), Vector3(sidewalk_width, 0.055, map_length - 1.0), Vector3(side * (STREET_WIDTH * 0.5 + sidewalk_width * 0.5), 0.018, 0.0), "sunlit_paving", palette, false)
 		_add_box(parent, "Curb%s" % ("West" if side < 0.0 else "East"), Vector3(0.16, 0.10, map_length - 1.4), Vector3(side * (STREET_WIDTH * 0.5 + 0.08), 0.048, 0.0), "accent", palette, false)
 	_build_road_markings(parent, palette)
 	for stripe_index in 5:
@@ -233,20 +233,22 @@ func _build_sunlit_brick_street(parent: Node3D, palette: Dictionary) -> void:
 
 func _build_sunlit_brick_room(parent: Node3D, room_index: int, row: int, side: float, center_z: float, palette: Dictionary) -> void:
 	var room := _new_room(parent, room_index)
-	var wall_x := side * (map_width * 0.5 - 0.38)
-	_add_box(room, "BrickWall", Vector3(0.72, 5.4 + float(room_index % 3) * 0.45, LOT_WIDTH + 1.6), Vector3(wall_x, 2.7, center_z), "brick", palette, true)
-	_add_box(room, "SidewalkInset", Vector3(3.8, 0.08, LOT_WIDTH + 1.2), Vector3(side * (STREET_WIDTH * 0.5 + 1.9), 0.045, center_z), "sidewalk", palette, false)
+	var wall_height := 5.7 + float(room_index % 3) * 0.32
+	var wall_x := side * (STREET_WIDTH * 0.5 + 3.1)
+	_add_box(room, "BrickWall", Vector3(0.68, wall_height, LOT_WIDTH + 2.05), Vector3(wall_x, wall_height * 0.5, center_z), "brick", palette, true)
+	_add_box(room, "BrickCap", Vector3(0.82, 0.16, LOT_WIDTH + 2.12), Vector3(wall_x, wall_height + 0.08, center_z), "brick_light", palette, false)
+	_add_box(room, "SidewalkInset", Vector3(3.1, 0.08, LOT_WIDTH + 1.2), Vector3(side * (STREET_WIDTH * 0.5 + 1.55), 0.045, center_z), "sunlit_paving", palette, false)
 	if row % 2 == 1:
-		_add_box(room, "BrickTurn", Vector3(3.6, 4.1, 0.48), Vector3(side * (map_width * 0.5 - 2.0), 2.05, center_z + LOT_WIDTH * 0.46), "brick_dark", palette, true)
+		_add_box(room, "BrickTurn", Vector3(3.35, 4.6, 0.52), Vector3(side * (STREET_WIDTH * 0.5 + 1.75), 2.3, center_z + LOT_WIDTH * 0.53), "brick_dark", palette, true)
 	if row % 2 == 0:
 		_build_street_lamp(room, Vector3(side * (STREET_WIDTH * 0.5 - 0.65), 0.0, center_z - 2.6), palette, true)
 	if room_index % 4 == 1:
 		_build_mood_panel(room, room_index, Vector3(wall_x - side * 0.40, 2.15, center_z), side, palette)
-	_place_room_reward(room, room_index, Vector3(side * (STREET_WIDTH * 0.5 + 1.7), 0.0, center_z), palette)
+	_place_room_reward(room, room_index, Vector3(side * (STREET_WIDTH * 0.5 + 1.45), 0.0, center_z), palette)
 
 
 func _build_night_white_blocks(parent: Node3D, palette: Dictionary) -> void:
-	_add_box(parent, "NightWalk", Vector3(8.0, 0.035, map_length - 1.2), Vector3(0.0, 0.018, 0.0), "night_path", palette, false)
+	_add_box(parent, "NightWalk", Vector3(4.8, 0.035, map_length - 1.2), Vector3(-2.35, 0.018, 0.0), "night_path", palette, false)
 	var lot_rows := int(ceil(float(room_count) / 2.0))
 	for room_index in room_count:
 		var row := int(room_index / 2)
@@ -260,7 +262,7 @@ func _build_night_house(parent: Node3D, room_index: int, row: int, side: float, 
 	var room := _new_room(parent, room_index)
 	var height := 4.5 + float((room_index + built_floor) % 3) * 0.8
 	var depth := 5.4
-	var center_x := side * (STREET_WIDTH * 0.5 + 2.0 + depth * 0.5)
+	var center_x := side * (4.35 + depth * 0.5)
 	_add_box(room, "WhiteHouse", Vector3(depth, height, LOT_WIDTH), Vector3(center_x, height * 0.5, center_z), "white_wall", palette, true)
 	var face_x := center_x - side * (depth * 0.5 + 0.025)
 	for window_index in 3:
@@ -268,14 +270,14 @@ func _build_night_house(parent: Node3D, room_index: int, row: int, side: float, 
 		var window_z := center_z - 2.0 + float(window_index) * 2.0
 		_add_box(room, "Window%d" % window_index, Vector3(0.06, 0.92, 0.92), Vector3(face_x, window_y, window_z), "window", palette, false)
 	if row % 2 == 0:
-		_build_street_lamp(room, Vector3(side * 3.2, 0.0, center_z - 2.2), palette, false)
+		_build_street_lamp(room, Vector3(-4.25, 0.0, center_z - 2.2), palette, false)
 	if room_index % 4 == 2:
 		_build_mood_panel(room, room_index, Vector3(face_x - side * 0.04, 2.4, center_z + 1.4), side, palette)
-	_place_room_reward(room, room_index, Vector3(side * 4.6, 0.0, center_z), palette)
+	_place_room_reward(room, room_index, Vector3(side * 3.65, 0.0, center_z), palette)
 
 
 func _build_overgrown_gallery(parent: Node3D, palette: Dictionary) -> void:
-	_add_box(parent, "GalleryWalk", Vector3(8.4, 0.05, map_length - 1.0), Vector3(0.0, 0.025, 0.0), "gallery_floor", palette, false)
+	_add_box(parent, "GalleryWalk", Vector3(6.2, 0.05, map_length - 1.0), Vector3(0.0, 0.025, 0.0), "gallery_floor", palette, false)
 	var lot_rows := int(ceil(float(room_count) / 2.0))
 	for room_index in room_count:
 		var row := int(room_index / 2)
@@ -287,18 +289,21 @@ func _build_overgrown_gallery(parent: Node3D, palette: Dictionary) -> void:
 
 func _build_gallery_bay(parent: Node3D, room_index: int, row: int, side: float, center_z: float, palette: Dictionary) -> void:
 	var room := _new_room(parent, room_index)
-	var bay_center_x := side * 8.0
-	_add_box(room, "GalleryRoof", Vector3(6.7, 0.28, LOT_WIDTH + 1.3), Vector3(bay_center_x, 3.55, center_z), "white_wall", palette, true)
-	_add_box(room, "OuterWall", Vector3(0.34, 3.55, LOT_WIDTH + 1.3), Vector3(side * 11.2, 1.78, center_z), "white_wall", palette, true)
+	var bay_center_x := side * 5.15
+	_add_box(room, "GalleryRoof", Vector3(5.1, 0.28, LOT_WIDTH + 1.3), Vector3(bay_center_x, 3.55, center_z), "white_wall", palette, true)
+	if side < 0.0:
+		_add_box(room, "GalleryCeilingSpan", Vector3(5.4, 0.24, LOT_WIDTH + 1.3), Vector3(0.0, 3.55, center_z), "white_wall", palette, true)
+	_add_box(room, "OuterWall", Vector3(0.34, 3.55, LOT_WIDTH + 1.3), Vector3(side * 7.7, 1.78, center_z), "white_wall", palette, true)
 	for column_index in 4:
 		var column_z := center_z - 3.1 + float(column_index) * 2.05
-		_add_box(room, "Column%d" % column_index, Vector3(0.48, 3.55, 0.48), Vector3(side * 5.0, 1.78, column_z), "white_wall", palette, true)
-	for patch_index in 3:
-		var patch_pos := Vector3(side * (6.0 + float(patch_index % 2) * 2.2), 0.0, center_z - 2.0 + float(patch_index) * 1.8)
-		_build_grass_patch(room, patch_pos, room_index * 3 + patch_index, palette)
+		_add_box(room, "Column%d" % column_index, Vector3(0.52, 3.55, 0.52), Vector3(side * 2.75, 1.78, column_z), "white_wall", palette, true)
+	for patch_index in 4:
+		var patch_side := -1.0 if (room_index + patch_index) % 2 == 0 else 1.0
+		var patch_pos := Vector3(patch_side * (0.85 + float(patch_index % 2) * 0.75), 0.0, center_z - 2.6 + float(patch_index) * 1.65)
+		_build_grass_patch(room, patch_pos, room_index * 4 + patch_index, palette)
 	if row % 2 == 1:
-		_build_mood_panel(room, room_index, Vector3(side * 11.0, 2.0, center_z), side, palette)
-	_place_room_reward(room, room_index, Vector3(side * 4.7, 0.0, center_z), palette)
+		_build_mood_panel(room, room_index, Vector3(side * 7.5, 2.0, center_z), side, palette)
+	_place_room_reward(room, room_index, Vector3(side * 2.15, 0.0, center_z), palette)
 
 
 func _new_room(parent: Node3D, room_index: int) -> Node3D:
@@ -366,22 +371,37 @@ func _build_grass_patch(parent: Node3D, position: Vector3, seed_index: int, pale
 	patch.name = "GrassPatch%02d" % seed_index
 	patch.position = position
 	parent.add_child(patch)
-	for tuft_index in 7:
+	for tuft_index in 30:
 		var tuft := MeshInstance3D.new()
-		tuft.name = "Tuft%d" % tuft_index
-		var mesh := CylinderMesh.new()
-		mesh.top_radius = 0.03
-		mesh.bottom_radius = 0.10 + float((seed_index + tuft_index) % 3) * 0.025
-		mesh.height = 0.34 + float((seed_index * 3 + tuft_index) % 5) * 0.07
-		mesh.radial_segments = 5
-		tuft.mesh = mesh
+		tuft.name = "Blade%d" % tuft_index
+		var blade_width := 0.07 + float((seed_index + tuft_index) % 4) * 0.018
+		var blade_height := 0.30 + float((seed_index * 3 + tuft_index) % 8) * 0.055
+		tuft.mesh = _grass_blade_mesh(blade_width, blade_height, -0.04 + float((seed_index + tuft_index) % 5) * 0.02)
 		var angle := float(seed_index * 17 + tuft_index * 53) * 0.11
-		var radius := 0.14 + float(tuft_index % 3) * 0.18
-		tuft.position = Vector3(cos(angle) * radius, mesh.height * 0.5, sin(angle) * radius)
-		tuft.rotation_degrees.z = -8.0 + float((seed_index + tuft_index) % 5) * 4.0
+		var radius := 0.10 + float(tuft_index % 10) * 0.11
+		tuft.position = Vector3(cos(angle) * radius, blade_height * 0.5, sin(angle) * radius)
+		tuft.rotation_degrees = Vector3(0.0, rad_to_deg(angle) + float(tuft_index % 3) * 37.0, -9.0 + float((seed_index + tuft_index) % 7) * 3.0)
 		tuft.set_meta("theme_role", "grass")
 		tuft.material_override = _material("grass", palette, false)
 		patch.add_child(tuft)
+
+
+func _grass_blade_mesh(width: float, height: float, tip_offset: float) -> ArrayMesh:
+	var mesh := ArrayMesh.new()
+	var arrays: Array = []
+	arrays.resize(Mesh.ARRAY_MAX)
+	arrays[Mesh.ARRAY_VERTEX] = PackedVector3Array([
+		Vector3(-width * 0.5, -height * 0.5, 0.0),
+		Vector3(width * 0.5, -height * 0.5, 0.0),
+		Vector3(tip_offset, height * 0.5, 0.0),
+	])
+	arrays[Mesh.ARRAY_TEX_UV] = PackedVector2Array([
+		Vector2(0.0, 1.0),
+		Vector2(1.0, 1.0),
+		Vector2(0.5, 0.0),
+	])
+	mesh.add_surface_from_arrays(Mesh.PRIMITIVE_TRIANGLES, arrays)
+	return mesh
 
 
 func _build_reference_portal(parent: Node3D, texture_path: String, _palette: Dictionary) -> void:
@@ -389,11 +409,13 @@ func _build_reference_portal(parent: Node3D, texture_path: String, _palette: Dic
 	if texture == null:
 		return
 	var aspect := float(texture.get_width()) / maxf(1.0, float(texture.get_height()))
-	var portal_height := 7.6
-	var portal_width := portal_height * aspect
-	if portal_width > map_width - 5.0:
-		portal_width = map_width - 5.0
-		portal_height = portal_width / aspect
+	var portal_width := 12.8
+	if district_style == "night_white_blocks":
+		portal_width = 10.8
+	elif district_style == "overgrown_gallery":
+		portal_width = 8.2
+	portal_width = minf(portal_width, map_width - 5.0)
+	var portal_height := minf(16.0, portal_width / aspect)
 	var portal := MeshInstance3D.new()
 	portal.name = "ReferencePortal"
 	var quad := QuadMesh.new()
@@ -406,6 +428,9 @@ func _build_reference_portal(parent: Node3D, texture_path: String, _palette: Dic
 	material.texture_filter = BaseMaterial3D.TEXTURE_FILTER_LINEAR_WITH_MIPMAPS
 	material.shading_mode = BaseMaterial3D.SHADING_MODE_UNSHADED
 	material.cull_mode = BaseMaterial3D.CULL_DISABLED
+	material.emission_enabled = true
+	material.emission_texture = texture
+	material.emission_energy_multiplier = 0.28
 	portal.material_override = material
 	parent.add_child(portal)
 
@@ -670,6 +695,8 @@ func _material(role: String, palette: Dictionary, emission: bool) -> StandardMat
 	material.albedo_color = _role_color(role, palette)
 	material.roughness = 0.94
 	material.metallic = 0.0
+	if role == "grass":
+		material.cull_mode = BaseMaterial3D.CULL_DISABLED
 	if emission or role == "lamp_light":
 		material.emission_enabled = true
 		material.emission = _role_color(role, palette)
@@ -680,17 +707,21 @@ func _material(role: String, palette: Dictionary, emission: bool) -> StandardMat
 func _role_color(role: String, palette: Dictionary) -> Color:
 	match role:
 		"brick":
-			return Color("C8A878").lerp(_color(palette, "surface"), 0.18)
+			return Color("D7B77F").lerp(_color(palette, "surface"), 0.12)
+		"brick_light":
+			return Color("E8CEA0").lerp(_color(palette, "surface"), 0.10)
 		"brick_dark":
-			return Color("826D52").lerp(_color(palette, "accent"), 0.12)
+			return Color("8F7655").lerp(_color(palette, "accent"), 0.08)
 		"white_wall":
-			return Color("E8EBE1").lerp(_color(palette, "surface"), 0.20)
+			return Color("F0F2E9") if district_style == "night_white_blocks" else Color("EEF0E4")
 		"window":
 			return Color("0B0D0B").lerp(_color(palette, "ink"), 0.35)
 		"grass":
 			return (Color("17321D") if district_style == "night_white_blocks" else Color("4F7134")).lerp(_color(palette, "accent"), 0.18)
 		"gallery_floor":
-			return Color("D7DDCF").lerp(_color(palette, "surface"), 0.28)
+			return Color("E1E5D8").lerp(_color(palette, "surface"), 0.12)
+		"sunlit_paving":
+			return Color("D7C8A8").lerp(_color(palette, "surface"), 0.16)
 		"night_path":
 			return Color("151613").lerp(_color(palette, "ink"), 0.42)
 		"crosswalk":
