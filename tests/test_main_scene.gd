@@ -199,9 +199,9 @@ func _run() -> void:
 		var thought_layer := root.get_node_or_null("CanvasLayer/UIRoot/ThoughtWordLayer") as Control
 		var puzzle_frame := root.get_node_or_null("CanvasLayer/UIRoot/LanguagePuzzleFrame") as PanelContainer
 		var reality_subtitle := _find_node_by_name(root, "RealitySubtitlePanel") as PanelContainer
-		var reality_subtitle_label := _find_node_by_name(root, "RealitySubtitleLabel") as Label
+		var reality_subtitle_label := _find_node_by_name(root, "RealitySubtitleLabel") as RichTextLabel
 		var reality_choices := _find_node_by_name(root, "RealityResponseChoices") as HBoxContainer
-		var reality_intent_preview := _find_node_by_name(root, "RealityIntentPreview") as Label
+		var reality_intent_preview := _find_node_by_name(root, "RealityIntentPreview") as RichTextLabel
 		var reality_typing_line := _find_node_by_name(root, "RealityTypingLine") as RichTextLabel
 		var reality_typing_progress := _find_node_by_name(root, "RealityTypingProgress") as Label
 		var reality_continue := _find_node_by_name(root, "RealityConversationContinue") as Button
@@ -407,9 +407,9 @@ func _run() -> void:
 					thought_layer = root.get_node_or_null("CanvasLayer/UIRoot/ThoughtWordLayer") as Control
 					puzzle_frame = root.get_node_or_null("CanvasLayer/UIRoot/LanguagePuzzleFrame") as PanelContainer
 					reality_subtitle = _find_node_by_name(root, "RealitySubtitlePanel") as PanelContainer
-					reality_subtitle_label = _find_node_by_name(root, "RealitySubtitleLabel") as Label
+					reality_subtitle_label = _find_node_by_name(root, "RealitySubtitleLabel") as RichTextLabel
 					reality_choices = _find_node_by_name(root, "RealityResponseChoices") as HBoxContainer
-					reality_intent_preview = _find_node_by_name(root, "RealityIntentPreview") as Label
+					reality_intent_preview = _find_node_by_name(root, "RealityIntentPreview") as RichTextLabel
 					reality_typing_line = _find_node_by_name(root, "RealityTypingLine") as RichTextLabel
 					reality_typing_progress = _find_node_by_name(root, "RealityTypingProgress") as Label
 					reality_continue = _find_node_by_name(root, "RealityConversationContinue") as Button
@@ -673,7 +673,7 @@ func _run() -> void:
 				var social_height := social_app_window.offset_bottom - social_app_window.offset_top
 				var current_social_feed_masonry := _find_node_by_name(root, "SocialFeedMasonry") as HBoxContainer
 				_assert_true(social_width >= 410.0, "social app window should leave two readable masonry columns")
-				_assert_true(social_width <= 430.0, "social app window should match the reference phone width")
+				_assert_true(social_width <= 445.0, "social app window should match the wider reference phone width without crowding")
 				_assert_true(social_height >= 840.0, "social app window should use the available vertical phone space")
 				_assert_true(social_height / maxf(1.0, social_width) >= 2.0, "social app window should use a true tall-phone composition")
 				_assert_true(social_height / maxf(1.0, social_width) <= 2.1, "social app window should not become an excessively narrow strip")
@@ -755,8 +755,8 @@ func _run() -> void:
 				_assert_true(not publish_contract_title_after_nav.text.is_empty(), "daily signal hand should have a visible name")
 				_assert_true(str(publish_contract_text_after_nav.text).contains("奖励") and str(publish_contract_text_after_nav.text).contains("污染"), "daily signal hand should reveal both reward and pollution risk before publishing")
 			if publish_score_text_after_nav != null:
-				_assert_true(str(publish_score_text_after_nav.text).contains("传播基础") and str(publish_score_text_after_nav.text).contains("共鸣倍率") and str(publish_score_text_after_nav.text).contains("牌型倍率"), "publish score breakdown should label base, resonance, and signal-hand multipliers")
-				_assert_true(str(publish_score_text_after_nav.text).contains("遗物倍率"), "publish score breakdown should reserve a visible multiplier row for street relics")
+				_assert_true(str(publish_score_text_after_nav.text).contains("传播基础") and str(publish_score_text_after_nav.text).contains("整数倍率") and str(publish_score_text_after_nav.text).contains("倍率来源"), "publish score breakdown should collapse every bonus into one readable integer multiplier")
+				_assert_true(not str(publish_score_text_after_nav.text).contains("共鸣倍率") and not str(publish_score_text_after_nav.text).contains("遗物倍率"), "publish score breakdown should remove separate decimal multiplier rows")
 			if composer_after_nav != null and publish_scroll_after_nav != null:
 				_assert_true(_is_descendant_of(composer_after_nav, publish_scroll_after_nav), "publish composer should scroll inside the phone instead of stretching the phone")
 			if publish_button_after_nav != null and publish_action_bar_after_nav != null and publish_scroll_after_nav != null:
@@ -891,7 +891,7 @@ func _run() -> void:
 			_assert_eq(root.game.actions_remaining, 5, "flashback settlement should restore next-day actions")
 			_assert_true(not flashback_overlay.visible, "flashback overlay should hide after automatic settlement")
 		root.game.notebook_tokens = [
-			{"id": "n1", "text": "哈吉米", "tags": ["哈吉米"], "rarity": 1, "source_passive": {"id": "callback_resonance", "label": "回拨共鸣", "description": "每个命中风向额外 +0.10", "effect": "synergy_step", "value": 0.10}},
+			{"id": "n1", "text": "哈吉米", "tags": ["哈吉米"], "rarity": 1, "source_passive": {"id": "callback_resonance", "label": "回拨共鸣", "description": "命中风向时传播基础 +10", "effect": "trend_base", "value": 10}},
 			{"id": "n2", "text": "空位", "tags": ["空位"], "rarity": 1},
 			{"id": "n3", "text": "塔下", "tags": ["巴别塔"], "rarity": 1},
 			{"id": "n4", "text": "无信号", "tags": ["信号"], "rarity": 1},
@@ -1125,19 +1125,24 @@ func _run() -> void:
 			reality_player.position = reality_merchant.position + Vector3(0.0, 0.0, 1.4)
 			root._refresh_nearby_reality_actor()
 			_assert_true(root._try_reality_interaction(), "approaching a billboard actor and pressing F should enter reality dialogue")
+			for frame in 5:
+				await process_frame
 			reality_subtitle = _find_node_by_name(root, "RealitySubtitlePanel") as PanelContainer
 			reality_choices = _find_node_by_name(root, "RealityResponseChoices") as HBoxContainer
-			reality_intent_preview = _find_node_by_name(root, "RealityIntentPreview") as Label
+			reality_intent_preview = _find_node_by_name(root, "RealityIntentPreview") as RichTextLabel
 			reality_typing_line = _find_node_by_name(root, "RealityTypingLine") as RichTextLabel
 			reality_typing_progress = _find_node_by_name(root, "RealityTypingProgress") as Label
 			_assert_true(reality_subtitle != null and reality_subtitle.visible, "F interaction should reveal the movie subtitle")
-			_assert_true(reality_subtitle_label != null and str(reality_subtitle_label.text).contains("我只收还能被别人听懂的东西"), "NPC speech should remain clear even when the protagonist is highly polluted")
+			_assert_true(reality_subtitle_label != null and str(reality_subtitle_label.get("bbcode")).contains("我只收还能被别人听懂的东西"), "NPC speech should remain clear even when the protagonist is highly polluted")
+			_assert_true(reality_subtitle_label != null and str(reality_subtitle_label.get("bbcode")).contains("[curspull"), "all NPC dialogue text should use the cursor-pull text effect")
+			_assert_true(_rich_text_has_effect(reality_subtitle_label, "curspull"), "the plugin should install the curspull effect at runtime; got %s" % str(_rich_text_effect_names(reality_subtitle_label)))
 			_assert_true(reality_choices != null and reality_choices.visible and reality_choices.get_child_count() == 3, "F interaction should reveal exactly three response choices")
 			var choices: Array = root.game.get_typed_reality_choices()
 			var first_choice_id := str(choices[0].get("id", ""))
 			root._on_reality_choice_hovered(first_choice_id)
 			_assert_true(reality_intent_preview != null and reality_intent_preview.visible, "hovering a short choice should reveal the complete intended sentence")
-			_assert_true(reality_intent_preview != null and str(reality_intent_preview.text).contains("哈吉米，必须补票"), "hover preview should include inherited language automatically")
+			_assert_true(reality_intent_preview != null and str(reality_intent_preview.get("bbcode")).contains("哈吉米，必须补票"), "hover preview should include inherited language automatically")
+			_assert_true(reality_intent_preview != null and str(reality_intent_preview.get("bbcode")).contains("[curspull"), "hovered intent text should use the cursor-pull text effect")
 			if reality_intent_preview != null and reality_subtitle != null:
 				_assert_true(not _controls_overlap(reality_intent_preview, reality_subtitle), "full-intent hover preview should not obscure the previous NPC subtitle")
 			root._on_reality_choice_selected(first_choice_id)
@@ -1147,9 +1152,14 @@ func _run() -> void:
 			var actions_before_typing := int(root.game.actions_remaining)
 			_assert_true(root._advance_typed_reality_character(), "one arbitrary key path should reveal one character")
 			root._render()
+			for frame in 5:
+				await process_frame
 			_assert_eq(root.game.conversation_reveal_index, 1, "one arbitrary key should move the reveal cursor once")
 			_assert_eq(root.game.actions_remaining, actions_before_typing, "partial per-key typing should not spend an action")
-			_assert_true(str(reality_typing_line.text).to_lower().contains("ff3b30"), "polluted revealed characters should render in signal red")
+			var typed_bbcode := str(reality_typing_line.get("bbcode")).to_lower()
+			_assert_true(typed_bbcode.contains("ff3b30"), "polluted revealed characters should render in signal red")
+			_assert_true(typed_bbcode.contains("[curspull") and typed_bbcode.contains("[cuss]"), "typed dialogue should pull toward the cursor and apply cuss only to polluted glyphs")
+			_assert_true(_rich_text_has_effect(reality_typing_line, "curspull") and _rich_text_has_effect(reality_typing_line, "cuss"), "the plugin should install both requested typing effects at runtime; got %s" % str(_rich_text_effect_names(reality_typing_line)))
 			while root.game.conversation_phase == "typing":
 				root._advance_typed_reality_character()
 			if root._input_locked:
@@ -1318,6 +1328,24 @@ func _is_descendant_of(node: Node, ancestor: Node) -> bool:
 			return true
 		current = current.get_parent()
 	return false
+
+
+func _rich_text_has_effect(label: RichTextLabel, effect_name: String) -> bool:
+	if label == null:
+		return false
+	for effect in label.custom_effects:
+		if str(effect.resource_name) == effect_name:
+			return true
+	return false
+
+
+func _rich_text_effect_names(label: RichTextLabel) -> Array[String]:
+	var names: Array[String] = []
+	if label == null:
+		return names
+	for effect in label.custom_effects:
+		names.append(str(effect.resource_name))
+	return names
 
 
 func _controls_overlap(a: Control, b: Control) -> bool:

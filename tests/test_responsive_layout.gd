@@ -106,7 +106,7 @@ func _run() -> void:
 		_assert_true(_inside_rect(reality_choices, viewport_rect), "small-view response choices should stay inside the viewport")
 	var first_choice_id := str(game_root.game.get_typed_reality_choices()[0].get("id", ""))
 	game_root._on_reality_choice_hovered(first_choice_id)
-	var intent_preview := _find_node_by_name(game_root, "RealityIntentPreview") as Label
+	var intent_preview := _find_node_by_name(game_root, "RealityIntentPreview") as RichTextLabel
 	_assert_true(intent_preview != null and intent_preview.visible, "small-view hover should reveal the full intended sentence")
 	if intent_preview != null:
 		_assert_true(_inside_rect(intent_preview, viewport_rect), "small-view intent preview should stay inside the viewport")

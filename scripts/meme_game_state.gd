@@ -23,7 +23,7 @@ const SIGNAL_CONTRACTS := [
 		"rule": "matching_tags",
 		"threshold": 2,
 		"base_bonus": 12,
-		"multiplier": 1.35,
+		"multiplier_bonus": 1,
 		"pollution_risk": 2,
 	},
 	{
@@ -33,7 +33,7 @@ const SIGNAL_CONTRACTS := [
 		"rule": "tag_count",
 		"threshold": 4,
 		"base_bonus": 10,
-		"multiplier": 1.45,
+		"multiplier_bonus": 1,
 		"pollution_risk": 3,
 	},
 	{
@@ -43,7 +43,7 @@ const SIGNAL_CONTRACTS := [
 		"rule": "emotion_count",
 		"threshold": 2,
 		"base_bonus": 8,
-		"multiplier": 1.60,
+		"multiplier_bonus": 2,
 		"pollution_risk": 4,
 	},
 	{
@@ -53,7 +53,7 @@ const SIGNAL_CONTRACTS := [
 		"rule": "all_tags",
 		"required_tags": ["空位", "沉默"],
 		"base_bonus": 18,
-		"multiplier": 1.45,
+		"multiplier_bonus": 1,
 		"pollution_risk": 3,
 	},
 	{
@@ -63,7 +63,7 @@ const SIGNAL_CONTRACTS := [
 		"rule": "all_tags",
 		"required_tags": ["巴别塔", "信徒", "圣歌"],
 		"base_bonus": 22,
-		"multiplier": 1.65,
+		"multiplier_bonus": 2,
 		"pollution_risk": 5,
 	},
 	{
@@ -74,7 +74,7 @@ const SIGNAL_CONTRACTS := [
 		"threshold": 1,
 		"required_tags": ["反问", "禁问"],
 		"base_bonus": 26,
-		"multiplier": 1.75,
+		"multiplier_bonus": 2,
 		"pollution_risk": 6,
 	},
 ]
@@ -94,8 +94,8 @@ const MAX_HELD_ARCANA_CARDS := 2
 const ARCANA_CARDS := {
 	"moon": {
 		"id": "moon", "numeral": "XVIII", "label": "月亮", "price": 8,
-		"effect": "next_multiplier", "multiplier": 1.40, "pollution_risk": 4,
-		"description": "下一次传播总倍率 ×1.40，同时追加 4 污染。",
+		"effect": "next_multiplier_bonus", "value": 1, "pollution_risk": 4,
+		"description": "下一次传播的整数倍率 +1，同时追加 4 污染。",
 	},
 	"tower": {
 		"id": "tower", "numeral": "XVI", "label": "高塔", "price": 10,
@@ -125,13 +125,13 @@ const ARCANA_CARDS := {
 }
 const ARCANA_ROTATION := ["moon", "star", "hermit", "tower", "hanged", "judgement"]
 const ASCENT_REWARDS := [
-	{"id": "echo_amplifier", "label": "回声增幅", "description": "每个命中风向让共鸣倍率额外 +0.08。", "effect": "synergy_step", "value": 0.08},
-	{"id": "pollution_dividend", "label": "污染分红", "description": "污染传播倍率固定额外 +0.15。", "effect": "pollution_bonus", "value": 0.15},
+	{"id": "echo_amplifier", "label": "回声增幅", "description": "命中至少 2 个风向时，整数倍率额外 +1。", "effect": "trend_multiplier_bonus", "value": 1.0},
+	{"id": "pollution_dividend", "label": "污染分红", "description": "污染达到 40% 时，传播基础 +10。", "effect": "pollution_base", "value": 10.0},
 	{"id": "repeat_license", "label": "复读许可", "description": "第一次复用相同表达不触发衰减。", "effect": "repeat_grace", "value": 1.0},
 	{"id": "legacy_fold", "label": "遗产折叠", "description": "每条遗产造成的理解惩罚减少 4。", "effect": "legacy_relief", "value": 4.0},
 	{"id": "quiet_subsidy", "label": "沉默补贴", "description": "现实沟通造成的资金损失减少 2。", "effect": "relationship_shield", "value": 2.0},
 	{"id": "empty_slot_bonus", "label": "空位加码", "description": "带有空位或沉默标签时，传播基础 +8。", "effect": "empty_base", "value": 8.0},
-	{"id": "emotion_afterimage", "label": "情绪余像", "description": "每个装备情绪让情绪倍率额外 +0.03。", "effect": "emotion_step", "value": 0.03},
+	{"id": "emotion_afterimage", "label": "情绪余像", "description": "每个装备情绪让传播基础 +4。", "effect": "emotion_base", "value": 4.0},
 ]
 const CLEAN_WORDS := ["我", "想", "正常", "说明", "这件事", "不是", "那个意思", "请", "听我", "说完"]
 const FALLBACK_LEGACY_TEXTS := {
@@ -358,9 +358,8 @@ func collect_world_item(item_data: Dictionary) -> bool:
 	match effect:
 		"publish_base":
 			pending_world_item_effects["base_bonus"] = int(pending_world_item_effects.get("base_bonus", 0)) + int(item_data.get("value", 0))
-		"publish_multiplier":
-			var current_multiplier := float(pending_world_item_effects.get("multiplier", 1.0))
-			pending_world_item_effects["multiplier"] = snappedf(current_multiplier * float(item_data.get("value", 1.0)), 0.01)
+		"publish_multiplier_bonus":
+			pending_world_item_effects["multiplier_bonus"] = int(pending_world_item_effects.get("multiplier_bonus", 0)) + int(item_data.get("value", 0))
 		"clarity":
 			clarity = clampi(clarity + int(item_data.get("value", 0)), 0, 100)
 		_:
@@ -932,12 +931,9 @@ func use_arcana_card(card_uid: String, meme_id: String = "") -> bool:
 	var card: Dictionary = ARCANA_CARDS.get(str(held.get("id", "")), {})
 	var label := str(card.get("label", "未命名玄牌"))
 	match str(card.get("effect", "")):
-		"next_multiplier":
+		"next_multiplier_bonus":
 			_ensure_pending_arcana_effects()
-			pending_arcana_effects["multiplier"] = snappedf(
-				float(pending_arcana_effects.get("multiplier", 1.0)) * float(card.get("multiplier", 1.0)),
-				0.01
-			)
+			pending_arcana_effects["multiplier_bonus"] = int(pending_arcana_effects.get("multiplier_bonus", 0)) + int(card.get("value", 0))
 			pending_arcana_effects["pollution_risk"] = int(pending_arcana_effects.get("pollution_risk", 0)) + int(card.get("pollution_risk", 0))
 			_append_pending_arcana_label(label)
 		"force_contract":
@@ -1088,9 +1084,9 @@ func confirm_dialogue() -> bool:
 		return false
 	last_publish_breakdown = breakdown.duplicate(true)
 	if bool(breakdown.get("contract_matched", false)):
-		event_log.push_front("牌型完成：%s，传播倍率 ×%.2f。" % [
+		event_log.push_front("牌型完成：%s，整数倍率 +%d。" % [
 			str(breakdown.get("contract_label", "未知牌型")),
-			float(breakdown.get("contract_multiplier", 1.0)),
+			int(breakdown.get("contract_multiplier_bonus", 0)),
 		])
 	var arcana_labels: Array = breakdown.get("active_arcana_labels", [])
 	if not arcana_labels.is_empty():
@@ -1354,82 +1350,106 @@ func _calculate_publish_breakdown(meme: Dictionary, matching_tags: Array) -> Dic
 	if force_contract and not bool(contract_result.get("matched", false)):
 		contract_result["matched"] = true
 		contract_result["progress"] = "高塔覆写 / 强制成立"
-	var source_base_bonus := 0.0
-	var source_synergy_step := 0.0
-	var source_pollution_bonus := 0.0
-	var source_repeat_relief := 0.0
+	var source_base_bonus := 0
+	var source_repeat_grace := 0
 	var active_source_passive_labels: Array[String] = []
 	for passive in meme.get("source_passives", []):
 		var effect_id := str(passive.get("effect", ""))
 		var value := float(passive.get("value", 0.0))
+		var active := false
 		match effect_id:
 			"base_bonus":
-				source_base_bonus += value
+				source_base_bonus += int(round(value))
+				active = true
+			"trend_base":
+				if not matching_tags.is_empty():
+					source_base_bonus += int(round(value))
+					active = true
+			"pollution_base":
+				if pollution >= 40:
+					source_base_bonus += int(round(value))
+					active = true
+			"repeat_grace":
+				source_repeat_grace += maxi(0, int(round(value)))
+				active = repeat_count > 0
+			# Older crafted memes remain readable after the integer-score migration.
 			"synergy_step":
-				source_synergy_step += value
+				if not matching_tags.is_empty():
+					source_base_bonus += int(round(value * 100.0))
+					active = true
 			"pollution_bonus":
-				source_pollution_bonus += value
+				if pollution >= 40:
+					source_base_bonus += int(round(value * 100.0))
+					active = true
 			"repeat_relief":
-				source_repeat_relief += value
-		if effect_id != "synergy_step" or not matching_tags.is_empty():
+				source_repeat_grace += 1 if value > 0.0 else 0
+				active = repeat_count > 0
+		if active:
 			active_source_passive_labels.append(str(passive.get("label", "来源被动")))
 	var empty_base_bonus := int(round(_modifier_total("empty_base"))) if ("空位" in tags or "沉默" in tags) else 0
+	var pollution_base_bonus := int(round(_modifier_total("pollution_base"))) if pollution >= 40 else 0
+	var emotion_base_bonus: int = mini(16, maxi(0, int(meme.get("pollution_bias", 0))) * 2)
+	emotion_base_bonus += maxi(0, int(meme.get("emotion_count", 0))) * int(round(_modifier_total("emotion_base")))
 	var contract_base_bonus := int(contract_result.get("base_bonus", 0)) if bool(contract_result.get("matched", false)) else 0
 	var arcana_base_bonus := int(pending_arcana_effects.get("base_bonus", 0))
 	var world_item_base_bonus := int(pending_world_item_effects.get("base_bonus", 0))
-	var base_value := 12 + rarity * 6 + matching_tags.size() * 8 + empty_base_bonus + int(round(source_base_bonus)) + contract_base_bonus + arcana_base_bonus + world_item_base_bonus
-	var synergy_step := 0.25 + _modifier_total("synergy_step") + source_synergy_step
-	var synergy_multiplier := 1.0 + matching_tags.size() * synergy_step
-	var pollution_multiplier := 1.0 + float(pollution) / 100.0 * 0.65 + _modifier_total("pollution_bonus") + source_pollution_bonus
-	var emotion_bonus := minf(0.60, float(maxi(0, int(meme.get("pollution_bias", 0)))) * 0.04)
-	emotion_bonus += float(maxi(0, int(meme.get("emotion_count", 0)))) * _modifier_total("emotion_step")
-	var emotion_multiplier := 1.0 + emotion_bonus
+	var base_value: int = 12 + rarity * 6 + matching_tags.size() * 8 + empty_base_bonus + pollution_base_bonus + emotion_base_bonus + source_base_bonus + contract_base_bonus + arcana_base_bonus + world_item_base_bonus
+	var trend_multiplier_bonus := mini(2, matching_tags.size())
+	if matching_tags.size() >= 2:
+		trend_multiplier_bonus += int(round(_modifier_total("trend_multiplier_bonus")))
+	var pollution_multiplier_bonus := (1 if pollution >= 40 else 0) + (1 if pollution >= 70 else 0)
 	var arcana_repeat_grace := int(pending_arcana_effects.get("repeat_grace", 0))
-	var effective_repeat_count := maxi(0, repeat_count - int(round(_modifier_total("repeat_grace"))) - arcana_repeat_grace)
-	var repeat_multiplier := minf(1.0, maxf(0.28, 1.0 - effective_repeat_count * 0.18 + source_repeat_relief))
-	var contract_multiplier := float(contract_result.get("multiplier", 1.0)) if bool(contract_result.get("matched", false)) else 1.0
-	var arcana_multiplier := float(pending_arcana_effects.get("multiplier", 1.0))
-	var world_item_multiplier := float(pending_world_item_effects.get("multiplier", 1.0))
-	var total_multiplier := snappedf(synergy_multiplier * pollution_multiplier * emotion_multiplier * repeat_multiplier * contract_multiplier * arcana_multiplier * world_item_multiplier, 0.01)
-	var score := maxi(1, int(round(base_value * total_multiplier)))
+	var effective_repeat_count := maxi(0, repeat_count - int(round(_modifier_total("repeat_grace"))) - source_repeat_grace - arcana_repeat_grace)
+	var repeat_penalty := mini(2, effective_repeat_count)
+	var contract_multiplier_bonus := int(contract_result.get("multiplier_bonus", 0)) if bool(contract_result.get("matched", false)) else 0
+	var arcana_multiplier_bonus := int(pending_arcana_effects.get("multiplier_bonus", 0))
+	var world_item_multiplier_bonus := int(pending_world_item_effects.get("multiplier_bonus", 0))
+	var total_multiplier := maxi(1, 1 + trend_multiplier_bonus + pollution_multiplier_bonus + contract_multiplier_bonus + arcana_multiplier_bonus + world_item_multiplier_bonus - repeat_penalty)
+	var score := maxi(1, base_value * total_multiplier)
 	var active_modifier_labels: Array[String] = []
 	for modifier in permanent_modifiers:
 		var effect_id := str(modifier.get("effect", ""))
-		var is_active := effect_id == "pollution_bonus"
-		is_active = is_active or (effect_id == "synergy_step" and not matching_tags.is_empty())
+		var is_active := effect_id == "pollution_base" and pollution >= 40
+		is_active = is_active or (effect_id == "trend_multiplier_bonus" and matching_tags.size() >= 2)
 		is_active = is_active or (effect_id == "repeat_grace" and repeat_count > 0)
 		is_active = is_active or (effect_id == "empty_base" and empty_base_bonus > 0)
-		is_active = is_active or (effect_id == "emotion_step" and int(meme.get("emotion_count", 0)) > 0)
+		is_active = is_active or (effect_id == "emotion_base" and int(meme.get("emotion_count", 0)) > 0)
 		if is_active:
 			active_modifier_labels.append(str(modifier.get("label", "永久许可")))
 	return {
 		"base_value": base_value,
 		"matching_tags": matching_tags.duplicate(),
-		"synergy_multiplier": snappedf(synergy_multiplier, 0.01),
-		"pollution_multiplier": snappedf(pollution_multiplier, 0.01),
-		"emotion_multiplier": snappedf(emotion_multiplier, 0.01),
-		"repeat_multiplier": snappedf(repeat_multiplier, 0.01),
+		"trend_multiplier_bonus": trend_multiplier_bonus,
+		"pollution_multiplier_bonus": pollution_multiplier_bonus,
+		"repeat_penalty": repeat_penalty,
+		"synergy_multiplier": 1 + trend_multiplier_bonus,
+		"pollution_multiplier": 1 + pollution_multiplier_bonus,
+		"emotion_multiplier": 1,
+		"repeat_multiplier": 1,
 		"contract_id": str(contract_result.get("id", "")),
 		"contract_label": str(contract_result.get("label", "未命名牌型")),
 		"contract_description": str(contract_result.get("description", "")),
 		"contract_progress": str(contract_result.get("progress", "")),
 		"contract_matched": bool(contract_result.get("matched", false)),
 		"contract_base_bonus": contract_base_bonus,
-		"contract_multiplier": snappedf(contract_multiplier, 0.01),
+		"contract_multiplier_bonus": contract_multiplier_bonus,
+		"contract_multiplier": 1 + contract_multiplier_bonus,
 		"contract_pollution_risk": int(contract_result.get("pollution_risk", 0)) if bool(contract_result.get("matched", false)) else 0,
 		"arcana_base_bonus": arcana_base_bonus,
-		"arcana_multiplier": snappedf(arcana_multiplier, 0.01),
+		"arcana_multiplier_bonus": arcana_multiplier_bonus,
+		"arcana_multiplier": 1 + arcana_multiplier_bonus,
 		"arcana_pollution_risk": int(pending_arcana_effects.get("pollution_risk", 0)),
 		"arcana_force_contract": force_contract,
 		"arcana_repeat_grace": arcana_repeat_grace,
 		"active_arcana_labels": (pending_arcana_effects.get("labels", []) as Array).duplicate(),
 		"world_item_base_bonus": world_item_base_bonus,
-		"world_item_multiplier": snappedf(world_item_multiplier, 0.01),
+		"world_item_multiplier_bonus": world_item_multiplier_bonus,
+		"world_item_multiplier": 1 + world_item_multiplier_bonus,
 		"active_world_item_labels": (pending_world_item_effects.get("labels", []) as Array).duplicate(),
 		"total_multiplier": total_multiplier,
 		"repeat_count": repeat_count,
 		"effective_repeat_count": effective_repeat_count,
-		"modifier_base_bonus": empty_base_bonus,
+		"modifier_base_bonus": empty_base_bonus + pollution_base_bonus + emotion_base_bonus,
 		"active_modifier_labels": active_modifier_labels,
 		"active_source_passive_labels": active_source_passive_labels,
 		"score": score,
@@ -1637,7 +1657,7 @@ func _ensure_pending_arcana_effects() -> void:
 	if pending_arcana_effects.is_empty():
 		pending_arcana_effects = {
 			"base_bonus": 0,
-			"multiplier": 1.0,
+			"multiplier_bonus": 0,
 			"pollution_risk": 0,
 			"repeat_grace": 0,
 			"force_contract": false,

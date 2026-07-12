@@ -4,6 +4,7 @@ const MemeGameStateScript = preload("res://scripts/meme_game_state.gd")
 const DraggableButtonScript = preload("res://scripts/ui/draggable_button.gd")
 const DropButtonScript = preload("res://scripts/ui/drop_button.gd")
 const RealityFloorGeneratorScript = preload("res://scripts/reality_floor_generator.gd")
+const RicherTextLabelScript = preload("res://addons/richtext2/richer_text_label.gd")
 
 const PALETTE_1 := {
 	"name": "palette_1",
@@ -56,6 +57,7 @@ const REALITY_INTERACTION_DISTANCE := 2.25
 const REALITY_FALL_RECOVERY_Y := -3.0
 const REALITY_SAFE_INSET := 1.2
 const CINEMATIC_ASPECT_RATIO := 2.35
+const CINEMATIC_MAX_BAR_RATIO := 0.12
 const SOCIAL_POST_CARDS := [
 	{
 		"id": "floor_13", "poster_cell": 0, "caption": "旧教学楼昨晚多出一层", "handle": "塔下施工档案",
@@ -68,7 +70,7 @@ const SOCIAL_POST_CARDS := [
 	},
 	{
 		"id": "self_call", "poster_cell": 1, "caption": "无信号时收到明天短信", "handle": "无信号通勤",
-		"text": "求证：断网后，我收到明天的自己发来的哈吉米。", "tags": ["哈吉米", "刷新", "追问"], "rarity": 3, "passive": {"id": "callback_resonance", "label": "回拨共鸣", "description": "每个命中风向额外 +0.10", "effect": "synergy_step", "value": 0.10},
+		"text": "求证：断网后，我收到明天的自己发来的哈吉米。", "tags": ["哈吉米", "刷新", "追问"], "rarity": 3, "passive": {"id": "callback_resonance", "label": "回拨共鸣", "description": "命中风向时传播基础 +10", "effect": "trend_base", "value": 10},
 		"tokens": [
 			{"id": "no_signal", "text": "无信号", "tags": ["沉默", "空位"], "rarity": 1},
 			{"id": "self_call", "text": "自己发来的", "tags": ["追问", "反问"], "rarity": 2},
@@ -77,7 +79,7 @@ const SOCIAL_POST_CARDS := [
 	},
 	{
 		"id": "missing_window", "poster_cell": 2, "caption": "塔下每晚少一个窗口", "handle": "塔下夜巡",
-		"text": "记录：塔下每到午夜，就少一扇亮着的窗。", "tags": ["巴别塔", "沉默"], "rarity": 2, "passive": {"id": "blackout_dividend", "label": "熄灯增益", "description": "污染倍率额外 +0.08", "effect": "pollution_bonus", "value": 0.08},
+		"text": "记录：塔下每到午夜，就少一扇亮着的窗。", "tags": ["巴别塔", "沉默"], "rarity": 2, "passive": {"id": "blackout_dividend", "label": "熄灯增益", "description": "污染达到 40% 时基础 +8", "effect": "pollution_base", "value": 8},
 		"tokens": [
 			{"id": "midnight", "text": "每到午夜", "tags": ["日常", "刷新"], "rarity": 1},
 			{"id": "one_less", "text": "少一扇窗", "tags": ["沉默", "空位"], "rarity": 2},
@@ -86,7 +88,7 @@ const SOCIAL_POST_CARDS := [
 	},
 	{
 		"id": "extra_moon", "poster_cell": 3, "caption": "照片里月亮多了一颗", "handle": "夜空误差簿",
-		"text": "对照：昨晚的照片里，月亮比现实多一颗。", "tags": ["信徒", "圣歌", "追问"], "rarity": 2, "passive": {"id": "moon_buffer", "label": "月相缓冲", "description": "复读衰减减轻 0.12", "effect": "repeat_relief", "value": 0.12},
+		"text": "对照：昨晚的照片里，月亮比现实多一颗。", "tags": ["信徒", "圣歌", "追问"], "rarity": 2, "passive": {"id": "moon_buffer", "label": "月相缓冲", "description": "忽略 1 次复读扣减", "effect": "repeat_grace", "value": 1},
 		"tokens": [
 			{"id": "extra_moon", "text": "多一颗月亮", "tags": ["圣歌", "信徒"], "rarity": 2},
 			{"id": "than_reality", "text": "比现实更多", "tags": ["追问", "反问"], "rarity": 2},
@@ -104,7 +106,7 @@ const SOCIAL_POST_CARDS := [
 	},
 	{
 		"id": "blackout_broadcast", "poster_cell": 5, "caption": "停电后广播喊了我名字", "handle": "废站收音机",
-		"text": "录音：停电以后，废站广播准时报站，然后叫了我的名字。", "tags": ["圣歌", "刷新", "沉默"], "rarity": 3, "passive": {"id": "broadcast_resonance", "label": "广播共鸣", "description": "每个命中风向额外 +0.08", "effect": "synergy_step", "value": 0.08},
+		"text": "录音：停电以后，废站广播准时报站，然后叫了我的名字。", "tags": ["圣歌", "刷新", "沉默"], "rarity": 3, "passive": {"id": "broadcast_resonance", "label": "广播共鸣", "description": "命中风向时传播基础 +8", "effect": "trend_base", "value": 8},
 		"tokens": [
 			{"id": "blackout", "text": "停电以后", "tags": ["沉默", "空位"], "rarity": 1},
 			{"id": "broadcast", "text": "广播喊我名字", "tags": ["圣歌", "刷新"], "rarity": 2},
@@ -113,7 +115,7 @@ const SOCIAL_POST_CARDS := [
 	},
 	{
 		"id": "station_lit", "poster_cell": 6, "caption": "废站台昨晚重新亮灯", "handle": "封站观察员",
-		"text": "目击：封了十年的站台，昨晚重新亮灯。", "tags": ["巴别塔", "刷新"], "rarity": 2, "passive": {"id": "restart_dividend", "label": "重启增益", "description": "污染倍率额外 +0.10", "effect": "pollution_bonus", "value": 0.10},
+		"text": "目击：封了十年的站台，昨晚重新亮灯。", "tags": ["巴别塔", "刷新"], "rarity": 2, "passive": {"id": "restart_dividend", "label": "重启增益", "description": "污染达到 40% 时基础 +10", "effect": "pollution_base", "value": 10},
 		"tokens": [
 			{"id": "ten_years", "text": "封了十年", "tags": ["禁问", "沉默"], "rarity": 2},
 			{"id": "lit_again", "text": "重新亮灯", "tags": ["刷新", "巴别塔"], "rarity": 2},
@@ -122,7 +124,7 @@ const SOCIAL_POST_CARDS := [
 	},
 	{
 		"id": "no_shadow", "poster_cell": 7, "caption": "便利店店员没有影子", "handle": "凌晨便利店",
-		"text": "路过：店整夜开着，店员却没有影子。", "tags": ["日常", "沉默", "追问"], "rarity": 2, "passive": {"id": "shadow_buffer", "label": "无影缓冲", "description": "复读衰减减轻 0.10", "effect": "repeat_relief", "value": 0.10},
+		"text": "路过：店整夜开着，店员却没有影子。", "tags": ["日常", "沉默", "追问"], "rarity": 2, "passive": {"id": "shadow_buffer", "label": "无影缓冲", "description": "忽略 1 次复读扣减", "effect": "repeat_grace", "value": 1},
 		"tokens": [
 			{"id": "all_night", "text": "整夜开着", "tags": ["日常"], "rarity": 1},
 			{"id": "no_shadow", "text": "没有影子", "tags": ["沉默", "空位"], "rarity": 2},
@@ -140,7 +142,7 @@ const SOCIAL_POST_CARDS := [
 	},
 	{
 		"id": "old_post_today", "poster_cell": 9, "caption": "十年前旧帖今天回复我", "handle": "旧帖考古队",
-		"text": "考古：十年前的旧帖今天突然回复我，头像是现在的我。", "tags": ["刷新", "哈吉米", "反问"], "rarity": 3, "passive": {"id": "archive_resonance", "label": "旧帖共鸣", "description": "每个命中风向额外 +0.12", "effect": "synergy_step", "value": 0.12},
+		"text": "考古：十年前的旧帖今天突然回复我，头像是现在的我。", "tags": ["刷新", "哈吉米", "反问"], "rarity": 3, "passive": {"id": "archive_resonance", "label": "旧帖共鸣", "description": "命中风向时传播基础 +12", "effect": "trend_base", "value": 12},
 		"tokens": [
 			{"id": "ten_year_post", "text": "十年前的旧帖", "tags": ["刷新", "哈吉米"], "rarity": 2},
 			{"id": "today_me", "text": "今天的我", "tags": ["日常", "追问"], "rarity": 2},
@@ -149,7 +151,7 @@ const SOCIAL_POST_CARDS := [
 	},
 	{
 		"id": "deleted_road", "poster_cell": 10, "caption": "地图上少了一条回家路", "handle": "绿色路线图",
-		"text": "更新：地图删掉了我每天回家的那条路。", "tags": ["空位", "日常", "刷新"], "rarity": 2, "passive": {"id": "lost_road_dividend", "label": "迷路增益", "description": "污染倍率额外 +0.08", "effect": "pollution_bonus", "value": 0.08},
+		"text": "更新：地图删掉了我每天回家的那条路。", "tags": ["空位", "日常", "刷新"], "rarity": 2, "passive": {"id": "lost_road_dividend", "label": "迷路增益", "description": "污染达到 40% 时基础 +8", "effect": "pollution_base", "value": 8},
 		"tokens": [
 			{"id": "deleted", "text": "地图删掉了", "tags": ["刷新", "空位"], "rarity": 2},
 			{"id": "way_home", "text": "回家的路", "tags": ["日常"], "rarity": 1},
@@ -158,7 +160,7 @@ const SOCIAL_POST_CARDS := [
 	},
 	{
 		"id": "access_record", "poster_cell": 11, "caption": "门禁说我没回家我却在屋里", "handle": "门禁空号",
-		"text": "记录：门禁说我没回来，可我一直在屋里。", "tags": ["禁问", "追问", "日常"], "rarity": 2, "passive": {"id": "access_buffer", "label": "门禁缓冲", "description": "复读衰减减轻 0.12", "effect": "repeat_relief", "value": 0.12},
+		"text": "记录：门禁说我没回来，可我一直在屋里。", "tags": ["禁问", "追问", "日常"], "rarity": 2, "passive": {"id": "access_buffer", "label": "门禁缓冲", "description": "忽略 1 次复读扣减", "effect": "repeat_grace", "value": 1},
 		"tokens": [
 			{"id": "not_home", "text": "我没回来", "tags": ["禁问", "追问"], "rarity": 2},
 			{"id": "inside", "text": "一直在屋里", "tags": ["日常", "反问"], "rarity": 1},
@@ -337,9 +339,9 @@ var _meme_bank_window: PanelContainer
 var _meme_bank_content: Control
 var _bank_list: HBoxContainer
 var _reality_subtitle_panel: PanelContainer
-var _reality_subtitle_label: Label
+var _reality_subtitle_label: RichTextLabel
 var _reality_choice_row: HBoxContainer
-var _reality_intent_preview: Label
+var _reality_intent_preview: RichTextLabel
 var _reality_typing_line: RichTextLabel
 var _reality_typing_progress: Label
 var _reality_continue_button: Button
@@ -1194,7 +1196,7 @@ func _build_ui() -> void:
 	phone_header.add_theme_constant_override("separation", 8)
 	_phone_content.add_child(phone_header)
 
-	_phone_title = _label("PHONE", 20, _theme_color("accent"))
+	_phone_title = _label("BABEL / PHONE", 18, _theme_color("accent"))
 	_phone_title.name = "PhoneWindowHandle"
 	_phone_title.mouse_filter = Control.MOUSE_FILTER_STOP
 	_phone_title.size_flags_horizontal = Control.SIZE_EXPAND_FILL
@@ -1213,6 +1215,7 @@ func _build_ui() -> void:
 	var phone_close := Button.new()
 	phone_close.name = "PhoneHomeCloseButton"
 	phone_close.text = "X"
+	phone_close.set_meta("window_close_button", true)
 	phone_close.custom_minimum_size = Vector2(56, 56)
 	phone_close.pressed.connect(set_view_state.bind("npc_up"))
 	phone_header.add_child(phone_close)
@@ -1221,29 +1224,60 @@ func _build_ui() -> void:
 
 	var phone_screen := _panel()
 	phone_screen.name = "PhoneScreenPanel"
+	phone_screen.set_meta("phone_surface", true)
 	phone_screen.size_flags_vertical = Control.SIZE_EXPAND_FILL
 	_phone_content.add_child(phone_screen)
 	var screen_box := VBoxContainer.new()
-	screen_box.add_theme_constant_override("separation", 12)
+	screen_box.name = "PhoneLauncherScreen"
+	screen_box.add_theme_constant_override("separation", 14)
 	phone_screen.add_child(screen_box)
+	var launcher_eyebrow := _label("NO SIGNAL  /  APP LAUNCHER", 12, _theme_color("accent"))
+	launcher_eyebrow.name = "PhoneLauncherEyebrow"
+	screen_box.add_child(launcher_eyebrow)
+	var launcher_title := _label("选择一个窗口", 25, _theme_color("ink"))
+	launcher_title.name = "PhoneLauncherTitle"
+	screen_box.add_child(launcher_title)
+	var launcher_rule := ColorRect.new()
+	launcher_rule.name = "PhoneLauncherRule"
+	launcher_rule.color = _theme_color("muted")
+	launcher_rule.custom_minimum_size.y = 4
+	screen_box.add_child(launcher_rule)
 	var app_grid := GridContainer.new()
+	app_grid.name = "PhoneAppGrid"
 	app_grid.columns = 2
 	app_grid.add_theme_constant_override("h_separation", 10)
 	app_grid.add_theme_constant_override("v_separation", 10)
 	screen_box.add_child(app_grid)
 	for app in [
-		{"id": "babel", "label": "塔\nBABEL"},
-		{"id": "social", "label": "帖\nSOCIAL"},
-		{"id": "shop", "label": "店\nSHOP"},
-		{"id": "notebook", "label": "本\nNOTE"},
+		{"id": "babel", "label": "塔\n楼层档案"},
+		{"id": "social", "label": "帖\n信号瀑布"},
+		{"id": "shop", "label": "店\n情绪商店"},
+		{"id": "notebook", "label": "本\n语言工坊"},
 	]:
 		var button := Button.new()
 		button.name = "PhoneAppIcon%s" % str(app["id"]).capitalize()
 		button.text = app["label"]
-		button.custom_minimum_size = Vector2(160, 112)
+		button.set_meta("phone_app_icon", true)
+		button.custom_minimum_size = Vector2(156, 126)
 		button.size_flags_horizontal = Control.SIZE_EXPAND_FILL
 		button.pressed.connect(_on_app_pressed.bind(app["id"]))
 		app_grid.add_child(button)
+	var launcher_note := _label("每个 App 会在手机旁打开独立窗口。", 13, _theme_color("accent"))
+	launcher_note.name = "PhoneLauncherNote"
+	launcher_note.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
+	screen_box.add_child(launcher_note)
+	var launcher_spacer := Control.new()
+	launcher_spacer.size_flags_vertical = Control.SIZE_EXPAND_FILL
+	screen_box.add_child(launcher_spacer)
+	var launcher_indicator_wrap := CenterContainer.new()
+	launcher_indicator_wrap.name = "PhoneLauncherIndicatorWrap"
+	launcher_indicator_wrap.custom_minimum_size.y = 14
+	screen_box.add_child(launcher_indicator_wrap)
+	var launcher_indicator := ColorRect.new()
+	launcher_indicator.name = "PhoneLauncherIndicator"
+	launcher_indicator.color = _theme_color("ink")
+	launcher_indicator.custom_minimum_size = Vector2(88, 4)
+	launcher_indicator_wrap.add_child(launcher_indicator)
 
 	_view_toggle_button = Button.new()
 	_view_toggle_button.name = "PhoneViewToggleButton"
@@ -1257,14 +1291,18 @@ func _build_ui() -> void:
 	_view_toggle_button.pressed.connect(_toggle_view_state)
 	_ui_root.add_child(_view_toggle_button)
 
-	_build_app_window("social", "社交媒体 App", "SocialAppWindow", -809.0, 28.0, -389.0, 880.0)
+	_build_app_window("social", "社交媒体 App", "SocialAppWindow", -835.0, 18.0, -397.0, 910.0)
 	_build_app_window("babel", "巴别塔 App", "BabelAppWindow", -1032.0, 96.0, -592.0, 676.0)
 	_build_app_window("shop", "信号商店", "ShopAppWindow", -1000.0, 124.0, -560.0, 704.0)
 	_build_app_window("notebook", "笔记本 App", "NotebookAppWindow", -968.0, 152.0, -528.0, 732.0)
 	_build_social_detail_window()
 
-	_reality_intent_preview = _label("", 28, _theme_color("surface"))
+	_reality_intent_preview = RicherTextLabelScript.new()
+	_install_rich_text_effect(_reality_intent_preview, "curspull")
 	_reality_intent_preview.name = "RealityIntentPreview"
+	_reality_intent_preview.bbcode_enabled = true
+	_reality_intent_preview.fit_content = false
+	_reality_intent_preview.scroll_active = false
 	_reality_intent_preview.set_meta("on_dark", true)
 	_reality_intent_preview.set_anchors_preset(Control.PRESET_BOTTOM_WIDE)
 	_reality_intent_preview.offset_left = 310
@@ -1272,8 +1310,9 @@ func _build_ui() -> void:
 	_reality_intent_preview.offset_right = -250
 	_reality_intent_preview.offset_bottom = -286
 	_reality_intent_preview.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
-	_reality_intent_preview.vertical_alignment = VERTICAL_ALIGNMENT_CENTER
 	_reality_intent_preview.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
+	_reality_intent_preview.add_theme_font_size_override("normal_font_size", 28)
+	_reality_intent_preview.add_theme_color_override("default_color", _theme_color("surface"))
 	_reality_intent_preview.add_theme_color_override("font_outline_color", Color("050705"))
 	_reality_intent_preview.add_theme_constant_override("outline_size", 8)
 	_reality_intent_preview.mouse_filter = Control.MOUSE_FILTER_IGNORE
@@ -1291,7 +1330,9 @@ func _build_ui() -> void:
 	_reality_choice_row.z_index = 15
 	_ui_root.add_child(_reality_choice_row)
 
-	_reality_typing_line = RichTextLabel.new()
+	_reality_typing_line = RicherTextLabelScript.new()
+	_install_rich_text_effect(_reality_typing_line, "curspull")
+	_install_rich_text_effect(_reality_typing_line, "cuss")
 	_reality_typing_line.name = "RealityTypingLine"
 	_reality_typing_line.bbcode_enabled = true
 	_reality_typing_line.fit_content = false
@@ -1369,13 +1410,18 @@ func _build_ui() -> void:
 	var subtitle_box := HBoxContainer.new()
 	subtitle_box.add_theme_constant_override("separation", 12)
 	_reality_subtitle_panel.add_child(subtitle_box)
-	_reality_subtitle_label = _label("", 20, _theme_color("surface"))
+	_reality_subtitle_label = RicherTextLabelScript.new()
+	_install_rich_text_effect(_reality_subtitle_label, "curspull")
 	_reality_subtitle_label.name = "RealitySubtitleLabel"
+	_reality_subtitle_label.bbcode_enabled = true
+	_reality_subtitle_label.fit_content = false
+	_reality_subtitle_label.scroll_active = false
 	_reality_subtitle_label.set_meta("on_dark", true)
 	_reality_subtitle_label.size_flags_horizontal = Control.SIZE_EXPAND_FILL
 	_reality_subtitle_label.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
-	_reality_subtitle_label.vertical_alignment = VERTICAL_ALIGNMENT_CENTER
 	_reality_subtitle_label.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
+	_reality_subtitle_label.add_theme_font_size_override("normal_font_size", 20)
+	_reality_subtitle_label.add_theme_color_override("default_color", _theme_color("surface"))
 	_reality_subtitle_label.add_theme_color_override("font_outline_color", Color("050705"))
 	_reality_subtitle_label.add_theme_constant_override("outline_size", 6)
 	subtitle_box.add_child(_reality_subtitle_label)
@@ -1631,7 +1677,7 @@ func _layout_cinematic_bars() -> void:
 		return
 	var viewport_size := _viewport_size()
 	var picture_height := viewport_size.x / CINEMATIC_ASPECT_RATIO
-	var bar_height := clampf((viewport_size.y - picture_height) * 0.5, 28.0, viewport_size.y * 0.18)
+	var bar_height := clampf((viewport_size.y - picture_height) * 0.5, 0.0, viewport_size.y * CINEMATIC_MAX_BAR_RATIO)
 	_cinematic_top_bar.set_anchors_preset(Control.PRESET_TOP_WIDE)
 	_cinematic_top_bar.offset_left = 0.0
 	_cinematic_top_bar.offset_top = 0.0
@@ -1769,6 +1815,7 @@ func _build_app_window(app_id: String, title: String, node_name: String, left: f
 	var close_button := Button.new()
 	close_button.name = "%sCloseButton" % node_name
 	close_button.text = "X"
+	close_button.set_meta("window_close_button", true)
 	close_button.custom_minimum_size = Vector2(56, 56)
 	close_button.pressed.connect(_close_app_window.bind(app_id))
 	if app_id == "social":
@@ -1842,6 +1889,7 @@ func _build_social_detail_window() -> void:
 	var close_button := Button.new()
 	close_button.name = "SocialDetailWindowCloseButton"
 	close_button.text = "X"
+	close_button.set_meta("window_close_button", true)
 	close_button.custom_minimum_size = Vector2(56, 56)
 	close_button.pressed.connect(_close_social_detail_window)
 	header.add_child(close_button)
@@ -2227,6 +2275,7 @@ func _render_social_app() -> void:
 	var close_social := Button.new()
 	close_social.name = "SocialAppInlineCloseButton"
 	close_social.text = "X"
+	close_social.set_meta("window_close_button", true)
 	close_social.custom_minimum_size = Vector2(48, 48)
 	close_social.pressed.connect(_close_app_window.bind("social"))
 	status_bar.add_child(close_social)
@@ -2592,10 +2641,18 @@ func _render_social_publish_page(parent: VBoxContainer) -> void:
 	var publish_page := VBoxContainer.new()
 	publish_page.name = "SocialPublishPage"
 	publish_page.size_flags_vertical = Control.SIZE_EXPAND_FILL
-	publish_page.add_theme_constant_override("separation", 8)
+	publish_page.add_theme_constant_override("separation", 6)
 	parent.add_child(publish_page)
 
-	publish_page.add_child(_label("发布", 22, _theme_color("accent")))
+	var page_header := HBoxContainer.new()
+	page_header.name = "SocialPublishHeader"
+	page_header.custom_minimum_size.y = 44
+	page_header.add_theme_constant_override("separation", 8)
+	publish_page.add_child(page_header)
+	var page_title := _label("发布新信号", 22, _theme_color("ink"))
+	page_title.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+	page_header.add_child(page_title)
+	page_header.add_child(_label("DAY %02d" % game.day, 12, _theme_color("accent")))
 
 	var publish_scroll := ScrollContainer.new()
 	publish_scroll.name = "SocialPublishScroll"
@@ -2613,31 +2670,76 @@ func _render_social_publish_page(parent: VBoxContainer) -> void:
 	var placed_meme := _placed_meme()
 	var breakdown: Dictionary = game.get_publish_breakdown(placed_meme) if not placed_meme.is_empty() else game.last_publish_breakdown
 	var contract: Dictionary = game.get_daily_signal_contract()
+
+	var composer := _panel()
+	composer.name = "SocialPublishComposer"
+	composer.set_meta("soft_panel", true)
+	publish_content.add_child(composer)
+	var composer_box := VBoxContainer.new()
+	composer_box.add_theme_constant_override("separation", 6)
+	composer.add_child(composer_box)
+	var composer_header := HBoxContainer.new()
+	composer_header.add_theme_constant_override("separation", 8)
+	composer_box.add_child(composer_header)
+	var composer_step := _label("01  /  内容", 13, _theme_color("accent"))
+	composer_step.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+	composer_header.add_child(composer_step)
+	composer_header.add_child(_label("拖拽或点击", 12, _theme_color("accent")))
+	composer_box.add_child(_label("从梗库放入一条完整表达", 17, _theme_color("ink")))
+	_publish_blank = DropButtonScript.new()
+	_publish_blank.name = "SocialPublishBlank"
+	_publish_blank.custom_minimum_size.y = 64
+	_publish_blank.configure_drop_target("meme", "blank_1")
+	_publish_blank.dropped.connect(_on_dialogue_meme_dropped)
+	_publish_blank.pressed.connect(_on_dialogue_blank_pressed)
+	composer_box.add_child(_publish_blank)
+
+	var score_breakdown := _panel()
+	score_breakdown.name = "SocialPublishScoreBreakdown"
+	score_breakdown.set_meta("signal_contract_panel", true)
+	publish_content.add_child(score_breakdown)
+	var score_box := VBoxContainer.new()
+	score_box.add_theme_constant_override("separation", 5)
+	score_breakdown.add_child(score_box)
+	var score_header := HBoxContainer.new()
+	score_header.add_theme_constant_override("separation", 8)
+	score_box.add_child(score_header)
+	var score_heading := _label("02  /  传播预估", 13, _theme_color("muted"))
+	score_heading.set_meta("on_dark", true)
+	score_heading.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+	score_header.add_child(score_heading)
+	var score_hero := _label("%d" % int(breakdown.get("score", 0)) if not breakdown.is_empty() else "--", 30, _theme_color("surface"))
+	score_hero.name = "SocialPublishScoreHero"
+	score_hero.set_meta("on_dark", true)
+	score_header.add_child(score_hero)
+	var score_text := _label("", 14, _theme_color("surface"))
+	score_text.name = "SocialPublishScoreText"
+	score_text.set_meta("on_dark", true)
+	score_text.text = _publish_breakdown_text(breakdown, not placed_meme.is_empty())
+	score_text.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
+	score_box.add_child(score_text)
+
 	var contract_panel := _panel()
 	contract_panel.name = "SocialPublishContractPanel"
-	contract_panel.set_meta("signal_contract_panel", true)
+	contract_panel.set_meta("soft_panel", true)
 	publish_content.add_child(contract_panel)
 	var contract_box := VBoxContainer.new()
-	contract_box.add_theme_constant_override("separation", 6)
+	contract_box.add_theme_constant_override("separation", 4)
 	contract_panel.add_child(contract_box)
-	var contract_eyebrow := _label("今日牌型 / DAY %02d" % game.day, 13, _theme_color("muted"))
-	contract_eyebrow.set_meta("on_dark", true)
+	var contract_eyebrow := _label("03  /  今日牌型", 13, _theme_color("accent"))
 	contract_box.add_child(contract_eyebrow)
 	var contract_header := HBoxContainer.new()
 	contract_header.add_theme_constant_override("separation", 8)
 	contract_box.add_child(contract_header)
-	var contract_title := _label(str(contract.get("label", "未命名牌型")), 21, _theme_color("surface"))
+	var contract_title := _label(str(contract.get("label", "未命名牌型")), 19, _theme_color("ink"))
 	contract_title.name = "SocialPublishContractTitle"
-	contract_title.set_meta("on_dark", true)
 	contract_title.size_flags_horizontal = Control.SIZE_EXPAND_FILL
 	contract_header.add_child(contract_title)
-	var contract_status := _label(_signal_contract_status(breakdown), 14, _theme_color("muted"))
+	var contract_status := _label(_signal_contract_status(breakdown), 13, _theme_color("accent"))
 	contract_status.name = "SocialPublishContractStatus"
-	contract_status.set_meta("on_dark", true)
 	contract_header.add_child(contract_status)
-	var contract_text := _label(_signal_contract_text(contract, breakdown), 14, _theme_color("surface"))
+	var contract_text := _label(_signal_contract_text(contract, breakdown), 13, _theme_color("ink"))
 	contract_text.name = "SocialPublishContractText"
-	contract_text.set_meta("on_dark", true)
 	contract_text.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
 	contract_box.add_child(contract_text)
 
@@ -2651,7 +2753,7 @@ func _render_social_publish_page(parent: VBoxContainer) -> void:
 	var arcana_header := HBoxContainer.new()
 	arcana_header.add_theme_constant_override("separation", 8)
 	arcana_box.add_child(arcana_header)
-	var arcana_title := _label("玄牌 / HELD", 15, _theme_color("surface"))
+	var arcana_title := _label("04  /  玄牌", 14, _theme_color("surface"))
 	arcana_title.set_meta("on_dark", true)
 	arcana_title.size_flags_horizontal = Control.SIZE_EXPAND_FILL
 	arcana_header.add_child(arcana_title)
@@ -2680,7 +2782,7 @@ func _render_social_publish_page(parent: VBoxContainer) -> void:
 			arcana_button.expand_icon = true
 			arcana_button.add_theme_constant_override("icon_max_width", 52)
 			arcana_button.alignment = HORIZONTAL_ALIGNMENT_LEFT
-			arcana_button.custom_minimum_size = Vector2(178, 78)
+			arcana_button.custom_minimum_size = Vector2(166, 74)
 			arcana_button.tooltip_text = str(held_card.get("description", ""))
 			arcana_button.disabled = not game.can_use_arcana_card(card_uid, target_meme_id)
 			arcana_button.pressed.connect(_on_arcana_use_pressed.bind(card_uid))
@@ -2692,35 +2794,14 @@ func _render_social_publish_page(parent: VBoxContainer) -> void:
 		pending_arcana.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
 		arcana_box.add_child(pending_arcana)
 
-	var composer := _panel()
-	composer.name = "SocialPublishComposer"
-	publish_content.add_child(composer)
-	var composer_box := VBoxContainer.new()
-	composer_box.add_theme_constant_override("separation", 8)
-	composer.add_child(composer_box)
-	composer_box.add_child(_label("把梗仓库里的完整梗拖到这里", 16, _theme_color("accent")))
-	_publish_blank = DropButtonScript.new()
-	_publish_blank.name = "SocialPublishBlank"
-	_publish_blank.custom_minimum_size.y = 58
-	_publish_blank.configure_drop_target("meme", "blank_1")
-	_publish_blank.dropped.connect(_on_dialogue_meme_dropped)
-	_publish_blank.pressed.connect(_on_dialogue_blank_pressed)
-	composer_box.add_child(_publish_blank)
-	var score_breakdown := _panel()
-	score_breakdown.name = "SocialPublishScoreBreakdown"
-	publish_content.add_child(score_breakdown)
-	var score_text := _label("", 16, _theme_color("ink"))
-	score_text.name = "SocialPublishScoreText"
-	score_text.text = _publish_breakdown_text(breakdown, not placed_meme.is_empty())
-	score_text.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
-	score_breakdown.add_child(score_text)
-	var hint := _label("发布会消耗 1 次行动。浏览、切页和拖拽预览不扣行动。", 15, _theme_color("accent"))
+	var hint := _label("确认发布消耗 1 次行动；预览、拖拽与玄牌使用不扣行动。", 13, _theme_color("accent"))
 	hint.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
 	publish_content.add_child(hint)
 
 	var action_bar := _panel()
 	action_bar.name = "SocialPublishActionBar"
 	action_bar.set_meta("fixed_action_bar", true)
+	action_bar.set_meta("soft_panel", true)
 	publish_page.add_child(action_bar)
 	var action_box := VBoxContainer.new()
 	action_box.add_theme_constant_override("separation", 6)
@@ -3079,20 +3160,10 @@ func _render_publish() -> void:
 
 func _publish_breakdown_text(breakdown: Dictionary, is_preview: bool) -> String:
 	if breakdown.is_empty():
-		return "传播基础 / 筹码  --\n共鸣倍率  ×--\n牌型倍率  ×--\n玄牌倍率  ×--\n遗物倍率  ×--\n预计传播  --"
+		return "传播基础  --\n整数倍率  ×--\n倍率来源  --\n预计传播  --"
 	var prefix := "预计传播" if is_preview else "本次传播"
-	var repeated := int(breakdown.get("repeat_count", 0))
-	var repeat_note := "\n重复衰减  ×%.2f" % float(breakdown.get("repeat_multiplier", 1.0)) if repeated > 0 else ""
 	var active_modifiers: Array = breakdown.get("active_modifier_labels", [])
-	var modifier_note := "\n永久许可  %s" % " / ".join(active_modifiers) if not active_modifiers.is_empty() else ""
 	var source_passives: Array = breakdown.get("active_source_passive_labels", [])
-	var source_note := "\n来源被动  %s" % " / ".join(source_passives) if not source_passives.is_empty() else ""
-	var contract_multiplier := float(breakdown.get("contract_multiplier", 1.0))
-	var arcana_multiplier := float(breakdown.get("arcana_multiplier", 1.0))
-	var world_item_multiplier := float(breakdown.get("world_item_multiplier", 1.0))
-	var total_multiplier := float(breakdown.get("total_multiplier", 1.0))
-	var separated_multiplier := contract_multiplier * arcana_multiplier * world_item_multiplier
-	var resonance_multiplier := total_multiplier / separated_multiplier if separated_multiplier > 0.0 else total_multiplier
 	var contract_bonus := int(breakdown.get("contract_base_bonus", 0))
 	var arcana_bonus := int(breakdown.get("arcana_base_bonus", 0))
 	var world_item_bonus := int(breakdown.get("world_item_base_bonus", 0))
@@ -3104,6 +3175,30 @@ func _publish_breakdown_text(breakdown: Dictionary, is_preview: bool) -> String:
 	if world_item_bonus > 0:
 		base_parts.append("遗物 +%d" % world_item_bonus)
 	var base_note := "（%s）" % " / ".join(base_parts) if not base_parts.is_empty() else ""
+	var multiplier_parts: Array[String] = []
+	var trend_bonus := int(breakdown.get("trend_multiplier_bonus", 0))
+	var pollution_bonus := int(breakdown.get("pollution_multiplier_bonus", 0))
+	var contract_multiplier_bonus := int(breakdown.get("contract_multiplier_bonus", 0))
+	var arcana_multiplier_bonus := int(breakdown.get("arcana_multiplier_bonus", 0))
+	var world_multiplier_bonus := int(breakdown.get("world_item_multiplier_bonus", 0))
+	var repeat_penalty := int(breakdown.get("repeat_penalty", 0))
+	if trend_bonus > 0:
+		multiplier_parts.append("风向 +%d" % trend_bonus)
+	if pollution_bonus > 0:
+		multiplier_parts.append("污染 +%d" % pollution_bonus)
+	if contract_multiplier_bonus > 0:
+		multiplier_parts.append("牌型 +%d" % contract_multiplier_bonus)
+	if arcana_multiplier_bonus > 0:
+		multiplier_parts.append("玄牌 +%d" % arcana_multiplier_bonus)
+	if world_multiplier_bonus > 0:
+		multiplier_parts.append("遗物 +%d" % world_multiplier_bonus)
+	if repeat_penalty > 0:
+		multiplier_parts.append("复读 -%d" % repeat_penalty)
+	var multiplier_note := "无" if multiplier_parts.is_empty() else " / ".join(multiplier_parts)
+	var rule_labels: Array[String] = []
+	rule_labels.append_array(active_modifiers)
+	rule_labels.append_array(source_passives)
+	var rule_note := "\n附加规则  %s" % " / ".join(rule_labels) if not rule_labels.is_empty() else ""
 	var arcana_labels: Array = breakdown.get("active_arcana_labels", [])
 	var arcana_risk := int(breakdown.get("arcana_pollution_risk", 0))
 	var arcana_note := "\n玄牌已装  %s%s" % [
@@ -3112,17 +3207,12 @@ func _publish_breakdown_text(breakdown: Dictionary, is_preview: bool) -> String:
 	] if not arcana_labels.is_empty() else ""
 	var world_item_labels: Array = breakdown.get("active_world_item_labels", [])
 	var world_item_note := "\n街区遗物  %s" % " / ".join(world_item_labels) if not world_item_labels.is_empty() else ""
-	return "传播基础 / 筹码  %d%s\n共鸣倍率  ×%.2f\n牌型倍率  ×%.2f\n玄牌倍率  ×%.2f\n遗物倍率  ×%.2f\n总倍率  ×%.2f%s%s%s%s%s\n%s  %d" % [
+	return "传播基础  %d%s\n整数倍率  ×%d\n倍率来源  %s%s%s%s\n%s  %d" % [
 		int(breakdown.get("base_value", 0)),
 		base_note,
-		resonance_multiplier,
-		contract_multiplier,
-		arcana_multiplier,
-		world_item_multiplier,
-		total_multiplier,
-		repeat_note,
-		modifier_note,
-		source_note,
+		int(breakdown.get("total_multiplier", 1)),
+		multiplier_note,
+		rule_note,
 		arcana_note,
 		world_item_note,
 		prefix,
@@ -3140,11 +3230,11 @@ func _signal_contract_status(breakdown: Dictionary) -> String:
 
 func _signal_contract_text(contract: Dictionary, breakdown: Dictionary) -> String:
 	var progress := str(breakdown.get("contract_progress", "尚未放入完整梗")) if not breakdown.is_empty() else "尚未放入完整梗"
-	return "%s\n%s\n奖励 +%d 基础 · ×%.2f   代价 +%d 污染" % [
+	return "%s\n%s  /  奖励：基础 +%d  ·  倍率 +%d  ·  污染 +%d" % [
 		str(contract.get("description", "等待今日信号")),
 		progress,
 		int(contract.get("base_bonus", 0)),
-		float(contract.get("multiplier", 1.0)),
+		int(contract.get("multiplier_bonus", 0)),
 		int(contract.get("pollution_risk", 0)),
 	]
 
@@ -3157,9 +3247,9 @@ func _pending_arcana_text() -> String:
 	var base_bonus := int(game.pending_arcana_effects.get("base_bonus", 0))
 	if base_bonus > 0:
 		parts.append("基础 +%d" % base_bonus)
-	var multiplier := float(game.pending_arcana_effects.get("multiplier", 1.0))
-	if multiplier > 1.0:
-		parts.append("倍率 ×%.2f" % multiplier)
+	var multiplier_bonus := int(game.pending_arcana_effects.get("multiplier_bonus", 0))
+	if multiplier_bonus > 0:
+		parts.append("倍率 +%d" % multiplier_bonus)
 	var repeat_grace := int(game.pending_arcana_effects.get("repeat_grace", 0))
 	if repeat_grace > 0:
 		parts.append("忽略 %d 次复读" % repeat_grace)
@@ -3211,7 +3301,7 @@ func _render_reality() -> void:
 	var subtitle := "%s：%s" % [actor_name, npc_line]
 	if not game.conversation_feedback.is_empty():
 		subtitle += "\n" + str(game.conversation_feedback)
-	_reality_subtitle_label.text = subtitle
+	_set_dialogue_text(_reality_subtitle_label, subtitle)
 
 	var choosing := _reality_interaction_active and phase == "choosing"
 	var typing := _reality_interaction_active and phase == "typing"
@@ -3245,16 +3335,16 @@ func _render_reality() -> void:
 			button.pressed.connect(_on_reality_choice_selected.bind(choice_id))
 			_reality_choice_row.add_child(button)
 		if _reality_hover_choice_id.is_empty():
-			_reality_intent_preview.text = ""
+			_set_dialogue_text(_reality_intent_preview, "")
 		else:
-			_reality_intent_preview.text = game.preview_typed_reality_choice(_reality_hover_choice_id)
-	_reality_intent_preview.visible = choosing and not _reality_intent_preview.text.is_empty()
+			_set_dialogue_text(_reality_intent_preview, game.preview_typed_reality_choice(_reality_hover_choice_id))
+	_reality_intent_preview.visible = choosing and not _reality_hover_choice_id.is_empty()
 
 	if typing:
-		_reality_typing_line.text = _typed_reality_bbcode()
+		_set_richer_bbcode(_reality_typing_line, _typed_reality_bbcode())
 		_reality_typing_progress.text = "任意键  %d / %d" % [game.conversation_reveal_index, game.conversation_clean_sentence.length()]
 	else:
-		_reality_typing_line.text = ""
+		_set_richer_bbcode(_reality_typing_line, "")
 		_reality_typing_progress.text = ""
 
 
@@ -3265,11 +3355,30 @@ func _typed_reality_bbcode() -> String:
 	var parts: Array[String] = []
 	for unit in game.conversation_revealed_units:
 		var color := corrupted_color if bool(unit.get("corrupted", false)) else normal_color
-		parts.append("[color=#%s]%s[/color]" % [color, _escape_bbcode(str(unit.get("display", "")))])
+		var display := _escape_bbcode(str(unit.get("display", "")))
+		if bool(unit.get("corrupted", false)):
+			parts.append("[color=#%s][cuss]%s[][]" % [color, display])
+		else:
+			parts.append("[color=#%s]%s[]" % [color, display])
 	var suffix := game.get_typed_reality_unrevealed_suffix()
 	if not suffix.is_empty():
-		parts.append("[color=#%s]%s[/color]" % [pending_color, _escape_bbcode(suffix)])
-	return "".join(parts)
+		parts.append("[color=#%s]%s[]" % [pending_color, _escape_bbcode(suffix)])
+	return "[curspull pull=0.18]%s[]" % "".join(parts)
+
+
+func _set_dialogue_text(label: RichTextLabel, value: String) -> void:
+	if value.is_empty():
+		_set_richer_bbcode(label, "")
+		return
+	_set_richer_bbcode(label, "[curspull pull=0.12]%s[]" % _escape_bbcode(value))
+
+
+func _set_richer_bbcode(label: RichTextLabel, value: String) -> void:
+	label.call("set_bbcode", value)
+
+
+func _install_rich_text_effect(label: RichTextLabel, effect_name: String) -> void:
+	label.call("_install_effect", effect_name)
 
 
 func _escape_bbcode(value: String) -> String:
@@ -3279,8 +3388,9 @@ func _escape_bbcode(value: String) -> String:
 func _on_reality_choice_hovered(choice_id: String) -> void:
 	_reality_hover_choice_id = choice_id
 	if _reality_intent_preview != null:
-		_reality_intent_preview.text = game.preview_typed_reality_choice(choice_id)
-		_reality_intent_preview.visible = not _reality_intent_preview.text.is_empty()
+		var preview := game.preview_typed_reality_choice(choice_id)
+		_set_dialogue_text(_reality_intent_preview, preview)
+		_reality_intent_preview.visible = not preview.is_empty()
 
 
 func _on_reality_choice_unhovered(choice_id: String) -> void:
@@ -3288,7 +3398,7 @@ func _on_reality_choice_unhovered(choice_id: String) -> void:
 		return
 	_reality_hover_choice_id = ""
 	if _reality_intent_preview != null:
-		_reality_intent_preview.text = ""
+		_set_dialogue_text(_reality_intent_preview, "")
 		_reality_intent_preview.visible = false
 
 
@@ -3386,7 +3496,7 @@ func _update_visibility() -> void:
 	if _reality_choice_row != null:
 		_reality_choice_row.visible = interaction_visible and game.conversation_phase == "choosing"
 	if _reality_intent_preview != null:
-		_reality_intent_preview.visible = interaction_visible and game.conversation_phase == "choosing" and not _reality_intent_preview.text.is_empty()
+		_reality_intent_preview.visible = interaction_visible and game.conversation_phase == "choosing" and not _reality_hover_choice_id.is_empty()
 	if _reality_typing_line != null:
 		_reality_typing_line.visible = interaction_visible and game.conversation_phase == "typing"
 	if _reality_typing_progress != null:
@@ -3404,9 +3514,9 @@ func _update_visibility() -> void:
 	if _phone_rig != null:
 		_phone_rig.visible = false
 	if _cinematic_top_bar != null:
-		_cinematic_top_bar.visible = _game_started
+		_cinematic_top_bar.visible = _game_started and not in_phone
 	if _cinematic_bottom_bar != null:
-		_cinematic_bottom_bar.visible = _game_started
+		_cinematic_bottom_bar.visible = _game_started and not in_phone
 
 
 func _animate_world(delta: float) -> void:
@@ -3871,6 +3981,21 @@ func _apply_ui_theme(node: Node = null) -> void:
 			button.add_theme_stylebox_override("normal", empty)
 			button.add_theme_stylebox_override("hover", _style(Color(_theme_color("muted"), 0.18), Color(_theme_color("muted"), 0.20)))
 			button.add_theme_stylebox_override("pressed", _style(Color(_theme_color("muted"), 0.32), Color(_theme_color("muted"), 0.32)))
+		elif button.has_meta("phone_app_icon"):
+			button.add_theme_color_override("font_color", _theme_color("surface"))
+			button.add_theme_color_override("font_hover_color", _theme_color("ink"))
+			button.add_theme_color_override("font_pressed_color", _theme_color("ink"))
+			button.add_theme_font_size_override("font_size", 18)
+			button.add_theme_stylebox_override("normal", _launcher_app_style(_theme_color("ink"), _theme_color("muted")))
+			button.add_theme_stylebox_override("hover", _launcher_app_style(_theme_color("muted"), _theme_color("ink")))
+			button.add_theme_stylebox_override("pressed", _launcher_app_style(_theme_color("bg"), _theme_color("ink")))
+		elif button.has_meta("window_close_button"):
+			button.add_theme_color_override("font_color", _theme_color("ink"))
+			button.add_theme_color_override("font_hover_color", _theme_color("surface"))
+			button.add_theme_color_override("font_pressed_color", _theme_color("surface"))
+			button.add_theme_stylebox_override("normal", _window_close_style(Color(_theme_color("surface"), 0.0), _theme_color("accent")))
+			button.add_theme_stylebox_override("hover", _window_close_style(_theme_color("ink"), _theme_color("ink")))
+			button.add_theme_stylebox_override("pressed", _window_close_style(_theme_color("accent"), _theme_color("ink")))
 		elif button.has_meta("ascent_reward_card"):
 			button.add_theme_color_override("font_color", _theme_color("surface"))
 			button.add_theme_color_override("font_hover_color", _theme_color("ink"))
@@ -4737,6 +4862,26 @@ func _phone_surface_style() -> StyleBoxFlat:
 	style.set_border_width_all(0)
 	style.set_corner_radius_all(16)
 	style.set_content_margin_all(10)
+	return style
+
+
+func _launcher_app_style(bg: Color, border: Color) -> StyleBoxFlat:
+	var style := StyleBoxFlat.new()
+	style.bg_color = bg
+	style.border_color = border
+	style.set_border_width_all(2)
+	style.set_corner_radius_all(6)
+	style.set_content_margin_all(12)
+	return style
+
+
+func _window_close_style(bg: Color, border: Color) -> StyleBoxFlat:
+	var style := StyleBoxFlat.new()
+	style.bg_color = bg
+	style.border_color = border
+	style.set_border_width_all(1)
+	style.set_corner_radius_all(4)
+	style.set_content_margin_all(4)
 	return style
 
 

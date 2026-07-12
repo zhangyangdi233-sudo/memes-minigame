@@ -13,6 +13,12 @@ The game keeps four composition-defining raster assets as curated OpenAI imagege
 
 All four images use the established five-color International Style direction: deep green, ink black, warm cream, yellow green, and fluorescent pollution green. Their subjects combine an empty road, telecommunications towers, analog signal noise, a detached classmate, occult broadcast symbols, and editorial poster grids.
 
+## User-supplied visual references
+
+`world/reference_districts/` contains the three scene references supplied by the project owner for the sunlit brick street, night white-block neighborhood, and overgrown gallery. They are mounted as distant continuation planes inside newly modeled 3D districts; they are not redistributed as standalone stock content.
+
+`1/` contains eight dithered green/blue photographs supplied by the project owner. The floor generator rotates them across in-world memory panels to support the fragmented, low-signal atmosphere.
+
 ## Procedural local assets
 
 `tools/generate_visual_assets.py` may recreate only the small HUD icons and player portrait. It intentionally does not regenerate curated imagegen art or retired road, hand-phone, NPC, or split social-poster files.

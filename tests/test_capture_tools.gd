@@ -13,6 +13,7 @@ func _run() -> void:
 		"res://tools/capture_publish_scene.gd",
 		"res://tools/capture_shop_scene.gd",
 		"res://tools/capture_reality_scene.gd",
+		"res://tools/capture_reality_district.gd",
 		"res://tools/capture_dialogue_scene.gd",
 		"res://tools/capture_merchant_scene.gd",
 		"res://tools/capture_relic_scene.gd",

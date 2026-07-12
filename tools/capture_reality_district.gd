@@ -1,0 +1,59 @@
+extends SceneTree
+
+const VIEW_SIZE := Vector2i(1672, 941)
+const PROJECT_DIR := "/Users/zhang/Documents/游戏/babel-meme-game"
+const HEADLESS_CAPTURE_ERROR := "Screenshot capture requires a rendered display. Run this tool without --headless from a GUI session."
+
+
+func _init() -> void:
+	call_deferred("_capture")
+
+
+func _capture() -> void:
+	root.size = VIEW_SIZE
+	if not _ensure_capture_supported():
+		return
+	var floor_number := clampi(int(OS.get_environment("BABEL_CAPTURE_FLOOR")), 1, 5)
+	if floor_number == 0:
+		floor_number = 1
+	var scene := load("res://scenes/babel_meme_game.tscn") as PackedScene
+	if scene == null:
+		push_error("Unable to load main scene")
+		quit(1)
+		return
+	var main := scene.instantiate()
+	root.add_child(main)
+	main.new_game()
+	main.game.tower_floor = floor_number
+	main._ensure_reality_floor_current()
+	main.set_view_state("npc_up")
+	main._phone_art_alpha = 0.0
+	main._reality_yaw = 0.0
+	main._reality_pitch = -3.0
+	if main._phone_down_backdrop_image != null:
+		main._phone_down_backdrop_image.visible = false
+	if main._reality_player != null:
+		main._reality_player.position = main._reality_floor.start_position()
+	for frame in 72:
+		await process_frame
+	var image := root.get_texture().get_image()
+	if image == null:
+		push_error("Unable to read root viewport image")
+		quit(1)
+		return
+	var output_path := "%s/tools/current_reality_floor_%d.png" % [PROJECT_DIR, floor_number]
+	var error := image.save_png(output_path)
+	if error != OK:
+		push_error("Unable to save screenshot: %s" % error)
+		quit(1)
+		return
+	print("saved screenshot: %s" % output_path)
+	quit(0)
+
+
+func _ensure_capture_supported() -> bool:
+	if DisplayServer.get_name().to_lower() == "headless":
+		push_error(HEADLESS_CAPTURE_ERROR)
+		quit(2)
+		return false
+	return true
