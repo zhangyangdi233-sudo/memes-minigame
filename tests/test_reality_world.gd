@@ -103,6 +103,22 @@ func _run() -> void:
 	mouse_turn.relative = Vector2(96.0, 0.0)
 	game_root._unhandled_input(mouse_turn)
 	_assert_true(not is_equal_approx(float(game_root._reality_yaw), yaw_before_mouse), "horizontal mouse movement should rotate the first-person view")
+	var yaw_before_touch := float(game_root._reality_yaw)
+	var pitch_before_touch := float(game_root._reality_pitch)
+	var actions_before_touch := int(game_root.game.actions_remaining)
+	var touch_turn := InputEventScreenDrag.new()
+	touch_turn.relative = Vector2(-72.0, 38.0)
+	game_root._unhandled_input(touch_turn)
+	_assert_true(not is_equal_approx(float(game_root._reality_yaw), yaw_before_touch), "horizontal touchscreen drag should rotate the first-person view")
+	_assert_true(not is_equal_approx(float(game_root._reality_pitch), pitch_before_touch), "vertical touchscreen drag should tilt the first-person view")
+	_assert_eq(game_root.game.actions_remaining, actions_before_touch, "touchscreen free look should not spend an action")
+	game_root.set_view_state("phone_down")
+	var yaw_while_phone_is_up := float(game_root._reality_yaw)
+	game_root._unhandled_input(touch_turn)
+	_assert_true(is_equal_approx(float(game_root._reality_yaw), yaw_while_phone_is_up), "touchscreen drag should not turn the world while the phone interface is active")
+	game_root.set_view_state("npc_up")
+	game_root._reality_yaw = 0.0
+	game_root._reality_pitch = 0.0
 	if player != null:
 		var walk_start := player.position
 		Input.action_press("reality_forward")
@@ -145,6 +161,9 @@ func _run() -> void:
 		_assert_true(game_root._try_reality_interaction(), "F interaction path should open the nearby actor")
 		_assert_true(game_root._reality_interaction_active, "world interaction should enter the dialogue state")
 		_assert_true(game_root._active_reality_actor == merchant, "world interaction should remember the selected actor")
+		var yaw_during_dialogue := float(game_root._reality_yaw)
+		game_root._unhandled_input(touch_turn)
+		_assert_true(is_equal_approx(float(game_root._reality_yaw), yaw_during_dialogue), "touchscreen drag should not turn the camera during a reality conversation")
 		var choice_id := str(game_root.game.get_typed_reality_choices()[0].get("id", ""))
 		game_root._on_reality_choice_selected(choice_id)
 		var arbitrary_key := InputEventKey.new()

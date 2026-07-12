@@ -24,6 +24,7 @@ The meme bank is hidden globally. It appears only as a small attached file windo
 
 - `WASD` or arrow keys: move freely through the shared street and its open lots.
 - Mouse: lowering the phone captures the cursor for free look; `Esc` releases it and a left click captures it again.
+- Touchscreen: drag across the open reality view to turn and tilt the camera without spending an action.
 - `F`: talk to the nearby NPC or merchant.
 - `Tab`: raise or lower the phone.
 

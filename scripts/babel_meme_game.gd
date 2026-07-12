@@ -51,6 +51,7 @@ const SOCIAL_FEED_WHEEL_STEP := 2
 const REALITY_MOVE_SPEED := 3.3
 const REALITY_ACCELERATION := 14.0
 const REALITY_MOUSE_SENSITIVITY := 0.085
+const REALITY_TOUCH_SENSITIVITY := 0.11
 const REALITY_INTERACTION_DISTANCE := 2.25
 const REALITY_FALL_RECOVERY_Y := -3.0
 const REALITY_SAFE_INSET := 1.2
@@ -463,8 +464,11 @@ func _unhandled_input(event: InputEvent) -> void:
 		get_viewport().set_input_as_handled()
 	elif event is InputEventMouseMotion and _reality_mouse_look_enabled:
 		var motion := event as InputEventMouseMotion
-		_reality_yaw -= motion.relative.x * REALITY_MOUSE_SENSITIVITY
-		_reality_pitch = clampf(_reality_pitch - motion.relative.y * REALITY_MOUSE_SENSITIVITY, -68.0, 72.0)
+		_apply_reality_look_delta(motion.relative, REALITY_MOUSE_SENSITIVITY)
+		get_viewport().set_input_as_handled()
+	elif event is InputEventScreenDrag and _reality_mouse_look_enabled:
+		var drag := event as InputEventScreenDrag
+		_apply_reality_look_delta(drag.relative, REALITY_TOUCH_SENSITIVITY)
 		get_viewport().set_input_as_handled()
 
 
@@ -563,6 +567,11 @@ func _toggle_view_state() -> void:
 func _set_reality_mouse_look(enabled: bool) -> void:
 	_reality_mouse_look_enabled = enabled
 	Input.set_mouse_mode(Input.MOUSE_MODE_CAPTURED if enabled else Input.MOUSE_MODE_VISIBLE)
+
+
+func _apply_reality_look_delta(relative_motion: Vector2, sensitivity: float) -> void:
+	_reality_yaw = wrapf(_reality_yaw - relative_motion.x * sensitivity, -180.0, 180.0)
+	_reality_pitch = clampf(_reality_pitch - relative_motion.y * sensitivity, -68.0, 72.0)
 
 
 func _build_world() -> void:
