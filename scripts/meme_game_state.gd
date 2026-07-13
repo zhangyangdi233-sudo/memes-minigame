@@ -280,6 +280,22 @@ const EPILOGUE_LINES := [
 	"你把耳朵贴近外壳。里面传来整座城市的声音，每个人都在准确重复别人。",
 	"你想说一句普通的话。每一层却先替你开口。",
 ]
+const SAVE_DATA_VERSION := 1
+const SAVE_FIELD_NAMES := [
+	"day", "heat", "pollution", "clarity", "tower_floor", "threshold_discount", "next_threshold",
+	"ending_unlocked", "ending_language_choice", "money", "actions_remaining", "max_actions_per_day",
+	"needs_day_settlement", "day_ended_reason", "pollution_flashback_seen", "pollution_flashback_pending",
+	"view_state", "phone_visible", "phone_open", "active_app", "active_app_window",
+	"notebook_tokens", "draft_slots", "completed_memes", "owned_meme_frames", "daily_meme_frame_bought",
+	"fusion_slots", "fused_meme_pairs", "dialogue_blanks", "published_memes", "last_publish_breakdown",
+	"event_log", "social_followed_handles", "social_liked_post_ids", "collected_world_item_ids",
+	"pending_world_item_effects", "permanent_modifiers", "owned_tarot_ids", "pending_ascent_reward_choices",
+	"pending_ascent_reward_floor", "queued_ascent_reward_floors", "rewarded_ascent_floors",
+	"reality_sentence_slots", "legacy_rules", "last_clean_sentence", "last_polluted_sentence",
+	"npc_understanding", "reality_phase", "relationship_residue", "last_relationship_residue_gain",
+	"last_relationship_money_loss", "reality_dialogue_count", "owned_communication_items",
+	"daily_communication_item_bought", "last_communication_item_used", "last_communication_item_remaining",
+]
 
 var day: int = 1
 var heat: int = 18
@@ -417,6 +433,41 @@ func new_run() -> void:
 	last_communication_item_used = ""
 	last_communication_item_remaining = 0
 	reset_typed_reality_conversation()
+
+
+func to_save_data() -> Dictionary:
+	var state_data := {}
+	for field_name in SAVE_FIELD_NAMES:
+		var value: Variant = get(field_name)
+		state_data[field_name] = value.duplicate(true) if value is Array or value is Dictionary else value
+	return {
+		"version": SAVE_DATA_VERSION,
+		"state": state_data,
+	}
+
+
+func load_save_data(save_data: Dictionary) -> bool:
+	if int(save_data.get("version", -1)) != SAVE_DATA_VERSION:
+		return false
+	var state_data: Variant = save_data.get("state", {})
+	if not state_data is Dictionary:
+		return false
+	new_run()
+	for field_name in SAVE_FIELD_NAMES:
+		if not state_data.has(field_name):
+			continue
+		var value: Variant = state_data[field_name]
+		set(field_name, value.duplicate(true) if value is Array or value is Dictionary else value)
+	day = maxi(1, day)
+	tower_floor = clampi(tower_floor, 1, MAX_TOWER_FLOOR)
+	max_actions_per_day = maxi(1, max_actions_per_day)
+	actions_remaining = clampi(actions_remaining, 0, max_actions_per_day)
+	pollution = clampi(pollution, 0, 100)
+	clarity = clampi(clarity, 0, 100)
+	if view_state != "phone_down" and view_state != "npc_up":
+		view_state = "phone_down"
+	reset_typed_reality_conversation()
+	return true
 
 
 func set_phone_open(value: bool) -> void:

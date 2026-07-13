@@ -7,6 +7,9 @@ const LOT_SPACING := 9.4 * WORLD_LENGTH_SCALE
 const LOT_WIDTH := 7.4
 const LOT_DEPTH := 6.8
 const STREET_WIDTH := 14.0
+const SUNLIT_CROSSROAD_OPENING := STREET_WIDTH + 2.0
+const SUNLIT_EDGE_WALL_HEIGHT := 5.9
+const SUNLIT_EDGE_WALL_THICKNESS := 0.68
 const MIN_MAP_WIDTH := 34.0
 const MIN_MAP_LENGTH := 46.0 * WORLD_LENGTH_SCALE
 const MAP_END_MARGIN := 12.0 * WORLD_LENGTH_SCALE
@@ -55,7 +58,7 @@ static func district_style_for_floor(floor_number: int) -> String:
 	return DISTRICT_STYLES[posmod(maxi(1, floor_number) - 1, DISTRICT_STYLES.size())]
 
 
-func rebuild(floor_number: int, palette: Dictionary, npc_texture: Texture2D) -> void:
+func rebuild(floor_number: int, palette: Dictionary, actor_textures: Dictionary) -> void:
 	_clear_floor()
 	built_floor = clampi(floor_number, 1, 5)
 	district_style = district_style_for_floor(built_floor)
@@ -77,7 +80,7 @@ func rebuild(floor_number: int, palette: Dictionary, npc_texture: Texture2D) -> 
 
 	_build_environment(palette)
 	_build_architecture(palette)
-	_build_actors(palette, npc_texture)
+	_build_actors(palette, actor_textures)
 	set_meta("useful_item_count", useful_item_count)
 
 
@@ -217,11 +220,22 @@ func _build_architecture(palette: Dictionary) -> void:
 
 func _build_sunlit_brick_street(parent: Node3D, palette: Dictionary) -> void:
 	_add_box(parent, "MainRoad", Vector3(STREET_WIDTH, 0.025, map_length - 1.0), Vector3(0.0, 0.008, 0.0), "road", palette, false)
+	var crossroad := _add_box(parent, "CrossRoad", Vector3(map_width - 1.0, 0.032, STREET_WIDTH), Vector3(0.0, 0.064, 0.0), "road", palette, false)
+	crossroad.set_meta("crossroad_surface", true)
+	crossroad.set_meta("crossroad_width", STREET_WIDTH)
+	set_meta("crossroad_opening_span", SUNLIT_CROSSROAD_OPENING)
+	set_meta("crossroad_layout", "open_center")
 	var sidewalk_width := 3.15
+	var edge_segment_length := (map_length - SUNLIT_CROSSROAD_OPENING) * 0.5
 	for side in [-1.0, 1.0]:
 		_add_box(parent, "Sidewalk%s" % ("West" if side < 0.0 else "East"), Vector3(sidewalk_width, 0.055, map_length - 1.0), Vector3(side * (STREET_WIDTH * 0.5 + sidewalk_width * 0.5), 0.018, 0.0), "sunlit_paving", palette, false)
-		_add_box(parent, "Curb%s" % ("West" if side < 0.0 else "East"), Vector3(0.16, 0.10, map_length - 1.4), Vector3(side * (STREET_WIDTH * 0.5 + 0.08), 0.048, 0.0), "accent", palette, false)
+		for direction in [-1.0, 1.0]:
+			var curb_suffix := "%s%s" % ["West" if side < 0.0 else "East", "North" if direction < 0.0 else "South"]
+			var center_z: float = direction * (SUNLIT_CROSSROAD_OPENING * 0.5 + edge_segment_length * 0.5)
+			_add_box(parent, "Curb%s" % curb_suffix, Vector3(0.16, 0.10, edge_segment_length), Vector3(side * (STREET_WIDTH * 0.5 + 0.08), 0.048, center_z), "accent", palette, false)
+	_build_sunlit_edge_walls(parent, palette)
 	_build_road_markings(parent, palette)
+	_build_crossroad_markings(parent, palette)
 	for stripe_index in 5:
 		_add_box(parent, "Crosswalk%02d" % stripe_index, Vector3(1.25, 0.024, 4.2), Vector3(-3.0 + float(stripe_index) * 1.5, 0.032, map_length * 0.5 - 6.4), "crosswalk", palette, false)
 	var lot_rows := int(ceil(float(room_count) / 2.0))
@@ -235,18 +249,58 @@ func _build_sunlit_brick_street(parent: Node3D, palette: Dictionary) -> void:
 
 func _build_sunlit_brick_room(parent: Node3D, room_index: int, row: int, side: float, center_z: float, palette: Dictionary) -> void:
 	var room := _new_room(parent, room_index)
-	var wall_height := 5.7 + float(room_index % 3) * 0.32
-	var wall_x := side * (STREET_WIDTH * 0.5 + 3.1)
-	_add_box(room, "BrickWall", Vector3(0.68, wall_height, LOT_WIDTH + 2.05), Vector3(wall_x, wall_height * 0.5, center_z), "brick", palette, true)
-	_add_box(room, "BrickCap", Vector3(0.82, 0.16, LOT_WIDTH + 2.12), Vector3(wall_x, wall_height + 0.08, center_z), "brick_light", palette, false)
+	var edge_wall_x := side * (map_width * 0.5 - SUNLIT_EDGE_WALL_THICKNESS)
 	_add_box(room, "SidewalkInset", Vector3(3.1, 0.08, LOT_WIDTH + 1.2), Vector3(side * (STREET_WIDTH * 0.5 + 1.55), 0.045, center_z), "sunlit_paving", palette, false)
 	if row % 2 == 1:
 		_add_box(room, "BrickTurn", Vector3(3.35, 4.6, 0.52), Vector3(side * (STREET_WIDTH * 0.5 + 1.75), 2.3, center_z + LOT_WIDTH * 0.53), "brick_dark", palette, true)
 	if row % 2 == 0:
 		_build_street_lamp(room, Vector3(side * (STREET_WIDTH * 0.5 - 0.65), 0.0, center_z - 2.6), palette, true)
 	if room_index % 4 == 1:
-		_build_mood_panel(room, room_index, Vector3(wall_x - side * 0.40, 2.15, center_z), side, palette)
+		_build_mood_panel(room, room_index, Vector3(edge_wall_x - side * 0.40, 2.15, center_z), side, palette)
 	_place_room_reward(room, room_index, Vector3(side * (STREET_WIDTH * 0.5 + 1.45), 0.0, center_z), palette)
+
+
+func _build_sunlit_edge_walls(parent: Node3D, palette: Dictionary) -> void:
+	var segment_length := (map_length - SUNLIT_CROSSROAD_OPENING) * 0.5
+	var edge_x := map_width * 0.5 - SUNLIT_EDGE_WALL_THICKNESS * 0.5
+	for side in [-1.0, 1.0]:
+		var side_name := "west" if side < 0.0 else "east"
+		for direction in [-1.0, 1.0]:
+			var section_name := "North" if direction < 0.0 else "South"
+			var node_name := "BrickWall" if side < 0.0 and direction < 0.0 else "TerrainEdgeWall%s%s" % [side_name.capitalize(), section_name]
+			var center_z: float = direction * (SUNLIT_CROSSROAD_OPENING * 0.5 + segment_length * 0.5)
+			var wall := _add_box(
+				parent,
+				node_name,
+				Vector3(SUNLIT_EDGE_WALL_THICKNESS, SUNLIT_EDGE_WALL_HEIGHT, segment_length),
+				Vector3(side * edge_x, SUNLIT_EDGE_WALL_HEIGHT * 0.5, center_z),
+				"brick",
+				palette,
+				true
+			)
+			wall.set_meta("terrain_edge_wall", true)
+			wall.set_meta("edge_side", side_name)
+			wall.set_meta("edge_section", section_name.to_lower())
+			wall.set_meta("edge_length", segment_length)
+			wall.set_meta("intersection_clearance", SUNLIT_CROSSROAD_OPENING)
+			_add_box(
+				parent,
+				"TerrainEdgeCap%s%s" % [side_name.capitalize(), section_name],
+				Vector3(SUNLIT_EDGE_WALL_THICKNESS + 0.14, 0.16, segment_length),
+				Vector3(side * edge_x, SUNLIT_EDGE_WALL_HEIGHT + 0.08, center_z),
+				"brick_light",
+				palette,
+				false
+			)
+
+
+func _build_crossroad_markings(parent: Node3D, palette: Dictionary) -> void:
+	var dash_count := int(floor((map_width - 4.0) / 4.8))
+	for dash_index in dash_count:
+		var x := -map_width * 0.5 + 3.0 + float(dash_index) * 4.8
+		if absf(x) < 2.0:
+			continue
+		_add_box(parent, "CrossroadStripe%02d" % dash_index, Vector3(2.1, 0.018, 0.14), Vector3(x, 0.088, 0.0), "accent", palette, false)
 
 
 func _build_night_white_blocks(parent: Node3D, palette: Dictionary) -> void:
@@ -603,13 +657,18 @@ func _build_useful_item(parent: Node3D, room_index: int, position: Vector3, pale
 	item.add_child(collision)
 
 
-func _build_actors(palette: Dictionary, npc_texture: Texture2D) -> void:
+func _build_actors(palette: Dictionary, actor_textures: Dictionary) -> void:
 	var actors := Node3D.new()
 	actors.name = "Actors"
 	add_child(actors)
 	var spawn := start_position()
 	var merchant_position := Vector3(-3.4, 0.0, spawn.z - 8.0)
-	var merchant := _make_actor("Merchant", "merchant", "信号商人", merchant_position, npc_texture, palette, 0)
+	var merchant_texture := actor_textures.get("merchant") as Texture2D
+	var npc_textures: Array = actor_textures.get("npcs", [])
+	var fallback_texture := merchant_texture
+	if not npc_textures.is_empty() and npc_textures[0] is Texture2D:
+		fallback_texture = npc_textures[0]
+	var merchant := _make_actor("Merchant", "merchant", "信号商人", merchant_position, merchant_texture if merchant_texture != null else fallback_texture, palette, 0)
 	actors.add_child(merchant)
 	_actors.append(merchant)
 
@@ -624,6 +683,9 @@ func _build_actors(palette: Dictionary, npc_texture: Texture2D) -> void:
 			0.0,
 			lerpf(street_south, street_north, progress)
 		)
+		var npc_texture: Texture2D = fallback_texture
+		if not npc_textures.is_empty() and npc_textures[index % npc_textures.size()] is Texture2D:
+			npc_texture = npc_textures[index % npc_textures.size()]
 		var actor := _make_actor("NPC%d" % index, "npc", labels[index % labels.size()], actor_position, npc_texture, palette, index % 3)
 		actors.add_child(actor)
 		_actors.append(actor)

@@ -79,6 +79,11 @@ func _run() -> void:
 			"res://assets/generated/world/phone_down_backdrop.png",
 			"res://assets/generated/world/npc_signal_portrait.png",
 			"res://assets/generated/ui/player_portrait.png",
+			"res://assets/generated/characters/protagonist_operator.png",
+			"res://assets/generated/characters/merchant_frame_vendor.png",
+			"res://assets/generated/characters/npc_late_arrival.png",
+			"res://assets/generated/characters/npc_echo_tenant.png",
+			"res://assets/generated/characters/npc_archive_witness.png",
 			"res://assets/generated/ui/no_signal_icon.png",
 			"res://assets/generated/ui/hud_day_icon.png",
 			"res://assets/generated/ui/hud_pollution_icon.png",
@@ -737,7 +742,7 @@ func _run() -> void:
 			_assert_true(_unique_social_values(root, "handle", 12) == 12, "all twelve generated poster cells should map to distinct note personas")
 			_assert_true(_unique_social_captions(root, 12) == 12, "all twelve generated poster cells should expose distinct short captions")
 			_assert_true(_social_captions_fit_length(root, 12, 8, 14), "all twelve social captions should fit the researched 8-14 character mobile range")
-			_assert_true(_social_cards_have_coherent_tokens(root, 12), "each generated poster should carry its own coherent token and tag data")
+			_assert_true(_social_pickups_follow_daily_limits(root, 12), "daily social pickups should be sparse, single-character, and coherent")
 			_assert_true(str(root._social_post_for_index(0).get("text", "")).contains("："), "social detail posts should read like compact image-note captions")
 		_assert_true(_generated_posters_are_varied(), "generated social poster images should not all be identical")
 		if social_nav_home != null and social_nav_create != null and social_nav_mine != null:
@@ -798,6 +803,8 @@ func _run() -> void:
 			if profile_page_after_nav != null:
 				_assert_true(_has_text(profile_page_after_nav, "污染："), "profile page should keep pollution visible as the core language-health stat")
 				_assert_true(not _has_text(profile_page_after_nav, "清晰"), "profile page should not restore the removed clarity stat")
+				var identity_portrait := _find_node_by_name(profile_page_after_nav, "SocialPlayerIdentityPortrait") as TextureRect
+				_assert_true(identity_portrait != null and identity_portrait.texture != null, "profile page should use the project owner's protagonist as its identity image")
 			var home_nav_after_profile := _find_node_by_name(root, "SocialNavHome") as Button
 			if home_nav_after_profile != null:
 				home_nav_after_profile.pressed.emit()
@@ -1263,31 +1270,44 @@ func _social_captions_fit_length(root: Node, count: int, minimum: int, maximum: 
 	return true
 
 
-func _social_cards_have_coherent_tokens(root: Node, count: int) -> bool:
-	var poster_cells := {}
-	for index in count:
-		var post: Dictionary = root._social_post_for_index(index)
-		var tokens: Array = post.get("tokens", [])
-		var post_tags: Array = post.get("tags", [])
-		var passive: Dictionary = post.get("passive", {})
-		if tokens.size() < 3 or post_tags.is_empty() or passive.is_empty():
-			return false
-		poster_cells[int(post.get("poster_cell", -1))] = true
-		var has_text_match := false
-		var has_tag_match := false
-		for token in tokens:
-			var token_passive: Dictionary = token.get("source_passive", {})
-			if str(token_passive.get("id", "")) != str(passive.get("id", "")):
+func _social_pickups_follow_daily_limits(root: Node, count: int) -> bool:
+	var original_day: int = root.game.day
+	for day_number in range(1, 7):
+		root.game.day = day_number
+		var available_posts := 0
+		var poster_cells := {}
+		for index in count:
+			var post: Dictionary = root._social_post_for_index(index)
+			var tokens: Array = post.get("tokens", [])
+			var post_tags: Array = post.get("tags", [])
+			var passive: Dictionary = post.get("passive", {})
+			if post_tags.is_empty() or passive.is_empty() or tokens.size() > 3:
+				root.game.day = original_day
 				return false
-			var token_text := str(token.get("text", ""))
-			if not token_text.is_empty() and str(post.get("text", "")).contains(token_text):
-				has_text_match = true
-			for tag in token.get("tags", []):
-				if tag in post_tags:
-					has_tag_match = true
-		if not has_text_match or not has_tag_match:
+			poster_cells[int(post.get("poster_cell", -1))] = true
+			if tokens.is_empty():
+				continue
+			available_posts += 1
+			if tokens.size() < 2:
+				root.game.day = original_day
+				return false
+			var has_tag_match := false
+			for token in tokens:
+				var token_passive: Dictionary = token.get("source_passive", {})
+				if str(token_passive.get("id", "")) != str(passive.get("id", "")) or str(token.get("text", "")).length() != 1:
+					root.game.day = original_day
+					return false
+				for tag in token.get("tags", []):
+					if tag in post_tags:
+						has_tag_match = true
+			if not has_tag_match:
+				root.game.day = original_day
+				return false
+		if available_posts < 2 or available_posts > 5 or poster_cells.size() != count:
+			root.game.day = original_day
 			return false
-	return poster_cells.size() == count
+	root.game.day = original_day
+	return true
 
 
 func _generated_posters_are_varied() -> bool:

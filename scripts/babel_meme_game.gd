@@ -30,7 +30,13 @@ const POLLUTION_PALETTE_5 := {
 }
 
 const PHONE_DOWN_BACKDROP_PATH := "res://assets/generated/world/phone_down_backdrop.png"
-const NPC_SIGNAL_PORTRAIT_PATH := "res://assets/generated/world/npc_signal_portrait.png"
+const PLAYER_CHARACTER_PATH := "res://assets/generated/characters/protagonist_operator.png"
+const MERCHANT_CHARACTER_PATH := "res://assets/generated/characters/merchant_frame_vendor.png"
+const NPC_CHARACTER_PATHS := [
+	"res://assets/generated/characters/npc_late_arrival.png",
+	"res://assets/generated/characters/npc_echo_tenant.png",
+	"res://assets/generated/characters/npc_archive_witness.png",
+]
 const NO_SIGNAL_ICON_PATH := "res://assets/generated/ui/no_signal_icon.png"
 const HUD_DAY_ICON_PATH := "res://assets/generated/ui/hud_day_icon.png"
 const HUD_POLLUTION_ICON_PATH := "res://assets/generated/ui/hud_pollution_icon.png"
@@ -47,14 +53,21 @@ const SOCIAL_POSTER_ROWS := 3
 const SOCIAL_POSTER_COUNT := SOCIAL_POSTER_COLUMNS * SOCIAL_POSTER_ROWS
 const SOCIAL_FEED_WHEEL_STEP := 2
 const REALITY_MOVE_SPEED := 3.3
+const REALITY_SPRINT_MULTIPLIER := 1.85
 const REALITY_ACCELERATION := 14.0
 const REALITY_MOUSE_SENSITIVITY := 0.085
 const REALITY_TOUCH_SENSITIVITY := 0.11
+const REALITY_TRACKPAD_SENSITIVITY := 3.2
 const REALITY_INTERACTION_DISTANCE := 2.25
 const REALITY_FALL_RECOVERY_Y := -3.0
 const REALITY_SAFE_INSET := 1.2
 const CINEMATIC_ASPECT_RATIO := 2.35
 const CINEMATIC_MAX_BAR_RATIO := 0.12
+const HUD_RAIL_WIDTH := 158.0
+const HUD_RAIL_MAX_HEIGHT := 700.0
+const HUD_RAIL_FRAME_MARGIN := 10.0
+const SAVE_PATH := "user://babel_meme_save.dat"
+const SAVE_FILE_VERSION := 1
 const SOCIAL_POST_CARDS := [
 	{
 		"id": "floor_13", "poster_cell": 0, "caption": "旧教学楼昨晚多出一层", "handle": "塔下施工档案",
@@ -265,7 +278,7 @@ const DAY_PLANS := [
 	},
 ]
 
-var game = MemeGameStateScript.new()
+var game: MemeGameState = MemeGameStateScript.new()
 var selected_token_id := ""
 var selected_meme_id := ""
 var log_text := ""
@@ -397,6 +410,7 @@ var _settings_open := false
 var _vhs_enabled := true
 var _master_volume := 80.0
 var _phone_art_alpha := 0.0
+var _save_path := SAVE_PATH
 
 
 func _ready() -> void:
@@ -427,6 +441,8 @@ func _input(event: InputEvent) -> void:
 		_reality_touch_look_index = -1
 		return
 	if _handle_reality_touch_look(event):
+		return
+	if _handle_reality_trackpad_pan(event):
 		return
 	if _dragged_window == null:
 		return
@@ -476,6 +492,20 @@ func _handle_reality_touch_look(event: InputEvent) -> bool:
 	return false
 
 
+func _handle_reality_trackpad_pan(event: InputEvent) -> bool:
+	if not event is InputEventPanGesture:
+		return false
+	var can_trackpad_look: bool = _game_started and game.view_state == "npc_up" and not _reality_interaction_active
+	if not can_trackpad_look:
+		return false
+	var pan := event as InputEventPanGesture
+	if pan.delta.is_zero_approx():
+		return false
+	_apply_reality_look_delta(pan.delta, REALITY_TRACKPAD_SENSITIVITY)
+	get_viewport().set_input_as_handled()
+	return true
+
+
 func _unhandled_input(event: InputEvent) -> void:
 	if _input_locked or not _game_started:
 		return
@@ -515,18 +545,37 @@ func _unhandled_input(event: InputEvent) -> void:
 
 
 func new_game() -> void:
+	var fresh_state: MemeGameState = MemeGameStateScript.new()
+	fresh_state.new_run()
+	_begin_game_session(fresh_state, {}, true)
+
+
+func continue_game() -> bool:
+	var payload := _load_save_payload()
+	if payload.is_empty():
+		return false
+	var restored_state: MemeGameState = MemeGameStateScript.new()
+	var saved_state: Variant = payload.get("game", {})
+	if not saved_state is Dictionary or not restored_state.load_save_data(saved_state):
+		return false
+	_begin_game_session(restored_state, payload.get("world", {}), false)
+	return true
+
+
+func _begin_game_session(session_state: MemeGameState, world_data: Dictionary, show_prologue: bool) -> void:
 	_game_started = true
 	_settings_open = false
 	_phone_art_alpha = 1.0
-	game = MemeGameStateScript.new()
-	game.new_run()
+	game = session_state
 	selected_token_id = ""
 	selected_meme_id = ""
 	_meme_bank_open = false
 	_phone_popup_expanded = true
-	_phone_launcher_open = false
+	_phone_launcher_open = game.active_app_window.is_empty()
 	_meme_bank_layout_mode = ""
-	_open_app_windows = {"social": true}
+	_open_app_windows = {}
+	if not game.active_app_window.is_empty():
+		_open_app_windows[game.active_app_window] = true
 	_social_screen = "home"
 	_social_channel = "发现"
 	_social_detail_post_index = 0
@@ -550,14 +599,22 @@ func new_game() -> void:
 	_active_reality_actor = null
 	_reality_interaction_active = false
 	_prologue_index = 0
-	log_text = "你低头，手机边框从视野下方亮起来。"
+	log_text = "你低头，手机边框从视野下方亮起来。" if show_prologue else "你回到离开时的位置。"
 	_build_world()
+	_restore_saved_world(world_data)
 	_build_ui()
+	if not show_prologue:
+		_skip_prologue()
 	_render()
+	_set_reality_mouse_look(game.view_state == "npc_up")
 	_sync_audio_state(true)
 
 
 func show_main_menu() -> void:
+	if _game_started:
+		if _reality_interaction_active:
+			_exit_reality_interaction(false)
+		_save_progress()
 	_game_started = false
 	_settings_open = false
 	_input_locked = false
@@ -571,6 +628,64 @@ func show_main_menu() -> void:
 	_build_world()
 	_build_main_menu()
 	_sync_audio_state(true)
+
+
+func _save_progress() -> bool:
+	if not _game_started or game == null:
+		return false
+	var world_data := {
+		"player_position": _reality_player.position if _reality_player != null else Vector3.ZERO,
+		"yaw": _reality_yaw,
+		"pitch": _reality_pitch,
+		"social_screen": _social_screen,
+		"social_channel": _social_channel,
+		"social_detail_post_index": _social_detail_post_index,
+	}
+	var payload := {
+		"version": SAVE_FILE_VERSION,
+		"game": game.to_save_data(),
+		"world": world_data,
+	}
+	var file := FileAccess.open(_save_path, FileAccess.WRITE)
+	if file == null:
+		push_warning("无法写入存档：%s" % _save_path)
+		return false
+	file.store_var(payload)
+	file.flush()
+	return true
+
+
+func _load_save_payload() -> Dictionary:
+	if not FileAccess.file_exists(_save_path):
+		return {}
+	var file := FileAccess.open(_save_path, FileAccess.READ)
+	if file == null:
+		return {}
+	var payload: Variant = file.get_var()
+	if not payload is Dictionary or int(payload.get("version", -1)) != SAVE_FILE_VERSION:
+		return {}
+	if not payload.get("game", {}) is Dictionary or not payload.get("world", {}) is Dictionary:
+		return {}
+	return payload
+
+
+func _has_save_progress() -> bool:
+	return not _load_save_payload().is_empty()
+
+
+func _restore_saved_world(world_data: Dictionary) -> void:
+	if world_data.is_empty():
+		return
+	var saved_position: Variant = world_data.get("player_position", Vector3.ZERO)
+	if saved_position is Vector3 and _reality_player != null and _reality_floor != null:
+		_reality_last_safe_position = _reality_floor.clamp_to_playable_position(saved_position, REALITY_SAFE_INSET)
+		_reality_player.position = _reality_last_safe_position
+		_reality_player.velocity = Vector3.ZERO
+	_reality_yaw = wrapf(float(world_data.get("yaw", 0.0)), -180.0, 180.0)
+	_reality_pitch = clampf(float(world_data.get("pitch", 0.0)), -68.0, 72.0)
+	_social_screen = str(world_data.get("social_screen", "home"))
+	_social_channel = str(world_data.get("social_channel", "发现"))
+	_social_detail_post_index = clampi(int(world_data.get("social_detail_post_index", 0)), 0, maxi(0, SOCIAL_POST_CARDS.size() - 1))
 
 
 func set_view_state(value: String) -> void:
@@ -735,6 +850,7 @@ func _ensure_reality_input_map() -> void:
 	_set_key_action("reality_back", [KEY_S, KEY_DOWN])
 	_set_key_action("reality_left", [KEY_A, KEY_LEFT])
 	_set_key_action("reality_right", [KEY_D, KEY_RIGHT])
+	_set_key_action("reality_sprint", [KEY_SHIFT])
 	_set_key_action("reality_interact", [KEY_F])
 	_set_key_action("reality_phone", [KEY_TAB])
 
@@ -752,8 +868,16 @@ func _set_key_action(action_name: StringName, keycodes: Array) -> void:
 func _rebuild_reality_floor() -> void:
 	if _reality_floor == null or game == null:
 		return
-	var npc_texture := _load_runtime_texture(NPC_SIGNAL_PORTRAIT_PATH)
-	_reality_floor.rebuild(game.tower_floor, _active_palette(), npc_texture)
+	var npc_textures: Array[Texture2D] = []
+	for texture_path in NPC_CHARACTER_PATHS:
+		var texture := _load_runtime_texture(str(texture_path))
+		if texture != null:
+			npc_textures.append(texture)
+	var actor_textures := {
+		"merchant": _load_runtime_texture(MERCHANT_CHARACTER_PATH),
+		"npcs": npc_textures,
+	}
+	_reality_floor.rebuild(game.tower_floor, _active_palette(), actor_textures)
 	_reality_floor.sync_collected_items(game.collected_world_item_ids)
 	_reality_built_floor = game.tower_floor
 	_reality_interaction_active = false
@@ -795,9 +919,11 @@ func _update_reality_player(delta: float) -> void:
 	var world_direction := Basis(Vector3.UP, deg_to_rad(_reality_yaw)) * local_direction
 	if world_direction.length_squared() > 0.001:
 		world_direction = world_direction.normalized()
-	var target_velocity := world_direction * REALITY_MOVE_SPEED
-	_reality_player.velocity.x = move_toward(_reality_player.velocity.x, target_velocity.x, REALITY_ACCELERATION * delta)
-	_reality_player.velocity.z = move_toward(_reality_player.velocity.z, target_velocity.z, REALITY_ACCELERATION * delta)
+	var speed_multiplier := REALITY_SPRINT_MULTIPLIER if can_walk and Input.is_action_pressed("reality_sprint") else 1.0
+	var target_velocity := world_direction * REALITY_MOVE_SPEED * speed_multiplier
+	var acceleration := REALITY_ACCELERATION * speed_multiplier
+	_reality_player.velocity.x = move_toward(_reality_player.velocity.x, target_velocity.x, acceleration * delta)
+	_reality_player.velocity.z = move_toward(_reality_player.velocity.z, target_velocity.z, acceleration * delta)
 	if not _reality_player.is_on_floor():
 		_reality_player.velocity.y -= 18.0 * delta
 	else:
@@ -1103,9 +1229,18 @@ func _build_main_menu() -> void:
 	buttons.add_theme_constant_override("separation", 18)
 	title_stack.add_child(buttons)
 
+	var continue_button := Button.new()
+	continue_button.name = "MainMenuContinueButton"
+	continue_button.text = "继续游戏"
+	continue_button.custom_minimum_size = Vector2(168, 54)
+	continue_button.disabled = not _has_save_progress()
+	continue_button.tooltip_text = "回到上次离开的位置" if not continue_button.disabled else "暂无自动存档"
+	continue_button.pressed.connect(continue_game, CONNECT_DEFERRED)
+	buttons.add_child(continue_button)
+
 	var start_button := Button.new()
 	start_button.name = "MainMenuStartButton"
-	start_button.text = "开始游戏"
+	start_button.text = "新游戏"
 	start_button.custom_minimum_size = Vector2(168, 54)
 	start_button.pressed.connect(new_game, CONNECT_DEFERRED)
 	buttons.add_child(start_button)
@@ -1648,17 +1783,22 @@ func _build_apple_hud() -> void:
 	_hud_panel.name = "InternationalHUDRail"
 	_hud_panel.set_meta("dark_rail", true)
 	_hud_panel.set_anchors_preset(Control.PRESET_TOP_LEFT)
-	_hud_panel.offset_left = 0
-	_hud_panel.offset_top = 0
-	_hud_panel.offset_right = 158
-	_hud_panel.offset_bottom = 720
+	_hud_panel.offset_left = 0.0
+	_hud_panel.offset_top = 0.0
+	_hud_panel.offset_right = HUD_RAIL_WIDTH
+	_hud_panel.offset_bottom = HUD_RAIL_MAX_HEIGHT
 	_hud_panel.z_index = 40
 	_hud_panel.add_theme_stylebox_override("panel", _style(_theme_color("ink"), Color(_theme_color("muted"), 0.22)))
 	_ui_root.add_child(_hud_panel)
 
+	var center := CenterContainer.new()
+	center.name = "InternationalHUDCenter"
+	_hud_panel.add_child(center)
+
 	var box := VBoxContainer.new()
-	box.add_theme_constant_override("separation", 18)
-	_hud_panel.add_child(box)
+	box.name = "InternationalHUDStack"
+	box.add_theme_constant_override("separation", 14)
+	center.add_child(box)
 
 	_hud_day_value = null
 	_hud_heat_value = null
@@ -1666,10 +1806,6 @@ func _build_apple_hud() -> void:
 	_hud_clarity_value = null
 	_hud_floor_value = null
 	_hud_money_value = null
-
-	var spacer := Control.new()
-	spacer.custom_minimum_size.y = 34
-	box.add_child(spacer)
 
 	_add_hud_icon(box, "HUDDayIcon", "day", HUD_DAY_ICON_PATH)
 	_add_hud_icon(box, "HUDPollutionIcon", "pollution", HUD_POLLUTION_ICON_PATH)
@@ -1682,14 +1818,14 @@ func _build_apple_hud() -> void:
 	box.add_child(action_divider)
 
 	var action_spacer := Control.new()
-	action_spacer.custom_minimum_size.y = 10
+	action_spacer.custom_minimum_size.y = 6
 	box.add_child(action_spacer)
 
-	_hud_actions_label = _label("", 20, _theme_color("muted"))
+	_hud_actions_label = _label("", 18, _theme_color("muted"))
 	_hud_actions_label.name = "HUDActionsLabel"
 	_hud_actions_label.set_meta("action_animation_mode", "inline_pulse")
 	_hud_actions_label.set_meta("hud_action_label", true)
-	_hud_actions_label.custom_minimum_size = Vector2(118, 70)
+	_hud_actions_label.custom_minimum_size = Vector2(118, 64)
 	_hud_actions_label.size_flags_horizontal = Control.SIZE_SHRINK_CENTER
 	_hud_actions_label.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
 	_hud_actions_label.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
@@ -1697,7 +1833,7 @@ func _build_apple_hud() -> void:
 	_actions_label = _hud_actions_label
 
 	var settings_spacer := Control.new()
-	settings_spacer.custom_minimum_size.y = 20
+	settings_spacer.custom_minimum_size.y = 10
 	box.add_child(settings_spacer)
 	_hud_settings_icon = _add_hud_icon(box, "HUDSettingsIcon", "settings", HUD_SETTINGS_ICON_PATH)
 	_hud_settings_icon.pressed.connect(_toggle_settings_window)
@@ -1712,6 +1848,7 @@ func _build_apple_hud() -> void:
 	_hud_tooltip_label = _label("", 19, _theme_color("ink"))
 	_hud_tooltip_label.name = "HUDTooltipLabel"
 	_hud_tooltip.add_child(_hud_tooltip_label)
+	_layout_hud_rail()
 
 
 func _add_hud_icon(parent: VBoxContainer, node_name: String, kind: String, texture_path: String) -> Button:
@@ -1720,7 +1857,7 @@ func _add_hud_icon(parent: VBoxContainer, node_name: String, kind: String, textu
 	icon.set_meta("hud_icon", true)
 	icon.text = ""
 	icon.icon = _load_runtime_texture(texture_path)
-	icon.custom_minimum_size = Vector2(68, 68)
+	icon.custom_minimum_size = Vector2(60, 60)
 	icon.size_flags_horizontal = Control.SIZE_SHRINK_CENTER
 	icon.focus_mode = Control.FOCUS_ALL
 	icon.mouse_default_cursor_shape = Control.CURSOR_POINTING_HAND
@@ -1818,8 +1955,7 @@ func _layout_cinematic_bars() -> void:
 	if _cinematic_top_bar == null or _cinematic_bottom_bar == null:
 		return
 	var viewport_size := _viewport_size()
-	var picture_height := viewport_size.x / CINEMATIC_ASPECT_RATIO
-	var bar_height := clampf((viewport_size.y - picture_height) * 0.5, 0.0, viewport_size.y * CINEMATIC_MAX_BAR_RATIO)
+	var bar_height := _cinematic_bar_height(viewport_size)
 	_cinematic_top_bar.set_anchors_preset(Control.PRESET_TOP_WIDE)
 	_cinematic_top_bar.offset_left = 0.0
 	_cinematic_top_bar.offset_top = 0.0
@@ -1832,6 +1968,31 @@ func _layout_cinematic_bars() -> void:
 	_cinematic_bottom_bar.offset_bottom = 0.0
 	_cinematic_top_bar.set_meta("target_aspect_ratio", CINEMATIC_ASPECT_RATIO)
 	_cinematic_bottom_bar.set_meta("target_aspect_ratio", CINEMATIC_ASPECT_RATIO)
+
+
+func _cinematic_bar_height(viewport_size: Vector2) -> float:
+	var picture_height := viewport_size.x / CINEMATIC_ASPECT_RATIO
+	return clampf((viewport_size.y - picture_height) * 0.5, 0.0, viewport_size.y * CINEMATIC_MAX_BAR_RATIO)
+
+
+func _layout_hud_rail() -> void:
+	if _hud_panel == null:
+		return
+	var viewport_size := _viewport_size()
+	var uses_cinematic_frame: bool = _game_started and game != null and game.view_state == "npc_up"
+	var frame_inset := _cinematic_bar_height(viewport_size) if uses_cinematic_frame else 0.0
+	var top_limit := frame_inset + HUD_RAIL_FRAME_MARGIN
+	var bottom_limit := viewport_size.y - frame_inset - HUD_RAIL_FRAME_MARGIN
+	var available_height := maxf(1.0, bottom_limit - top_limit)
+	var rail_height := minf(HUD_RAIL_MAX_HEIGHT, available_height)
+	var center_y := (top_limit + bottom_limit) * 0.5
+	_hud_panel.set_anchors_preset(Control.PRESET_TOP_LEFT)
+	_hud_panel.offset_left = 0.0
+	_hud_panel.offset_top = center_y - rail_height * 0.5
+	_hud_panel.offset_right = HUD_RAIL_WIDTH
+	_hud_panel.offset_bottom = center_y + rail_height * 0.5
+	_hud_panel.set_meta("cinematic_safe_top", top_limit)
+	_hud_panel.set_meta("cinematic_safe_bottom", bottom_limit)
 
 
 func _build_settings_window() -> void:
@@ -1932,6 +2093,8 @@ func _on_vhs_toggled(value: bool) -> void:
 
 
 func _quit_game() -> void:
+	if _game_started:
+		_save_progress()
 	get_tree().quit()
 
 
@@ -2235,6 +2398,7 @@ func _apply_responsive_layouts_if_needed(force: bool = false) -> void:
 	_apply_social_detail_window_layout()
 	_apply_reality_layout()
 	_layout_cinematic_bars()
+	_layout_hud_rail()
 
 
 func _render() -> void:
@@ -2769,10 +2933,17 @@ func _render_social_detail_page(parent: VBoxContainer, companion: bool = false) 
 	signal_profile.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
 	detail_box.add_child(signal_profile)
 	var tokens := GridContainer.new()
+	tokens.name = "SocialPickupTokenGrid"
 	tokens.columns = 2
 	tokens.add_theme_constant_override("h_separation", 6)
 	tokens.add_theme_constant_override("v_separation", 6)
 	detail_box.add_child(tokens)
+	if (post.get("tokens", []) as Array).is_empty():
+		var no_pickup := _label("今天没有可拾取的字", 14, _theme_color("muted"))
+		no_pickup.name = "SocialNoPickupLabel"
+		no_pickup.set_meta("on_dark", true)
+		no_pickup.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
+		tokens.add_child(no_pickup)
 	for token in post["tokens"]:
 		var btn := Button.new()
 		btn.text = str(token["text"])
@@ -2917,6 +3088,19 @@ func _render_social_profile_page(parent: VBoxContainer) -> void:
 	profile_page.add_theme_constant_override("separation", 10)
 	parent.add_child(profile_page)
 	profile_page.add_child(_label("我的", 22, _theme_color("accent")))
+	var identity_frame := PanelContainer.new()
+	identity_frame.name = "SocialPlayerIdentityFrame"
+	identity_frame.custom_minimum_size.y = 188
+	identity_frame.set_meta("poster_frame", true)
+	identity_frame.add_theme_stylebox_override("panel", _style(_theme_color("ink"), _theme_color("accent")))
+	profile_page.add_child(identity_frame)
+	var identity_portrait := TextureRect.new()
+	identity_portrait.name = "SocialPlayerIdentityPortrait"
+	identity_portrait.texture = _load_runtime_texture(PLAYER_CHARACTER_PATH)
+	identity_portrait.set_meta("asset_path", PLAYER_CHARACTER_PATH)
+	identity_portrait.expand_mode = TextureRect.EXPAND_IGNORE_SIZE
+	identity_portrait.stretch_mode = TextureRect.STRETCH_KEEP_ASPECT_CENTERED
+	identity_frame.add_child(identity_portrait)
 	profile_page.add_child(_label("已合成梗：%d" % game.completed_memes.size(), 17, _theme_color("ink")))
 	profile_page.add_child(_label("污染：%d%%" % game.pollution, 17, _theme_color("ink")))
 	var note := _label("你的语言档案会随着塔层上升变窄。", 16, _theme_color("accent"))
@@ -3324,7 +3508,8 @@ func _render_reality() -> void:
 	_reality_choice_row.visible = choosing
 	_reality_typing_line.visible = typing
 	_reality_typing_progress.visible = typing
-	_reality_continue_button.visible = result
+	_reality_continue_button.visible = _reality_interaction_active
+	_reality_continue_button.text = "结束" if result else "离开"
 	var aid_status := game.get_communication_item_status()
 	_reality_aid_status.text = "沟通辅助  %s" % aid_status if not aid_status.is_empty() else ""
 	_reality_aid_status.visible = _reality_interaction_active and not typing and not aid_status.is_empty()
@@ -3532,6 +3717,7 @@ func _update_visibility() -> void:
 		_cinematic_top_bar.visible = _game_started and not in_phone
 	if _cinematic_bottom_bar != null:
 		_cinematic_bottom_bar.visible = _game_started and not in_phone
+	_layout_hud_rail()
 
 
 func _animate_world(delta: float) -> void:
@@ -3667,7 +3853,7 @@ func _social_post_for_index(post_index: int) -> Dictionary:
 	var post: Dictionary = (SOCIAL_POST_CARDS[card_index] as Dictionary).duplicate(true)
 	post["card_index"] = card_index
 	var source_passive: Dictionary = post.get("passive", {})
-	var prepared_tokens: Array = []
+	var candidate_tokens: Array = []
 	for token_data in post.get("tokens", []):
 		var source_token: Dictionary = (token_data as Dictionary).duplicate(true)
 		var source_text := str(source_token.get("text", ""))
@@ -3680,9 +3866,48 @@ func _social_post_for_index(post_index: int) -> Dictionary:
 			token["text"] = character
 			token["source_card_id"] = str(post.get("id", ""))
 			token["source_passive"] = source_passive.duplicate(true)
-			prepared_tokens.append(token)
+			candidate_tokens.append(token)
+	var prepared_tokens: Array = []
+	var current_day := 1 if game == null else game.day
+	var pickup_indices := _social_pickup_post_indices(current_day)
+	if post_index in pickup_indices and not candidate_tokens.is_empty():
+		var pickup_count := mini(candidate_tokens.size(), 2 + posmod(current_day + card_index, 2))
+		var start_index := posmod(current_day * 3 + card_index * 2, candidate_tokens.size())
+		var step := maxi(1, int(floor(float(candidate_tokens.size()) / float(pickup_count))))
+		var used_indices: Array[int] = []
+		var matching_indices: Array[int] = []
+		for candidate_index in candidate_tokens.size():
+			var candidate: Dictionary = candidate_tokens[candidate_index]
+			for candidate_tag in candidate.get("tags", []):
+				if candidate_tag in post.get("tags", []):
+					matching_indices.append(candidate_index)
+					break
+		if not matching_indices.is_empty():
+			var matching_index := matching_indices[posmod(start_index, matching_indices.size())]
+			used_indices.append(matching_index)
+			prepared_tokens.append((candidate_tokens[matching_index] as Dictionary).duplicate(true))
+		var pickup_index := 0
+		while prepared_tokens.size() < pickup_count:
+			var candidate_index := posmod(start_index + pickup_index * step, candidate_tokens.size())
+			while candidate_index in used_indices:
+				candidate_index = posmod(candidate_index + 1, candidate_tokens.size())
+			used_indices.append(candidate_index)
+			prepared_tokens.append((candidate_tokens[candidate_index] as Dictionary).duplicate(true))
+			pickup_index += 1
 	post["tokens"] = prepared_tokens
+	post["pickup_available"] = not prepared_tokens.is_empty()
 	return post
+
+
+func _social_pickup_post_indices(day_number: int) -> Array[int]:
+	var indices: Array[int] = []
+	if SOCIAL_POST_CARDS.is_empty():
+		return indices
+	var pickup_post_count := mini(SOCIAL_POST_CARDS.size(), 2 + posmod(maxi(1, day_number) - 1, 4))
+	var start_index := posmod((maxi(1, day_number) - 1) * 5, SOCIAL_POST_CARDS.size())
+	for offset in pickup_post_count:
+		indices.append(posmod(start_index + offset * 5, SOCIAL_POST_CARDS.size()))
+	return indices
 
 
 func _is_pickable_social_character(character: String) -> bool:
