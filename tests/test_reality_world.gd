@@ -26,6 +26,8 @@ func _run() -> void:
 	var game_root := scene.instantiate()
 	root.add_child(game_root)
 	game_root.new_game()
+	for _line_index in 7:
+		game_root._advance_prologue()
 	await process_frame
 
 	var player := game_root.get_node_or_null("RealityPlayer") as CharacterBody3D
@@ -71,7 +73,8 @@ func _run() -> void:
 	_assert_eq(str(floor_root.get_meta("layout_mode", "")), "shared_street", "reality floor should be one shared open street instead of isolated NPC boxes")
 	var map_width := float(floor_root.get_meta("map_width", 0.0))
 	var map_length := float(floor_root.get_meta("map_length", 0.0))
-	_assert_true(map_width >= 32.0 and map_length >= 42.0, "first floor should provide a genuinely broad continuous street")
+	_assert_true(map_width >= 32.0 and map_length >= 230.0, "first floor should be five times longer than the original forty-six-metre street")
+	_assert_eq(float(floor_root.get_meta("world_length_scale", 0.0)), 5.0, "generated floors should expose the requested five-times world scale")
 	var street_ground := _find_node_by_name(floor_root, "StreetGround") as StaticBody3D
 	_assert_true(street_ground != null, "shared street should use one continuous collision ground")
 	_assert_eq(int(floor_root.get_meta("air_wall_count", 0)), 4, "the map perimeter should expose four air walls")
@@ -90,6 +93,11 @@ func _run() -> void:
 	var ordinary_npcs := _count_actors(floor_root, "npc")
 	_assert_true(merchant != null, "every floor should contain exactly one merchant actor")
 	_assert_eq(ordinary_npcs, 5, "first floor should place all five ordinary NPC billboards")
+	var npc_z_positions: Array[float] = []
+	_collect_actor_z_positions(floor_root, "npc", npc_z_positions)
+	npc_z_positions.sort()
+	for index in range(1, npc_z_positions.size()):
+		_assert_true(npc_z_positions[index] - npc_z_positions[index - 1] >= 25.0, "ordinary NPCs should be spaced across the five-times-long street")
 	if merchant != null:
 		var merchant_billboard := merchant.get_node_or_null("Billboard") as Sprite3D
 		_assert_true(merchant_billboard != null and merchant_billboard.texture != null, "merchant should use generated 2D character artwork")
@@ -118,15 +126,36 @@ func _run() -> void:
 	var yaw_before_touch := float(game_root._reality_yaw)
 	var pitch_before_touch := float(game_root._reality_pitch)
 	var actions_before_touch := int(game_root.game.actions_remaining)
+	var touch_start := InputEventScreenTouch.new()
+	touch_start.index = 3
+	touch_start.position = Vector2(760.0, 430.0)
+	touch_start.pressed = true
+	game_root._input(touch_start)
 	var touch_turn := InputEventScreenDrag.new()
-	touch_turn.relative = Vector2(-72.0, 38.0)
-	game_root._unhandled_input(touch_turn)
+	touch_turn.index = 3
+	touch_turn.position = Vector2(688.0, 468.0)
+	touch_turn.screen_relative = Vector2(-72.0, 38.0)
+	game_root._input(touch_turn)
 	_assert_true(not is_equal_approx(float(game_root._reality_yaw), yaw_before_touch), "horizontal touchscreen drag should rotate the first-person view")
 	_assert_true(not is_equal_approx(float(game_root._reality_pitch), pitch_before_touch), "vertical touchscreen drag should tilt the first-person view")
 	_assert_eq(game_root.game.actions_remaining, actions_before_touch, "touchscreen free look should not spend an action")
+	var yaw_after_primary_touch := float(game_root._reality_yaw)
+	var second_touch_turn := InputEventScreenDrag.new()
+	second_touch_turn.index = 4
+	second_touch_turn.position = Vector2(500.0, 300.0)
+	second_touch_turn.screen_relative = Vector2(120.0, 0.0)
+	game_root._input(second_touch_turn)
+	_assert_true(is_equal_approx(float(game_root._reality_yaw), yaw_after_primary_touch), "a second finger should not steal the active one-finger camera gesture")
+	var touch_end := InputEventScreenTouch.new()
+	touch_end.index = 3
+	touch_end.position = touch_turn.position
+	touch_end.pressed = false
+	game_root._input(touch_end)
+	_assert_eq(int(game_root._reality_touch_look_index), -1, "lifting the active finger should finish the camera gesture")
 	game_root.set_view_state("phone_down")
 	var yaw_while_phone_is_up := float(game_root._reality_yaw)
-	game_root._unhandled_input(touch_turn)
+	game_root._input(touch_start)
+	game_root._input(touch_turn)
 	_assert_true(is_equal_approx(float(game_root._reality_yaw), yaw_while_phone_is_up), "touchscreen drag should not turn the world while the phone interface is active")
 	game_root.set_view_state("npc_up")
 	game_root._reality_yaw = 0.0
@@ -235,6 +264,13 @@ func _find_actor(node: Node, actor_type: String) -> Area3D:
 		if found != null:
 			return found
 	return null
+
+
+func _collect_actor_z_positions(node: Node, actor_type: String, result: Array[float]) -> void:
+	if node is Area3D and str(node.get_meta("actor_type", "")) == actor_type:
+		result.append((node as Area3D).position.z)
+	for child in node.get_children():
+		_collect_actor_z_positions(child, actor_type, result)
 
 
 func _count_actors(node: Node, actor_type: String) -> int:

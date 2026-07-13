@@ -21,6 +21,7 @@ func _capture() -> void:
 	var main := scene.instantiate()
 	root.add_child(main)
 	main.new_game()
+	main._skip_prologue()
 	main._close_app_window("social")
 	main._open_phone_launcher()
 	for frame in 12:

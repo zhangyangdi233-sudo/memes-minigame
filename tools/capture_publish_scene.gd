@@ -22,20 +22,17 @@ func _capture() -> void:
 	root.add_child(main)
 	if main.has_method("new_game"):
 		main.new_game()
+		main._skip_prologue()
 	main.game.completed_memes = [{
 		"id": "capture-contract",
-		"title": "双声回路样本",
-		"text": "哈吉米，今天为什么还要追问？",
-		"tags": ["哈吉米", "追问", "焦虑"],
+		"title": "复合「哈塔」",
+		"text": "哈塔",
+		"tags": ["哈吉米", "巴别塔"],
 		"rarity": 2,
-		"pollution_bias": 2,
-		"emotion_count": 1,
+		"pollution_bias": 10,
+		"fusion_level": 1,
+		"fused_from": ["capture-ha", "capture-tower"],
 	}]
-	main.game.owned_arcana_cards = [
-		{"uid": "capture-moon", "id": "moon", "bought_day": 1},
-		{"uid": "capture-star", "id": "star", "bought_day": 1},
-	]
-	main.game.use_arcana_card("capture-moon")
 	main.game.place_meme_in_blank("blank_1", "capture-contract")
 	if main.has_method("_set_social_screen"):
 		main._set_social_screen("publish")

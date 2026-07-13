@@ -2,9 +2,11 @@ class_name MemeGameState
 extends RefCounted
 
 const MAX_TOWER_FLOOR := 5
-const TOWER_THRESHOLDS := [0, 36, 64, 94, 120, 150]
+const TOWER_THRESHOLDS := [0, 144, 256, 376, 480, 600]
+const MAX_THRESHOLD_DISCOUNT := 280
 const POLLUTION_LOCK_THRESHOLD := 70
 const POLLUTION_FLASHBACK_THRESHOLD := 60
+const BASE_ACTIONS_PER_DAY := 5
 const FLOOR_DEADLINES := {3: 2, 6: 3, 9: 4, 12: 5}
 const ACCEPTED_TAG_ROTATION := [
 	["哈吉米", "追问", "日常"],
@@ -37,11 +39,11 @@ const SIGNAL_CONTRACTS := [
 		"pollution_risk": 3,
 	},
 	{
-		"id": "emotion_flush",
-		"label": "情绪同花",
-		"description": "同时装入 2 个情绪槽",
-		"rule": "emotion_count",
-		"threshold": 2,
+		"id": "single_glyph",
+		"label": "独字成句",
+		"description": "发布一个只含 1 个字的基础梗",
+		"rule": "text_length",
+		"threshold": 1,
 		"base_bonus": 8,
 		"multiplier_bonus": 2,
 		"pollution_risk": 4,
@@ -79,59 +81,21 @@ const SIGNAL_CONTRACTS := [
 	},
 ]
 
-const EMOTION_SLOTS := {
-	"anxiety": {"id": "anxiety", "label": "焦虑", "price": 5, "default_text": "我不是那个意思", "tags": ["焦虑"], "pollution_bias": 2, "clarity_bias": -4},
-	"please": {"id": "please", "label": "讨好", "price": 5, "default_text": "你说得也有道理", "tags": ["讨好"], "pollution_bias": 1, "clarity_bias": -2},
-	"counter": {"id": "counter", "label": "反问", "price": 6, "default_text": "难道不是这样吗", "tags": ["反问"], "pollution_bias": 3, "clarity_bias": -5},
-	"silence": {"id": "silence", "label": "沉默", "price": 6, "default_text": "我先不说了", "tags": ["沉默", "空位"], "pollution_bias": 3, "clarity_bias": -6},
-	"anger": {"id": "anger", "label": "愤怒", "price": 7, "default_text": "别再这样问我", "tags": ["愤怒", "禁问"], "pollution_bias": 4, "clarity_bias": -8},
-	"prayer": {"id": "prayer", "label": "祈求", "price": 7, "default_text": "请让我把话说完", "tags": ["祈求", "圣歌"], "pollution_bias": 4, "clarity_bias": -5},
-}
-
-const EMOTION_ROTATION := ["anxiety", "please", "counter", "silence", "anger", "prayer"]
-const MAX_EQUIPPED_EMOTION_SLOTS := 2
-const MAX_HELD_ARCANA_CARDS := 2
-const ARCANA_CARDS := {
-	"moon": {
-		"id": "moon", "numeral": "XVIII", "label": "月亮", "price": 8,
-		"effect": "next_multiplier_bonus", "value": 1, "pollution_risk": 4,
-		"description": "下一次传播的整数倍率 +1，同时追加 4 污染。",
-	},
-	"tower": {
-		"id": "tower", "numeral": "XVI", "label": "高塔", "price": 10,
-		"effect": "force_contract", "pollution_risk": 7,
-		"description": "下一次发布强制成立今日牌型，同时追加 7 污染。",
-	},
-	"hermit": {
-		"id": "hermit", "numeral": "IX", "label": "隐者", "price": 7,
-		"effect": "repeat_grace", "value": 1, "pollution_risk": 0,
-		"description": "下一次发布忽略 1 次复读衰减。",
-	},
-	"hanged": {
-		"id": "hanged", "numeral": "XII", "label": "倒吊人", "price": 6,
-		"effect": "clarity_for_base", "value": 24, "clarity_cost": 8, "pollution_risk": 0,
-		"description": "立即失去 8 清晰，下一次传播基础 +24。",
-	},
-	"star": {
-		"id": "star", "numeral": "XVII", "label": "星星", "price": 8,
-		"effect": "add_trend_tag", "requires_meme": true, "pollution_risk": 0,
-		"description": "为选中的完整梗永久写入 1 个缺失的今日风向。",
-	},
-	"judgement": {
-		"id": "judgement", "numeral": "XX", "label": "审判", "price": 7,
-		"effect": "reroll_contract", "pollution_risk": 0,
-		"description": "立刻改写今日牌型；本次使用不消耗行动。",
-	},
-}
-const ARCANA_ROTATION := ["moon", "star", "hermit", "tower", "hanged", "judgement"]
+const MEME_FRAME_PRICE := 7
+const MEME_FRAME_OFFER_INTERVAL := 3
 const ASCENT_REWARDS := [
-	{"id": "echo_amplifier", "label": "回声增幅", "description": "命中至少 2 个风向时，整数倍率额外 +1。", "effect": "trend_multiplier_bonus", "value": 1.0},
-	{"id": "pollution_dividend", "label": "污染分红", "description": "污染达到 40% 时，传播基础 +10。", "effect": "pollution_base", "value": 10.0},
-	{"id": "repeat_license", "label": "复读许可", "description": "第一次复用相同表达不触发衰减。", "effect": "repeat_grace", "value": 1.0},
-	{"id": "legacy_fold", "label": "遗产折叠", "description": "每条遗产造成的理解惩罚减少 4。", "effect": "legacy_relief", "value": 4.0},
-	{"id": "quiet_subsidy", "label": "沉默补贴", "description": "现实沟通造成的资金损失减少 2。", "effect": "relationship_shield", "value": 2.0},
-	{"id": "empty_slot_bonus", "label": "空位加码", "description": "带有空位或沉默标签时，传播基础 +8。", "effect": "empty_base", "value": 8.0},
-	{"id": "emotion_afterimage", "label": "情绪余像", "description": "每个装备情绪让传播基础 +4。", "effect": "emotion_base", "value": 4.0},
+	{"id": "star", "tarot_id": "star", "numeral": "XVII", "label": "星星", "description": "命中至少 2 个风向时，整数倍率额外 +1。", "effect": "trend_multiplier_bonus", "value": 1.0},
+	{"id": "sun", "tarot_id": "sun", "numeral": "XIX", "label": "太阳", "description": "每次发布获得额外 14 点传播基础。", "effect": "publish_base", "value": 14.0},
+	{"id": "moon", "tarot_id": "moon", "numeral": "XVIII", "label": "月亮", "description": "污染达到 40% 时，传播基础 +16。", "effect": "pollution_base", "value": 16.0},
+	{"id": "hermit", "tarot_id": "hermit", "numeral": "IX", "label": "隐者", "description": "第一次复用相同表达不触发衰减。", "effect": "repeat_grace", "value": 1.0},
+	{"id": "tower", "tarot_id": "tower", "numeral": "XVI", "label": "高塔", "description": "融合梗的整数倍率额外 +1。", "effect": "fusion_multiplier_bonus", "value": 1.0},
+	{"id": "hanged", "tarot_id": "hanged", "numeral": "XII", "label": "倒吊人", "description": "每条遗产造成的隐性交流损耗减少 4。", "effect": "legacy_relief", "value": 4.0},
+	{"id": "judgement", "tarot_id": "judgement", "numeral": "XX", "label": "审判", "description": "今日牌型成立时再获得 18 点传播基础。", "effect": "contract_base", "value": 18.0},
+]
+const TAROT_COMBOS := [
+	{"id": "day_and_night", "label": "不分昼夜", "requires": ["star", "sun", "moon"], "description": "每天多 1 次行动。", "effect": "max_actions_bonus", "value": 1},
+	{"id": "falling_tower", "label": "星坠高塔", "requires": ["star", "tower"], "description": "融合梗的整数倍率再 +1。", "effect": "fusion_multiplier_bonus", "value": 1},
+	{"id": "lunar_solitude", "label": "月下隐者", "requires": ["moon", "hermit"], "description": "额外忽略 1 次复读衰减。", "effect": "repeat_grace", "value": 1},
 ]
 const CLEAN_WORDS := ["我", "想", "正常", "说明", "这件事", "不是", "那个意思", "请", "听我", "说完"]
 const FALLBACK_LEGACY_TEXTS := {
@@ -152,19 +116,145 @@ const REALITY_RESPONSE_SETS := {
 		{"id": "test_price", "summary": "试探价格", "sentence": "这些东西分别需要多少钱？"},
 	],
 }
+const REALITY_DIALOGUES_BY_FLOOR := {
+	1: [
+		{"line": "你也在等那班已经经过、但谁都没看见的车吗？", "result": "迟到者看了一眼空荡荡的站牌，像是在替它保守秘密。", "choices": [
+			{"id": "f1n0_wait", "summary": "一起等", "sentence": "我没有看见那班车，但我可以陪你再等一会儿。"},
+			{"id": "f1n0_time", "summary": "核对时间", "sentence": "站牌上的时间没有变，也许车还没有真正经过。"},
+			{"id": "f1n0_leave", "summary": "先离开", "sentence": "如果下一班也没有声音，我们就沿着路走回去。"},
+		]},
+		{"line": "楼上的水管昨晚喊了我的名字。你住哪一户？", "result": "回声住户把钥匙攥紧了一点，管道在墙里轻轻敲了三下。", "choices": [
+			{"id": "f1n1_home", "summary": "说出住处", "sentence": "我住在路尽头那扇总是关不严的门后面。"},
+			{"id": "f1n1_pipe", "summary": "问水管", "sentence": "也许水管只是记住了你每天回家的脚步声。"},
+			{"id": "f1n1_name", "summary": "确认名字", "sentence": "它喊的是你的名字，还是住在这里的每一个名字？"},
+		]},
+		{"line": "我把门牌抄了三遍，每一遍都少一个人。你能替我数吗？", "result": "抄写员没有递出纸，只把空着的第四行折进掌心。", "choices": [
+			{"id": "f1n2_count", "summary": "重新数", "sentence": "我们从第一扇门开始，名字和门牌分开数。"},
+			{"id": "f1n2_blank", "summary": "保留空行", "sentence": "少掉的人也许需要一个空位置，而不是另一个名字。"},
+			{"id": "f1n2_stop", "summary": "停止抄写", "sentence": "先别写第四遍，纸可能正在学习怎样删掉人。"},
+		]},
+		{"line": "你刚才抬头了吗？塔上掉下来一片像收据的云。", "result": "无名信徒把那片不存在的纸塞进口袋，动作十分熟练。", "choices": [
+			{"id": "f1n3_sky", "summary": "描述天空", "sentence": "我只看见绿色的天，云上没有价格，也没有日期。"},
+			{"id": "f1n3_receipt", "summary": "索要收据", "sentence": "如果它真是收据，上面应该写着是谁买下了这座塔。"},
+			{"id": "f1n3_ground", "summary": "看着地面", "sentence": "我没有抬头，我怕地面趁机换掉回去的方向。"},
+		]},
+		{"line": "我在十年前的帖子里看见今天的你。那是你吗？", "result": "旧帖目击者没有展示截图，屏幕却自行亮了一瞬。", "choices": [
+			{"id": "f1n4_yes", "summary": "承认", "sentence": "如果照片里的我正在等今天，那个人也可以算是我。"},
+			{"id": "f1n4_no", "summary": "否认", "sentence": "十年前我不在这里，帖子也不该记得我的脸。"},
+			{"id": "f1n4_reply", "summary": "留下回复", "sentence": "请替我回复一句，让过去不要继续往前翻页。"},
+		]},
+	],
+	2: [
+		{"line": "先说上一层留下的那句话，再告诉我你为什么迟到。顺序不能反。", "result": "迟到者认真听完规定的部分，剩下的话被风带到很远。", "choices": [
+			{"id": "f2n0_order", "summary": "照顺序说", "sentence": "我会先念完遗产，然后说明路口为什么没有放我过去。"},
+			{"id": "f2n0_reason", "summary": "先说理由", "sentence": "我迟到是因为那条路反复把我送回同一块路牌。"},
+			{"id": "f2n0_refuse", "summary": "拒绝顺序", "sentence": "如果原因只能排在旧话后面，它就不再是我的原因。"},
+		]},
+		{"line": "这层每户都要保管一句旧话。我家的那句半夜会自己换位置。", "result": "回声住户点了点头，像是刚完成一次例行点名。", "choices": [
+			{"id": "f2n1_lock", "summary": "锁住它", "sentence": "把那句话写在门背后，也许它就找不到新的房间。"},
+			{"id": "f2n1_follow", "summary": "记录移动", "sentence": "今晚记下它每次换位置的时间，不要改动其中的字。"},
+			{"id": "f2n1_return", "summary": "送回楼下", "sentence": "旧话来自上一层，我们可以沿楼梯把它送回原处。"},
+		]},
+		{"line": "登记表说你已经回答过了。可我这里还是空白。", "result": "抄写员在空白处盖章，印泥发出一声很轻的叹息。", "choices": [
+			{"id": "f2n2_again", "summary": "再回答", "sentence": "我可以再说一次，但请保留这次说话留下的空白。"},
+			{"id": "f2n2_record", "summary": "质疑记录", "sentence": "表格记住的是动作，不一定记住了我真正说过什么。"},
+			{"id": "f2n2_stamp", "summary": "请求盖章", "sentence": "请先证明这里曾经空着，再把我的句子写进去。"},
+		]},
+		{"line": "我们不再问你叫什么。我们只核对你携带了哪一句遗产。", "result": "无名信徒在听见遗产时微笑，在听见其余内容时闭上眼睛。", "choices": [
+			{"id": "f2n3_name", "summary": "坚持名字", "sentence": "遗产跟着我，但我的名字仍然应该先于它出现。"},
+			{"id": "f2n3_legacy", "summary": "出示遗产", "sentence": "我带着上一层最响的句子，它比我更容易被认出来。"},
+			{"id": "f2n3_none", "summary": "声称空手", "sentence": "我想试着什么都不携带，只用今天剩下的词站在这里。"},
+		]},
+	],
+	3: [
+		{"line": "请提交一句未被使用过的自己。重复部分将退回上一窗口。", "result": "迟到者撕下回执，纸的背面印着同一张回执。", "choices": [
+			{"id": "f3n0_submit", "summary": "提交原句", "sentence": "这句话只在现在出现，请不要替它补上以前的编号。"},
+			{"id": "f3n0_copy", "summary": "承认重复", "sentence": "我借用了旧句子的结构，但其中的犹豫是今天才有的。"},
+			{"id": "f3n0_window", "summary": "寻找窗口", "sentence": "上一窗口已经封死，我只能把退件留在这里。"},
+		]},
+		{"line": "你所在的住处已被归类为比喻。实体住址需要另行申请。", "result": "回声住户把申请表对折，折痕恰好穿过自己的地址。", "choices": [
+			{"id": "f3n1_actual", "summary": "申报实体", "sentence": "我的房间有墙和门，也有一盏会在凌晨熄灭的灯。"},
+			{"id": "f3n1_metaphor", "summary": "接受比喻", "sentence": "如果住处只是比喻，请注明我究竟被比作了什么。"},
+			{"id": "f3n1_nohome", "summary": "撤销地址", "sentence": "取消我的地址吧，这样回去的时候就不会再次走错。"},
+		]},
+		{"line": "缺失人员栏不能留空。请填写一个仍然存在的人。", "result": "抄写员将答案归档，抽屉里传来某个人翻身的声音。", "choices": [
+			{"id": "f3n2_self", "summary": "填写自己", "sentence": "先写我的名字，至少此刻我还站在表格外面。"},
+			{"id": "f3n2_missing", "summary": "保留缺失", "sentence": "缺失不是空白，它是一个人离开后留下的准确形状。"},
+			{"id": "f3n2_drawer", "summary": "询问抽屉", "sentence": "请打开抽屉，里面的人也许知道自己是否仍然存在。"},
+		]},
+	],
+	4: [
+		{"line": "我们唱到你的名字时，请不要回答。回答会破坏和声。", "result": "合唱没有停下，只在主角应该出现的位置稍微变调。", "choices": [
+			{"id": "f4n0_silence", "summary": "保持沉默", "sentence": "我会让名字从我身边经过，不把它认领回来。"},
+			{"id": "f4n0_answer", "summary": "打断合唱", "sentence": "那是我的名字，它不该只作为你们旋律里的一个音。"},
+			{"id": "f4n0_hum", "summary": "轻声跟唱", "sentence": "我只跟着最后一个音，不唱名字，也不唱塔。"},
+		]},
+		{"line": "圣歌需要一个空位。大家一致认为那个位置很像你。", "result": "无名信徒向旁边挪开半步，空位却仍然跟着主角。", "choices": [
+			{"id": "f4n1_enter", "summary": "站进空位", "sentence": "我可以站在那里，但不会把沉默假装成赞同。"},
+			{"id": "f4n1_decline", "summary": "拒绝位置", "sentence": "像我不等于属于我，请把那个位置继续空着。"},
+			{"id": "f4n1_ask", "summary": "询问缺席者", "sentence": "这个空位原来属于谁，你们为什么不再唱那个人？"},
+		]},
+	],
+	5: [
+		{"line": "你 / 还 / 把 / 自己 / 带着吗", "result": "迟到者的嘴唇动了五次，只有斜线抵达空气。", "choices": [
+			{"id": "f5n0_here", "summary": "仍在这里", "sentence": "我还在这里，只是句子比我先到了一步。"},
+			{"id": "f5n0_lost", "summary": "遗失一部分", "sentence": "有一部分留在楼下，正在替我继续回答问题。"},
+			{"id": "f5n0_count", "summary": "逐字确认", "sentence": "我会一个字一个字地数，数到停下的地方就是我。"},
+		]},
+		{"line": "窗 / 外 / 有 / 一只 / 没有过去的鸟", "result": "旧帖目击者望向窗外。那里没有窗，鸟仍然飞过了一次。", "choices": [
+			{"id": "f5n1_bird", "summary": "描述那只鸟", "sentence": "它没有向前飞，只让身后的世界不断离开。"},
+			{"id": "f5n1_window", "summary": "寻找窗户", "sentence": "先找到窗户吧，不然我们不知道外面究竟属于哪里。"},
+			{"id": "f5n1_signal", "summary": "发送信号", "sentence": "如果它没有过去，就让这句话追上它，替我们问候一次。"},
+		]},
+	],
+}
+const MERCHANT_DIALOGUES_BY_FLOOR := {
+	1: {"line": "我卖的是能装住一个字的空框。字会漏出来，框不会。", "result": "信号商人敲了敲柜台，空框发出比内容更清楚的声音。"},
+	2: {"line": "本层交易必须附上一句遗产。价格不会因此减少。", "result": "信号商人收走了声音，没有说明它被记在哪一本账里。"},
+	3: {"line": "请确认购买者与说话者为同一实体。无法确认也可以签字。", "result": "信号商人把签名盖在照片上，照片里的人没有动。"},
+	4: {"line": "交换也是圣歌。你给出一句，我归还一个更响的空位。", "result": "信号商人低声唱出价格，数字在最后一个音里消失。"},
+	5: {"line": "买 / 卖 / 留下 / 哪一个", "result": "信号商人伸出空手。主角无法判断交易是否已经发生。"},
+}
+const MERCHANT_CHOICES_BY_FLOOR := {
+	1: [
+		{"id": "trade", "summary": "询问梗框", "sentence": "我想要一个只装一个字的框，它不需要替我解释。"},
+		{"id": "ask_empty", "summary": "询问空框", "sentence": "空框为什么比装进去的字更容易被人记住？"},
+		{"id": "leave", "summary": "暂不交易", "sentence": "我先保留手里的字，等它愿意进入一个边界。"},
+	],
+	2: [
+		{"id": "trade", "summary": "按遗产交易", "sentence": "我会带上旧句子，但梗框里只放今天拾到的字。"},
+		{"id": "ask_price", "summary": "质疑价格", "sentence": "遗产已经替我说过一次，为什么还要支付第二次价格？"},
+		{"id": "leave", "summary": "拒绝附言", "sentence": "不能不带旧话交易的话，我就让这次交易保持空白。"},
+	],
+	3: [
+		{"id": "trade", "summary": "签字购买", "sentence": "购买者和说话者暂时是同一个人，我愿意在这里签字。"},
+		{"id": "ask_form", "summary": "索要表格", "sentence": "请给我一份没有预填答案的申请表。"},
+		{"id": "leave", "summary": "撤回申请", "sentence": "如果签名会替我继续说话，我撤回这次购买。"},
+	],
+	4: [
+		{"id": "trade", "summary": "加入交换", "sentence": "我给出一句没有旋律的话，只换一个安静的梗框。"},
+		{"id": "ask_song", "summary": "询问价格歌", "sentence": "价格唱完以后消失了，我该把钱交给哪个音？"},
+		{"id": "leave", "summary": "退出合唱", "sentence": "我不想让交易变成副歌，今天先不买。"},
+	],
+	5: [
+		{"id": "trade", "summary": "买", "sentence": "我 / 买 / 一个 / 空框。"},
+		{"id": "ask_hand", "summary": "看空手", "sentence": "你 / 手里 / 已经 / 有 / 我的东西吗。"},
+		{"id": "leave", "summary": "留下", "sentence": "字 / 留下 / 我 / 走。"},
+	],
+}
 const REALITY_CORRUPTION_GLYPHS := ["■", "▦", "∴", "//", "哈", "吉", "米", "空位"]
 const COMMUNICATION_ITEMS := {
 	"silence_patch": {
 		"id": "silence_patch", "label": "静音贴", "price": 6, "charges": 2, "clarity_bonus": 18,
-		"description": "原本听不懂时，自动把理解机会提高 18%。",
+		"description": "现实句子严重失真时，临时压低 18% 的污染噪声。",
 	},
 	"semantic_anchor": {
 		"id": "semantic_anchor", "label": "语义锚", "price": 9, "charges": 3, "clarity_bonus": 14,
-		"description": "原本听不懂时，自动把理解机会提高 14%。",
+		"description": "现实句子严重失真时，临时压低 14% 的污染噪声。",
 	},
 	"dictionary_leaf": {
 		"id": "dictionary_leaf", "label": "旧词典页", "price": 12, "charges": 1, "clarity_bonus": 32,
-		"description": "仅能使用一次，但把理解机会提高 32%。",
+		"description": "仅能使用一次，但会压低 32% 的污染噪声。",
 	},
 }
 const COMMUNICATION_ITEM_ROTATION := ["silence_patch", "semantic_anchor", "dictionary_leaf"]
@@ -173,6 +263,22 @@ const ENDING_LANGUAGE_CHOICES := [
 	{"id": "blocks", "label": "■■■■", "output": "■ ■ ■ ■"},
 	{"id": "hajimi", "label": "哈吉米", "output": "哈吉米"},
 	{"id": "silence", "label": "沉默", "output": "……"},
+]
+const PROLOGUE_LINES := [
+	"（先确认一件事。你手里拿着什么？）",
+	"一部没有信号的手机。它在我醒来以前就亮着。",
+	"（你在等谁的消息？）",
+	"不。我在等路面停止向后移动。它每退一步，塔就多出一层。",
+	"城市广播说今天一切正常。广播重复了七次，正常因此变成一个可疑的词。",
+	"（从哪里开始？）",
+	"从一个字开始。先让它进入框里，再看它会把谁赶出去。",
+]
+const EPILOGUE_LINES := [
+	"所有遗产规则都说智者住在这里。这里没有智者。",
+	"塔顶只有一台没有接线的发射机。指示灯按照你的呼吸闪烁。",
+	"（它在发送什么？）",
+	"你把耳朵贴近外壳。里面传来整座城市的声音，每个人都在准确重复别人。",
+	"你想说一句普通的话。每一层却先替你开口。",
 ]
 
 var day: int = 1
@@ -201,6 +307,10 @@ var active_app_window: String = "social"
 var notebook_tokens: Array = []
 var draft_slots: Dictionary = {}
 var completed_memes: Array = []
+var owned_meme_frames: int = 0
+var daily_meme_frame_bought: bool = false
+var fusion_slots: Dictionary = {}
+var fused_meme_pairs: Array[String] = []
 var dialogue_blanks: Dictionary = {}
 var published_memes: Array = []
 var last_publish_breakdown: Dictionary = {}
@@ -208,21 +318,11 @@ var event_log: Array[String] = []
 var social_followed_handles: Array[String] = []
 var social_liked_post_ids: Array[String] = []
 
-var owned_emotion_slots: Array = []
-var equipped_emotion_slots: Array = []
-var emotion_slot_texts: Dictionary = {}
-var daily_emotion_slot_id: String = "anxiety"
-
-var owned_arcana_cards: Array = []
-var daily_arcana_card_id: String = "moon"
-var daily_arcana_bought: bool = false
-var pending_arcana_effects: Dictionary = {}
-var signal_contract_offset: int = 0
-var arcana_sequence: int = 0
 var collected_world_item_ids: Array[String] = []
 var pending_world_item_effects: Dictionary = {}
 
 var permanent_modifiers: Array = []
+var owned_tarot_ids: Array[String] = []
 var pending_ascent_reward_choices: Array = []
 var pending_ascent_reward_floor: int = 0
 var queued_ascent_reward_floors: Array = []
@@ -242,6 +342,8 @@ var conversation_phase: String = "idle"
 var conversation_actor_id: String = ""
 var conversation_actor_type: String = "npc"
 var conversation_actor_label: String = ""
+var conversation_prompt: String = ""
+var conversation_result_line: String = ""
 var conversation_choices: Array = []
 var conversation_selected_choice_id: String = ""
 var conversation_clean_sentence: String = ""
@@ -268,6 +370,7 @@ func new_run() -> void:
 	ending_unlocked = false
 	ending_language_choice = ""
 	money = 18
+	max_actions_per_day = BASE_ACTIONS_PER_DAY
 	actions_remaining = max_actions_per_day
 	needs_day_settlement = false
 	day_ended_reason = ""
@@ -281,25 +384,20 @@ func new_run() -> void:
 	notebook_tokens = []
 	draft_slots = {}
 	completed_memes = []
+	owned_meme_frames = 0
+	daily_meme_frame_bought = false
+	fusion_slots = {}
+	fused_meme_pairs = []
 	dialogue_blanks = {}
 	published_memes = []
 	last_publish_breakdown = {}
 	event_log = []
 	social_followed_handles = []
 	social_liked_post_ids = []
-	owned_emotion_slots = []
-	equipped_emotion_slots = []
-	emotion_slot_texts = {}
-	daily_emotion_slot_id = _emotion_slot_for_day(day)
-	owned_arcana_cards = []
-	daily_arcana_card_id = _arcana_for_day(day)
-	daily_arcana_bought = false
-	pending_arcana_effects = {}
-	signal_contract_offset = 0
-	arcana_sequence = 0
 	collected_world_item_ids = []
 	pending_world_item_effects = {}
 	permanent_modifiers = []
+	owned_tarot_ids = []
 	pending_ascent_reward_choices = []
 	pending_ascent_reward_floor = 0
 	queued_ascent_reward_floors = []
@@ -489,7 +587,10 @@ func start_typed_reality_conversation(actor_id: String, actor_type: String, acto
 	conversation_actor_id = actor_id
 	conversation_actor_type = "merchant" if actor_type == "merchant" else "npc"
 	conversation_actor_label = actor_label
-	conversation_choices = (REALITY_RESPONSE_SETS.get(conversation_actor_type, REALITY_RESPONSE_SETS["npc"]) as Array).duplicate(true)
+	var dialogue := _reality_dialogue_for_actor(actor_id, conversation_actor_type)
+	conversation_prompt = str(dialogue.get("line", "你打算说什么？"))
+	conversation_result_line = str(dialogue.get("result", "%s移开了视线。" % actor_label))
+	conversation_choices = (dialogue.get("choices", []) as Array).duplicate(true)
 	conversation_selected_choice_id = ""
 	conversation_clean_sentence = ""
 	conversation_revealed_units = []
@@ -509,6 +610,10 @@ func reset_typed_reality_conversation() -> void:
 	conversation_actor_id = ""
 	conversation_actor_type = "npc"
 	conversation_actor_label = ""
+	conversation_prompt = ""
+	conversation_result_line = ""
+	conversation_prompt = ""
+	conversation_result_line = ""
 	conversation_choices = []
 	conversation_selected_choice_id = ""
 	conversation_clean_sentence = ""
@@ -524,6 +629,23 @@ func reset_typed_reality_conversation() -> void:
 
 func get_typed_reality_choices() -> Array:
 	return conversation_choices.duplicate(true)
+
+
+func _reality_dialogue_for_actor(actor_id: String, actor_type: String) -> Dictionary:
+	var floor_number := clampi(tower_floor, 1, MAX_TOWER_FLOOR)
+	if actor_type == "merchant":
+		var merchant_entry: Dictionary = (MERCHANT_DIALOGUES_BY_FLOOR.get(floor_number, MERCHANT_DIALOGUES_BY_FLOOR[1]) as Dictionary).duplicate(true)
+		merchant_entry["choices"] = (MERCHANT_CHOICES_BY_FLOOR.get(floor_number, MERCHANT_CHOICES_BY_FLOOR[1]) as Array).duplicate(true)
+		return merchant_entry
+	var entries: Array = REALITY_DIALOGUES_BY_FLOOR.get(floor_number, REALITY_DIALOGUES_BY_FLOOR[1])
+	var actor_index := 0
+	for index in 8:
+		if actor_id.ends_with("npc%d" % index):
+			actor_index = index
+			break
+	if entries.is_empty():
+		return {"line": "你打算说什么？", "result": "对方没有马上回答。", "choices": (REALITY_RESPONSE_SETS["npc"] as Array).duplicate(true)}
+	return (entries[actor_index % entries.size()] as Dictionary).duplicate(true)
 
 
 func get_daily_communication_item() -> Dictionary:
@@ -577,7 +699,7 @@ func get_communication_item_status() -> String:
 
 
 func should_show_merchant_communication_offer() -> bool:
-	return conversation_actor_type == "merchant" and conversation_phase == "result" and conversation_understood and conversation_selected_choice_id == "ask_goods"
+	return conversation_actor_type == "merchant" and conversation_phase == "result" and conversation_selected_choice_id == "trade"
 
 
 func preview_typed_reality_choice(choice_id: String) -> String:
@@ -645,25 +767,14 @@ func advance_typed_reality_character() -> Dictionary:
 	var understood := _resolve_typed_reality_understanding()
 	conversation_understood = understood
 	result["understood"] = understood
-	if understood:
-		conversation_phase = "result"
-		conversation_feedback = "%s听懂了你的意思。%s" % [conversation_actor_label, _communication_item_feedback()]
-		return result
-
-	last_relationship_residue_gain = clampi(1 + int(pollution / 18.0) + legacy_rules.size(), 1, 14)
-	relationship_residue = clampi(relationship_residue + last_relationship_residue_gain, 0, 100)
-	if conversation_attempts >= 3:
-		conversation_phase = "locked_out"
-		conversation_feedback = "%s第三次移开了视线。%s" % [conversation_actor_label, _communication_item_feedback()]
-		result["locked_out"] = true
-		return result
-
-	conversation_phase = "choosing"
-	conversation_feedback = "%s没有听懂。再试一次（%d/3）。%s" % [conversation_actor_label, conversation_attempts, _communication_item_feedback()]
-	conversation_selected_choice_id = ""
-	conversation_clean_sentence = ""
-	conversation_revealed_units = []
-	conversation_reveal_index = 0
+	if not understood:
+		last_relationship_residue_gain = clampi(1 + int(pollution / 18.0) + legacy_rules.size(), 1, 14)
+		relationship_residue = clampi(relationship_residue + last_relationship_residue_gain, 0, 100)
+	conversation_phase = "result"
+	conversation_feedback = conversation_result_line
+	var aid_feedback := _communication_item_feedback()
+	if not aid_feedback.is_empty():
+		conversation_feedback += "\n" + aid_feedback
 	return result
 
 
@@ -769,26 +880,27 @@ func settle_day_if_needed() -> bool:
 	day_ended_reason = ""
 	pollution_flashback_pending = false
 	draft_slots.clear()
+	fusion_slots.clear()
 	dialogue_blanks.clear()
 	reality_sentence_slots.clear()
 	reset_reality_phase_for_day()
 	reset_typed_reality_conversation()
-	daily_emotion_slot_id = _emotion_slot_for_day(day)
-	daily_arcana_card_id = _arcana_for_day(day)
-	daily_arcana_bought = false
+	daily_meme_frame_bought = false
 	daily_communication_item_bought = false
 	last_communication_item_used = ""
 	last_communication_item_remaining = 0
-	signal_contract_offset = 0
 	heat = maxi(10, int(round(float(heat) * 0.82)))
 	money += 5 + tower_floor * 2
 	return true
 
 
 func pick_token(post_id: String, token: Dictionary) -> bool:
+	var picked_character := _first_pickable_character(str(token.get("text", "")))
+	if picked_character.is_empty():
+		return false
 	var note := {
 		"id": "%s-%s-%d" % [post_id, token.get("id", "token"), day],
-		"text": str(token.get("text", "")),
+		"text": picked_character,
 		"source_post_id": post_id,
 		"tags": token.get("tags", []),
 		"rarity": int(token.get("rarity", 1)),
@@ -808,192 +920,40 @@ func pick_token(post_id: String, token: Dictionary) -> bool:
 	return true
 
 
-func buy_daily_emotion_slot() -> bool:
-	var slot_id := daily_emotion_slot_id
-	if slot_id in owned_emotion_slots:
+func get_daily_meme_frame_offer() -> Dictionary:
+	var available := day == 1 or posmod(day - 1, MEME_FRAME_OFFER_INTERVAL) == 0
+	if not available:
+		return {}
+	return {
+		"id": "meme-frame-day-%d" % day,
+		"label": "梗框",
+		"price": MEME_FRAME_PRICE + maxi(0, tower_floor - 1) * 2,
+		"available": true,
+		"bought": daily_meme_frame_bought,
+	}
+
+
+func buy_daily_meme_frame() -> bool:
+	var offer := get_daily_meme_frame_offer()
+	if offer.is_empty() or daily_meme_frame_bought:
 		return false
-	var slot: Dictionary = EMOTION_SLOTS.get(slot_id, {})
-	if slot.is_empty():
-		return false
-	var price := int(slot.get("price", 5))
-	if money < price:
-		return false
-	if not spend_action("buy-emotion-slot"):
-		return false
-	money -= price
-	owned_emotion_slots.append(slot_id)
-	emotion_slot_texts[slot_id] = str(slot.get("default_text", ""))
-	if equipped_emotion_slots.size() < MAX_EQUIPPED_EMOTION_SLOTS:
-		equipped_emotion_slots.append(slot_id)
-	return true
-
-
-func set_emotion_slot_text(slot_id: String, text: String) -> bool:
-	if slot_id not in owned_emotion_slots:
-		return false
-	emotion_slot_texts[slot_id] = text
-	return true
-
-
-func get_daily_emotion_slot() -> Dictionary:
-	return EMOTION_SLOTS.get(daily_emotion_slot_id, {})
-
-
-func get_owned_emotion_slot_data() -> Array:
-	var result: Array = []
-	for slot_id in owned_emotion_slots:
-		if EMOTION_SLOTS.has(slot_id):
-			result.append(EMOTION_SLOTS[slot_id])
-	return result
-
-
-func get_equipped_emotion_slot_data() -> Array:
-	var result: Array = []
-	for slot_id in equipped_emotion_slots:
-		if slot_id in owned_emotion_slots and EMOTION_SLOTS.has(slot_id):
-			result.append(EMOTION_SLOTS[slot_id])
-	return result
-
-
-func toggle_equipped_emotion_slot(slot_id: String) -> bool:
-	if slot_id not in owned_emotion_slots:
-		return false
-	if slot_id in equipped_emotion_slots:
-		equipped_emotion_slots.erase(slot_id)
-		return true
-	if equipped_emotion_slots.size() >= MAX_EQUIPPED_EMOTION_SLOTS:
-		return false
-	equipped_emotion_slots.append(slot_id)
-	return true
-
-
-func get_daily_arcana_card() -> Dictionary:
-	return (ARCANA_CARDS.get(daily_arcana_card_id, {}) as Dictionary).duplicate(true)
-
-
-func get_owned_arcana_card_data() -> Array:
-	var result: Array = []
-	for held in owned_arcana_cards:
-		var card: Dictionary = ARCANA_CARDS.get(str(held.get("id", "")), {})
-		if card.is_empty():
-			continue
-		var item := card.duplicate(true)
-		item["uid"] = str(held.get("uid", ""))
-		item["bought_day"] = int(held.get("bought_day", day))
-		result.append(item)
-	return result
-
-
-func buy_daily_arcana_card() -> bool:
-	if daily_arcana_bought or owned_arcana_cards.size() >= MAX_HELD_ARCANA_CARDS:
-		return false
-	var card := get_daily_arcana_card()
-	if card.is_empty():
-		return false
-	var price := int(card.get("price", 7))
-	if money < price:
-		return false
-	if not spend_action("buy-arcana-card"):
+	var price := int(offer.get("price", MEME_FRAME_PRICE))
+	if money < price or not spend_action("buy-meme-frame"):
 		return false
 	money -= price
-	arcana_sequence += 1
-	owned_arcana_cards.append({
-		"uid": "arcana-%s-%d-%d" % [str(card.get("id", "card")), day, arcana_sequence],
-		"id": str(card.get("id", "")),
-		"bought_day": day,
-	})
-	daily_arcana_bought = true
-	event_log.push_front("玄牌入手：%s。它会一直留在手里，直到被使用。" % str(card.get("label", "未命名")))
-	return true
-
-
-func can_use_arcana_card(card_uid: String, meme_id: String = "") -> bool:
-	var held_index := _find_held_arcana_index(card_uid)
-	if held_index < 0:
-		return false
-	var held: Dictionary = owned_arcana_cards[held_index]
-	var card: Dictionary = ARCANA_CARDS.get(str(held.get("id", "")), {})
-	if card.is_empty():
-		return false
-	match str(card.get("effect", "")):
-		"add_trend_tag":
-			return _find_missing_trend_tag(meme_id) != ""
-		"clarity_for_base":
-			return clarity >= int(card.get("clarity_cost", 0))
-	return true
-
-
-func use_arcana_card(card_uid: String, meme_id: String = "") -> bool:
-	var held_index := _find_held_arcana_index(card_uid)
-	if held_index < 0 or not can_use_arcana_card(card_uid, meme_id):
-		return false
-	var held: Dictionary = owned_arcana_cards[held_index]
-	var card: Dictionary = ARCANA_CARDS.get(str(held.get("id", "")), {})
-	var label := str(card.get("label", "未命名玄牌"))
-	match str(card.get("effect", "")):
-		"next_multiplier_bonus":
-			_ensure_pending_arcana_effects()
-			pending_arcana_effects["multiplier_bonus"] = int(pending_arcana_effects.get("multiplier_bonus", 0)) + int(card.get("value", 0))
-			pending_arcana_effects["pollution_risk"] = int(pending_arcana_effects.get("pollution_risk", 0)) + int(card.get("pollution_risk", 0))
-			_append_pending_arcana_label(label)
-		"force_contract":
-			_ensure_pending_arcana_effects()
-			pending_arcana_effects["force_contract"] = true
-			pending_arcana_effects["pollution_risk"] = int(pending_arcana_effects.get("pollution_risk", 0)) + int(card.get("pollution_risk", 0))
-			_append_pending_arcana_label(label)
-		"repeat_grace":
-			_ensure_pending_arcana_effects()
-			pending_arcana_effects["repeat_grace"] = int(pending_arcana_effects.get("repeat_grace", 0)) + int(card.get("value", 1))
-			_append_pending_arcana_label(label)
-		"clarity_for_base":
-			clarity = clampi(clarity - int(card.get("clarity_cost", 0)), 0, 100)
-			_ensure_pending_arcana_effects()
-			pending_arcana_effects["base_bonus"] = int(pending_arcana_effects.get("base_bonus", 0)) + int(card.get("value", 0))
-			_append_pending_arcana_label(label)
-		"add_trend_tag":
-			var target_index := _find_completed_meme_index(meme_id)
-			var tag_to_add := _find_missing_trend_tag(meme_id)
-			if target_index < 0 or tag_to_add.is_empty():
-				return false
-			var target: Dictionary = completed_memes[target_index]
-			var tags: Array = target.get("tags", []).duplicate()
-			tags.append(tag_to_add)
-			target["tags"] = _unique(tags)
-			target["rarity"] = _meme_rarity_from_tags(target["tags"])
-			target["pollution_bias"] = int(target.get("pollution_bias", 0)) + 1
-			var marks: Array = target.get("arcana_marks", []).duplicate()
-			marks.append(label)
-			target["arcana_marks"] = _unique(marks)
-			completed_memes[target_index] = target
-		"reroll_contract":
-			signal_contract_offset = posmod(signal_contract_offset + 1, SIGNAL_CONTRACTS.size())
-	owned_arcana_cards.remove_at(held_index)
-	event_log.push_front("玄牌生效：%s。" % label)
+	owned_meme_frames += 1
+	daily_meme_frame_bought = true
+	event_log.push_front("你买到一个梗框。它只能容纳一个字。")
 	return true
 
 
 func get_craft_slots() -> Array:
-	var slots: Array = [
-		{"id": "object", "label": "对象", "placeholder": "哈吉米", "required": true},
-		{"id": "saying", "label": "说法", "placeholder": "到底是什么意思", "required": true},
-	]
-	for slot_id in equipped_emotion_slots:
-		var slot: Dictionary = EMOTION_SLOTS.get(slot_id, {})
-		if slot.is_empty():
-			continue
-		slots.append({
-			"id": "emotion:%s" % slot_id,
-			"label": str(slot.get("label", "情绪")),
-			"placeholder": str(emotion_slot_texts.get(slot_id, slot.get("default_text", ""))),
-			"required": false,
-			"emotion_slot_id": slot_id,
-		})
-	return slots
+	return [{"id": "glyph", "label": "梗框", "placeholder": "放入一个字", "required": true}]
 
 
 func get_draft_source_passives() -> Array:
 	var result: Array = []
-	for token_id in [str(draft_slots.get("object", "")), str(draft_slots.get("saying", ""))]:
+	for token_id in [str(draft_slots.get("glyph", ""))]:
 		var passive := _find_token_source_passive(token_id)
 		if passive.is_empty():
 			continue
@@ -1009,49 +969,31 @@ func get_draft_source_passives() -> Array:
 
 
 func place_token_in_slot(slot_id: String, token_id: String) -> bool:
+	if slot_id != "glyph" or _find_token_text(token_id).is_empty():
+		return false
 	draft_slots[slot_id] = token_id
 	return true
 
 
-func confirm_craft_with_emotions() -> bool:
-	var object_text := _find_token_text(str(draft_slots.get("object", "")))
-	var saying_text := _find_token_text(str(draft_slots.get("saying", "")))
-	if object_text.is_empty() or saying_text.is_empty():
+func confirm_craft() -> bool:
+	var token_id := str(draft_slots.get("glyph", ""))
+	var glyph_text := _find_token_text(token_id)
+	if owned_meme_frames <= 0 or glyph_text.is_empty():
 		return false
 	if not spend_action("craft-meme"):
 		return false
-
-	var tags: Array = []
-	tags = _unique(tags + _find_token_tags(str(draft_slots.get("object", ""))))
-	tags = _unique(tags + _find_token_tags(str(draft_slots.get("saying", ""))))
-	var pollution_bias := 0
-	var clarity_bias := 0
+	owned_meme_frames -= 1
+	var tags: Array = _unique(_find_token_tags(token_id))
 	var source_passives: Array = get_draft_source_passives()
-	var emotion_parts: Array[String] = []
-	for slot_id in equipped_emotion_slots:
-		var slot: Dictionary = EMOTION_SLOTS.get(slot_id, {})
-		if slot.is_empty():
-			continue
-		var text := str(emotion_slot_texts.get(slot_id, slot.get("default_text", ""))).strip_edges()
-		if text.is_empty():
-			continue
-		emotion_parts.append("%s：%s" % [str(slot.get("label", "情绪")), text])
-		tags = _unique(tags + slot.get("tags", []))
-		pollution_bias += int(slot.get("pollution_bias", 0))
-		clarity_bias += int(slot.get("clarity_bias", 0))
-
-	var text := "%s，%s？" % [object_text, saying_text]
-	if not emotion_parts.is_empty():
-		text = "%s（%s）" % [text, "；".join(emotion_parts)]
 	var meme := {
 		"id": "meme-%d-%d" % [day, completed_memes.size() + 1],
-		"title": "表达 #%d" % [completed_memes.size() + 1],
-		"text": text,
+		"title": "梗字「%s」" % glyph_text,
+		"text": glyph_text,
 		"tags": tags,
 		"rarity": _meme_rarity_from_tags(tags),
-		"pollution_bias": pollution_bias,
-		"clarity_bias": clarity_bias,
-		"emotion_count": emotion_parts.size(),
+		"pollution_bias": maxi(1, int(_find_token_rarity(token_id)) - 1),
+		"clarity_bias": -1,
+		"fusion_level": 0,
 		"source_passives": source_passives,
 		"created_day": day,
 	}
@@ -1060,8 +1002,72 @@ func confirm_craft_with_emotions() -> bool:
 	return true
 
 
-func confirm_craft() -> bool:
-	return confirm_craft_with_emotions()
+func place_meme_in_fusion_slot(slot_id: String, meme_id: String) -> bool:
+	if slot_id != "left" and slot_id != "right":
+		return false
+	if _find_completed_meme_index(meme_id) < 0:
+		return false
+	var other_slot := "right" if slot_id == "left" else "left"
+	if str(fusion_slots.get(other_slot, "")) == meme_id:
+		return false
+	fusion_slots[slot_id] = meme_id
+	return true
+
+
+func confirm_meme_fusion() -> bool:
+	var left_id := str(fusion_slots.get("left", ""))
+	var right_id := str(fusion_slots.get("right", ""))
+	if left_id.is_empty() or right_id.is_empty() or left_id == right_id:
+		return false
+	var left_index := _find_completed_meme_index(left_id)
+	var right_index := _find_completed_meme_index(right_id)
+	if left_index < 0 or right_index < 0:
+		return false
+	var pair_ids: Array[String] = [left_id, right_id]
+	pair_ids.sort()
+	var pair_key := "%s+%s" % [pair_ids[0], pair_ids[1]]
+	if pair_key in fused_meme_pairs:
+		return false
+	if not spend_action("fuse-memes"):
+		return false
+	var left: Dictionary = completed_memes[left_index]
+	var right: Dictionary = completed_memes[right_index]
+	var fusion_level := mini(3, maxi(int(left.get("fusion_level", 0)), int(right.get("fusion_level", 0))) + 1)
+	var tags: Array = _unique((left.get("tags", []) as Array) + (right.get("tags", []) as Array))
+	var source_passives: Array = []
+	for passive in (left.get("source_passives", []) as Array) + (right.get("source_passives", []) as Array):
+		var passive_id := str(passive.get("id", ""))
+		var already_present := false
+		for existing in source_passives:
+			if str(existing.get("id", "")) == passive_id:
+				already_present = true
+				break
+		if not already_present:
+			source_passives.append((passive as Dictionary).duplicate(true))
+	var left_text := str(left.get("text", ""))
+	var right_text := str(right.get("text", ""))
+	var fused_text := "%s%s" % [left_text, right_text]
+	var meme := {
+		"id": "fusion-%d-%d" % [day, completed_memes.size() + 1],
+		"title": "复合「%s」" % fused_text,
+		"text": fused_text,
+		"tags": tags,
+		"rarity": clampi(maxi(int(left.get("rarity", 1)), int(right.get("rarity", 1))) + 1, 1, 5),
+		"pollution_bias": int(left.get("pollution_bias", 0)) + int(right.get("pollution_bias", 0)) + 6 + fusion_level * 2,
+		"clarity_bias": int(left.get("clarity_bias", 0)) + int(right.get("clarity_bias", 0)) - 4,
+		"fusion_level": fusion_level,
+		"fused_from": pair_ids,
+		"source_passives": source_passives,
+		"created_day": day,
+	}
+	completed_memes.push_front(meme)
+	fused_meme_pairs.append(pair_key)
+	fusion_slots.clear()
+	var previous_pollution := pollution
+	pollution = clampi(pollution + 3 + fusion_level * 2, 0, 100)
+	check_pollution_flashback(previous_pollution)
+	event_log.push_front("两个旧梗粘在一起。新梗更响，也更脏。")
+	return true
 
 
 func place_meme_in_blank(blank_id: String, meme_id: String) -> bool:
@@ -1079,7 +1085,6 @@ func confirm_dialogue() -> bool:
 	var heat_gain := maxi(6, int(round(float(score) * 0.42)))
 	var pollution_gain := 4 + matching_tags.size() * 2 + int(meme.get("pollution_bias", 0))
 	pollution_gain += int(breakdown.get("contract_pollution_risk", 0))
-	pollution_gain += int(breakdown.get("arcana_pollution_risk", 0))
 	if not spend_action("confirm-dialogue"):
 		return false
 	last_publish_breakdown = breakdown.duplicate(true)
@@ -1088,9 +1093,6 @@ func confirm_dialogue() -> bool:
 			str(breakdown.get("contract_label", "未知牌型")),
 			int(breakdown.get("contract_multiplier_bonus", 0)),
 		])
-	var arcana_labels: Array = breakdown.get("active_arcana_labels", [])
-	if not arcana_labels.is_empty():
-		event_log.push_front("玄牌结算：%s。" % " / ".join(arcana_labels))
 	var world_item_labels: Array = breakdown.get("active_world_item_labels", [])
 	if not world_item_labels.is_empty():
 		event_log.push_front("街区遗物结算：%s。" % " / ".join(world_item_labels))
@@ -1109,7 +1111,6 @@ func confirm_dialogue() -> bool:
 	record["published_day"] = day
 	published_memes.push_front(record)
 	dialogue_blanks.clear()
-	pending_arcana_effects.clear()
 	pending_world_item_effects.clear()
 	return true
 
@@ -1171,12 +1172,6 @@ func get_reality_tile_options() -> Array:
 	var result: Array = []
 	for word in CLEAN_WORDS:
 		result.append({"id": "clean:%s" % word, "text": word, "kind": "clean"})
-	for slot_id in equipped_emotion_slots:
-		var slot: Dictionary = EMOTION_SLOTS.get(slot_id, {})
-		var text := str(emotion_slot_texts.get(slot_id, slot.get("default_text", ""))).strip_edges()
-		if text.is_empty():
-			continue
-		result.append({"id": "emotion:%s" % slot_id, "text": text, "kind": "emotion"})
 	for tile in get_required_legacy_tiles():
 		result.append({"id": tile["id"], "text": tile["text"], "kind": "legacy", "locked": tile["locked"]})
 	return result
@@ -1253,6 +1248,19 @@ func get_pending_ascent_reward_choices() -> Array:
 	return pending_ascent_reward_choices.duplicate(true)
 
 
+func get_active_tarot_combos() -> Array:
+	var result: Array = []
+	for combo in TAROT_COMBOS:
+		var complete := true
+		for tarot_id in combo.get("requires", []):
+			if str(tarot_id) not in owned_tarot_ids:
+				complete = false
+				break
+		if complete:
+			result.append(combo.duplicate(true))
+	return result
+
+
 func choose_ascent_reward(reward_id: String) -> bool:
 	var selected: Dictionary = {}
 	for reward in pending_ascent_reward_choices:
@@ -1262,6 +1270,13 @@ func choose_ascent_reward(reward_id: String) -> bool:
 	if selected.is_empty():
 		return false
 	permanent_modifiers.append(selected.duplicate(true))
+	var tarot_id := str(selected.get("tarot_id", selected.get("id", "")))
+	if not tarot_id.is_empty() and tarot_id not in owned_tarot_ids:
+		owned_tarot_ids.append(tarot_id)
+	var previous_capacity := max_actions_per_day
+	max_actions_per_day = BASE_ACTIONS_PER_DAY + int(round(_tarot_combo_total("max_actions_bonus")))
+	if max_actions_per_day > previous_capacity:
+		actions_remaining += max_actions_per_day - previous_capacity
 	event_log.push_front("第 %d 层许可：%s" % [pending_ascent_reward_floor, str(selected.get("label", "永久修正"))])
 	pending_ascent_reward_choices.clear()
 	pending_ascent_reward_floor = 0
@@ -1312,6 +1327,13 @@ func _find_token_tags(token_id: String) -> Array:
 	return []
 
 
+func _find_token_rarity(token_id: String) -> int:
+	for token in notebook_tokens:
+		if str(token.get("id", "")) == token_id:
+			return int(token.get("rarity", 1))
+	return 1
+
+
 func _find_token_source_passive(token_id: String) -> Dictionary:
 	for token in notebook_tokens:
 		if str(token.get("id", "")) == token_id:
@@ -1331,7 +1353,7 @@ func get_publish_breakdown(meme: Dictionary) -> Dictionary:
 
 
 func get_daily_signal_contract() -> Dictionary:
-	return SIGNAL_CONTRACTS[posmod(day - 1 + signal_contract_offset, SIGNAL_CONTRACTS.size())].duplicate(true)
+	return SIGNAL_CONTRACTS[posmod(day - 1, SIGNAL_CONTRACTS.size())].duplicate(true)
 
 
 func _score_meme_publish(meme: Dictionary, matching_tags: Array) -> int:
@@ -1346,10 +1368,6 @@ func _calculate_publish_breakdown(meme: Dictionary, matching_tags: Array) -> Dic
 			repeat_count += 1
 	var tags: Array = meme.get("tags", [])
 	var contract_result := _evaluate_signal_contract(meme, matching_tags, repeat_count)
-	var force_contract := bool(pending_arcana_effects.get("force_contract", false))
-	if force_contract and not bool(contract_result.get("matched", false)):
-		contract_result["matched"] = true
-		contract_result["progress"] = "高塔覆写 / 强制成立"
 	var source_base_bonus := 0
 	var source_repeat_grace := 0
 	var active_source_passive_labels: Array[String] = []
@@ -1388,32 +1406,37 @@ func _calculate_publish_breakdown(meme: Dictionary, matching_tags: Array) -> Dic
 			active_source_passive_labels.append(str(passive.get("label", "来源被动")))
 	var empty_base_bonus := int(round(_modifier_total("empty_base"))) if ("空位" in tags or "沉默" in tags) else 0
 	var pollution_base_bonus := int(round(_modifier_total("pollution_base"))) if pollution >= 40 else 0
-	var emotion_base_bonus: int = mini(16, maxi(0, int(meme.get("pollution_bias", 0))) * 2)
-	emotion_base_bonus += maxi(0, int(meme.get("emotion_count", 0))) * int(round(_modifier_total("emotion_base")))
+	var permanent_base_bonus := int(round(_modifier_total("publish_base")))
+	var fusion_level := maxi(0, int(meme.get("fusion_level", 0)))
+	var fusion_base_bonus := fusion_level * 18
 	var contract_base_bonus := int(contract_result.get("base_bonus", 0)) if bool(contract_result.get("matched", false)) else 0
-	var arcana_base_bonus := int(pending_arcana_effects.get("base_bonus", 0))
+	if bool(contract_result.get("matched", false)):
+		contract_base_bonus += int(round(_modifier_total("contract_base")))
 	var world_item_base_bonus := int(pending_world_item_effects.get("base_bonus", 0))
-	var base_value: int = 12 + rarity * 6 + matching_tags.size() * 8 + empty_base_bonus + pollution_base_bonus + emotion_base_bonus + source_base_bonus + contract_base_bonus + arcana_base_bonus + world_item_base_bonus
+	var base_value: int = 12 + rarity * 6 + matching_tags.size() * 8 + empty_base_bonus + pollution_base_bonus + permanent_base_bonus + fusion_base_bonus + source_base_bonus + contract_base_bonus + world_item_base_bonus
 	var trend_multiplier_bonus := mini(2, matching_tags.size())
 	if matching_tags.size() >= 2:
 		trend_multiplier_bonus += int(round(_modifier_total("trend_multiplier_bonus")))
 	var pollution_multiplier_bonus := (1 if pollution >= 40 else 0) + (1 if pollution >= 70 else 0)
-	var arcana_repeat_grace := int(pending_arcana_effects.get("repeat_grace", 0))
-	var effective_repeat_count := maxi(0, repeat_count - int(round(_modifier_total("repeat_grace"))) - source_repeat_grace - arcana_repeat_grace)
+	var effective_repeat_count := maxi(0, repeat_count - int(round(_modifier_total("repeat_grace"))) - int(round(_tarot_combo_total("repeat_grace"))) - source_repeat_grace)
 	var repeat_penalty := mini(2, effective_repeat_count)
 	var contract_multiplier_bonus := int(contract_result.get("multiplier_bonus", 0)) if bool(contract_result.get("matched", false)) else 0
-	var arcana_multiplier_bonus := int(pending_arcana_effects.get("multiplier_bonus", 0))
 	var world_item_multiplier_bonus := int(pending_world_item_effects.get("multiplier_bonus", 0))
-	var total_multiplier := maxi(1, 1 + trend_multiplier_bonus + pollution_multiplier_bonus + contract_multiplier_bonus + arcana_multiplier_bonus + world_item_multiplier_bonus - repeat_penalty)
+	var fusion_multiplier_bonus := mini(2, fusion_level)
+	if fusion_level > 0:
+		fusion_multiplier_bonus += int(round(_modifier_total("fusion_multiplier_bonus"))) + int(round(_tarot_combo_total("fusion_multiplier_bonus")))
+	var total_multiplier := maxi(1, 1 + trend_multiplier_bonus + pollution_multiplier_bonus + contract_multiplier_bonus + fusion_multiplier_bonus + world_item_multiplier_bonus - repeat_penalty)
 	var score := maxi(1, base_value * total_multiplier)
 	var active_modifier_labels: Array[String] = []
 	for modifier in permanent_modifiers:
 		var effect_id := str(modifier.get("effect", ""))
-		var is_active := effect_id == "pollution_base" and pollution >= 40
+		var is_active := effect_id == "publish_base"
+		is_active = is_active or (effect_id == "pollution_base" and pollution >= 40)
 		is_active = is_active or (effect_id == "trend_multiplier_bonus" and matching_tags.size() >= 2)
 		is_active = is_active or (effect_id == "repeat_grace" and repeat_count > 0)
 		is_active = is_active or (effect_id == "empty_base" and empty_base_bonus > 0)
-		is_active = is_active or (effect_id == "emotion_base" and int(meme.get("emotion_count", 0)) > 0)
+		is_active = is_active or (effect_id == "contract_base" and bool(contract_result.get("matched", false)))
+		is_active = is_active or (effect_id == "fusion_multiplier_bonus" and fusion_level > 0)
 		if is_active:
 			active_modifier_labels.append(str(modifier.get("label", "永久许可")))
 	return {
@@ -1424,7 +1447,9 @@ func _calculate_publish_breakdown(meme: Dictionary, matching_tags: Array) -> Dic
 		"repeat_penalty": repeat_penalty,
 		"synergy_multiplier": 1 + trend_multiplier_bonus,
 		"pollution_multiplier": 1 + pollution_multiplier_bonus,
-		"emotion_multiplier": 1,
+		"fusion_level": fusion_level,
+		"fusion_base_bonus": fusion_base_bonus,
+		"fusion_multiplier_bonus": fusion_multiplier_bonus,
 		"repeat_multiplier": 1,
 		"contract_id": str(contract_result.get("id", "")),
 		"contract_label": str(contract_result.get("label", "未命名牌型")),
@@ -1435,13 +1460,6 @@ func _calculate_publish_breakdown(meme: Dictionary, matching_tags: Array) -> Dic
 		"contract_multiplier_bonus": contract_multiplier_bonus,
 		"contract_multiplier": 1 + contract_multiplier_bonus,
 		"contract_pollution_risk": int(contract_result.get("pollution_risk", 0)) if bool(contract_result.get("matched", false)) else 0,
-		"arcana_base_bonus": arcana_base_bonus,
-		"arcana_multiplier_bonus": arcana_multiplier_bonus,
-		"arcana_multiplier": 1 + arcana_multiplier_bonus,
-		"arcana_pollution_risk": int(pending_arcana_effects.get("pollution_risk", 0)),
-		"arcana_force_contract": force_contract,
-		"arcana_repeat_grace": arcana_repeat_grace,
-		"active_arcana_labels": (pending_arcana_effects.get("labels", []) as Array).duplicate(),
 		"world_item_base_bonus": world_item_base_bonus,
 		"world_item_multiplier_bonus": world_item_multiplier_bonus,
 		"world_item_multiplier": 1 + world_item_multiplier_bonus,
@@ -1449,7 +1467,7 @@ func _calculate_publish_breakdown(meme: Dictionary, matching_tags: Array) -> Dic
 		"total_multiplier": total_multiplier,
 		"repeat_count": repeat_count,
 		"effective_repeat_count": effective_repeat_count,
-		"modifier_base_bonus": empty_base_bonus + pollution_base_bonus + emotion_base_bonus,
+		"modifier_base_bonus": empty_base_bonus + pollution_base_bonus + permanent_base_bonus + fusion_base_bonus,
 		"active_modifier_labels": active_modifier_labels,
 		"active_source_passive_labels": active_source_passive_labels,
 		"score": score,
@@ -1473,10 +1491,10 @@ func _evaluate_signal_contract(meme: Dictionary, matching_tags: Array, repeat_co
 			current = tags.size()
 			matched = current >= threshold
 			progress = "%d/%d 隐藏标签" % [mini(current, threshold), threshold]
-		"emotion_count":
-			current = int(meme.get("emotion_count", 0))
-			matched = current >= threshold
-			progress = "%d/%d 情绪槽" % [mini(current, threshold), threshold]
+		"text_length":
+			current = str(meme.get("text", "")).length()
+			matched = current == threshold
+			progress = "%d/%d 字" % [current, threshold]
 		"all_tags":
 			var required_tags: Array = contract.get("required_tags", [])
 			for required_tag in required_tags:
@@ -1522,9 +1540,6 @@ func _reality_slots_include(tile_id: String) -> bool:
 func _reality_tile_text(tile_id: String) -> String:
 	if tile_id.begins_with("clean:"):
 		return tile_id.substr(6)
-	if tile_id.begins_with("emotion:"):
-		var slot_id := tile_id.substr(8)
-		return str(emotion_slot_texts.get(slot_id, ""))
 	if tile_id.begins_with("legacy:"):
 		var rule_id := tile_id.substr(7)
 		for rule in legacy_rules:
@@ -1542,14 +1557,14 @@ func _resolve_tower_step() -> void:
 		if tower_floor > previous_floor:
 			register_legacy_rule_for_ascent(previous_floor)
 			_queue_ascent_reward(previous_floor)
-		threshold_discount = maxi(0, threshold_discount - 8)
+		threshold_discount = maxi(0, threshold_discount - 32)
 		event_log.push_front("第二天，巴别塔把你标记到第 %d 层。" % tower_floor)
 	elif tower_floor > 1 and progress < int(float(threshold) * 0.62):
 		tower_floor = clampi(tower_floor - 1, 1, MAX_TOWER_FLOOR)
-		threshold_discount = clampi(threshold_discount + 16, 0, 70)
+		threshold_discount = clampi(threshold_discount + 64, 0, MAX_THRESHOLD_DISCOUNT)
 		event_log.push_front("第二天，楼层退回第 %d 层，但遗产规则没有消失。" % tower_floor)
 	else:
-		threshold_discount = clampi(threshold_discount + 6, 0, 70)
+		threshold_discount = clampi(threshold_discount + 24, 0, MAX_THRESHOLD_DISCOUNT)
 		event_log.push_front("第二天，塔没有移动，只是把门槛悄悄放低。")
 	var guaranteed_floor := _minimum_floor_for_day(day)
 	while tower_floor < guaranteed_floor:
@@ -1603,9 +1618,17 @@ func _modifier_total(effect_id: String) -> float:
 	return total
 
 
+func _tarot_combo_total(effect_id: String) -> float:
+	var total := 0.0
+	for combo in get_active_tarot_combos():
+		if str(combo.get("effect", "")) == effect_id:
+			total += float(combo.get("value", 0.0))
+	return total
+
+
 func _tower_threshold(floor: int) -> int:
 	var index := clampi(floor, 1, MAX_TOWER_FLOOR)
-	return maxi(18, int(TOWER_THRESHOLDS[index]) - threshold_discount)
+	return maxi(72, int(TOWER_THRESHOLDS[index]) - threshold_discount)
 
 
 func _progress_score() -> int:
@@ -1620,56 +1643,11 @@ func _minimum_floor_for_day(current_day: int) -> int:
 	return result
 
 
-func _emotion_slot_for_day(value: int) -> String:
-	return EMOTION_ROTATION[(value - 1) % EMOTION_ROTATION.size()]
-
-
-func _arcana_for_day(value: int) -> String:
-	return ARCANA_ROTATION[(value - 1) % ARCANA_ROTATION.size()]
-
-
-func _find_held_arcana_index(card_uid: String) -> int:
-	for index in owned_arcana_cards.size():
-		if str(owned_arcana_cards[index].get("uid", "")) == card_uid:
-			return index
-	return -1
-
-
 func _find_completed_meme_index(meme_id: String) -> int:
 	for index in completed_memes.size():
 		if str(completed_memes[index].get("id", "")) == meme_id:
 			return index
 	return -1
-
-
-func _find_missing_trend_tag(meme_id: String) -> String:
-	var target_index := _find_completed_meme_index(meme_id)
-	if target_index < 0:
-		return ""
-	var tags: Array = completed_memes[target_index].get("tags", [])
-	for trend_tag in _current_accepted_tags():
-		if trend_tag not in tags:
-			return str(trend_tag)
-	return ""
-
-
-func _ensure_pending_arcana_effects() -> void:
-	if pending_arcana_effects.is_empty():
-		pending_arcana_effects = {
-			"base_bonus": 0,
-			"multiplier_bonus": 0,
-			"pollution_risk": 0,
-			"repeat_grace": 0,
-			"force_contract": false,
-			"labels": [],
-		}
-
-
-func _append_pending_arcana_label(label: String) -> void:
-	var labels: Array = pending_arcana_effects.get("labels", []).duplicate()
-	if label not in labels:
-		labels.append(label)
-	pending_arcana_effects["labels"] = labels
 
 
 func _meme_rarity_from_tags(tags: Array) -> int:
@@ -1690,3 +1668,12 @@ func _unique(values: Array) -> Array:
 		if value not in result:
 			result.append(value)
 	return result
+
+
+func _first_pickable_character(value: String) -> String:
+	var ignored := " \t\r\n，。！？；：、,.!?;:（）()【】[]《》<>“”\"'—-…"
+	for index in value.length():
+		var character := value.substr(index, 1)
+		if not ignored.contains(character):
+			return character
+	return ""

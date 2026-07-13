@@ -1,6 +1,6 @@
 extends SceneTree
 
-const OUTPUT_PATH := "/Users/zhang/Documents/游戏/babel-meme-game/tools/current_ending_view.png"
+const OUTPUT_PATH := "/Users/zhang/Documents/游戏/babel-meme-game/tools/current_notebook_view.png"
 const VIEW_SIZE := Vector2i(1672, 941)
 const HEADLESS_CAPTURE_ERROR := "Screenshot capture requires a rendered display. Run this tool without --headless from a GUI session."
 
@@ -20,12 +20,44 @@ func _capture() -> void:
 		return
 	var main := scene.instantiate()
 	root.add_child(main)
-	main.new_game()
-	main._skip_prologue()
-	main.game.tower_floor = 5
-	main.game.ending_unlocked = true
-	main.game.relationship_residue = 64
-	main._render()
+	if main.has_method("new_game"):
+		main.new_game()
+		main._skip_prologue()
+	main.game.owned_meme_frames = 1
+	main.game.notebook_tokens = [{
+		"id": "capture-glyph",
+		"text": "塔",
+		"source_post_id": "capture-post",
+		"tags": ["巴别塔"],
+		"rarity": 2,
+		"picked_day": 1,
+	}]
+	main.game.draft_slots = {"glyph": "capture-glyph"}
+	main.game.completed_memes = [{
+		"id": "capture-ha",
+		"title": "梗字「哈」",
+		"text": "哈",
+		"tags": ["哈吉米"],
+		"rarity": 1,
+		"pollution_bias": 1,
+		"fusion_level": 0,
+	}, {
+		"id": "capture-tower",
+		"title": "梗字「塔」",
+		"text": "塔",
+		"tags": ["巴别塔"],
+		"rarity": 2,
+		"pollution_bias": 2,
+		"fusion_level": 0,
+	}]
+	main.game.fusion_slots = {"left": "capture-ha", "right": "capture-tower"}
+	if main.has_method("_on_app_pressed"):
+		main._on_app_pressed("notebook")
+	for frame in 5:
+		await process_frame
+	var notebook_scroll := main.find_child("NotebookCraftScroll", true, false) as ScrollContainer
+	if notebook_scroll != null:
+		notebook_scroll.scroll_vertical = 10000
 	for frame in 12:
 		await process_frame
 	var viewport_texture := root.get_texture()

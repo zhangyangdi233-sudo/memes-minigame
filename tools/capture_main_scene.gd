@@ -22,6 +22,7 @@ func _capture() -> void:
 	root.add_child(main)
 	if main.has_method("new_game"):
 		main.new_game()
+		main._skip_prologue()
 	if main.has_method("_open_social_post"):
 		main._open_social_post(0)
 	for frame in 6:

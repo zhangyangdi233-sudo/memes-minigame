@@ -2,13 +2,14 @@ extends Node3D
 class_name RealityFloorGenerator
 
 const BASE_ROOM_COUNT := 4
-const LOT_SPACING := 9.4
+const WORLD_LENGTH_SCALE := 5.0
+const LOT_SPACING := 9.4 * WORLD_LENGTH_SCALE
 const LOT_WIDTH := 7.4
 const LOT_DEPTH := 6.8
 const STREET_WIDTH := 14.0
 const MIN_MAP_WIDTH := 34.0
-const MIN_MAP_LENGTH := 46.0
-const MAP_END_MARGIN := 12.0
+const MIN_MAP_LENGTH := 46.0 * WORLD_LENGTH_SCALE
+const MAP_END_MARGIN := 12.0 * WORLD_LENGTH_SCALE
 const WALL_HEIGHT := 3.4
 const AIR_WALL_HEIGHT := 6.0
 const AIR_WALL_THICKNESS := 0.5
@@ -70,6 +71,7 @@ func rebuild(floor_number: int, palette: Dictionary, npc_texture: Texture2D) -> 
 	set_meta("layout_mode", "shared_street")
 	set_meta("map_width", map_width)
 	set_meta("map_length", map_length)
+	set_meta("world_length_scale", WORLD_LENGTH_SCALE)
 	set_meta("air_wall_count", 4)
 	set_meta("district_style", district_style)
 

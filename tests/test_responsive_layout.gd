@@ -125,13 +125,12 @@ func _run() -> void:
 	if hud != null and typing_line != null:
 		_assert_true(typing_line.get_global_rect().position.x >= hud.get_global_rect().end.x + 8.0, "small-view typing line should keep clear of the HUD rail")
 	game_root.game.conversation_actor_type = "merchant"
-	game_root.game.conversation_selected_choice_id = "ask_goods"
-	game_root.game.conversation_understood = true
+	game_root.game.conversation_selected_choice_id = "trade"
 	game_root.game.conversation_phase = "result"
 	game_root._render()
 	var merchant_offer := _find_node_by_name(game_root, "RealityMerchantOffer") as PanelContainer
 	var merchant_buy := _find_node_by_name(game_root, "RealityMerchantBuyButton") as Button
-	_assert_true(merchant_offer != null and merchant_offer.visible, "small-view understood merchant should show its item offer")
+	_assert_true(merchant_offer != null and merchant_offer.visible, "small-view authored trade result should show its item offer")
 	if merchant_offer != null:
 		_assert_true(_inside_rect(merchant_offer, viewport_rect), "small-view merchant offer should stay inside the viewport")
 	if merchant_buy != null:

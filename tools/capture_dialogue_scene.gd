@@ -21,6 +21,7 @@ func _capture() -> void:
 	var main := scene.instantiate()
 	root.add_child(main)
 	main.new_game()
+	main._skip_prologue()
 	main.set_view_state("npc_up")
 	main._phone_art_alpha = 0.0
 	if main._phone_down_backdrop_image != null:

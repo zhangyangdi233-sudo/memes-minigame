@@ -22,7 +22,7 @@ func _capture() -> void:
 	root.add_child(main)
 	if main.has_method("new_game"):
 		main.new_game()
-	main.game.owned_arcana_cards = [{"uid": "capture-hermit", "id": "hermit", "bought_day": 1}]
+		main._skip_prologue()
 	if main.has_method("_close_app_window"):
 		main._close_app_window("social")
 	if main.has_method("_on_app_pressed"):

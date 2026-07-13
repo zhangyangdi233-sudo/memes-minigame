@@ -21,6 +21,7 @@ func _capture() -> void:
 	var main := scene.instantiate()
 	root.add_child(main)
 	main.new_game()
+	main._skip_prologue()
 	main.game.actions_remaining = 0
 	main.game.needs_day_settlement = true
 	main.game.day_ended_reason = "capture-transition"

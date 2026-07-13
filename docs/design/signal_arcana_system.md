@@ -1,10 +1,10 @@
-# Signal Arcana System
+# Tarot Ascent System
 
 ## Design intent
 
-The signal-arcana layer gives the player a small consumable hand between crafting and publishing. Cards are purchased in the phone shop, held in two slots, and used from the social publish page. Purchasing costs one daily action; using an already purchased card is free.
+The former shop-and-publish Arcana hand has been removed. Tarot now appears only after a tower ascent as a three-choice permanent reward. The shop sells only infrequent one-character meme frames.
 
-This borrows the structural lesson from Balatro rather than its content: a readable scoring hand sits at the center, while consumables either tune the deck or create a one-publish spike. Balatro's official materials describe poker hands, Jokers, Tarot cards, Planet cards, and other tools as interlocking build layers. The Babel version translates those layers into meme tags, signal hands, permanent ascent permits, and one-shot broadcast rituals.
+The system keeps a readable signal-hand score at the center while moving long-term build decisions to ascent milestones. Tarot choices are permanent, cannot be purchased, and can form named combinations.
 
 References:
 
@@ -13,25 +13,24 @@ References:
 - [Milk outside a bag of milk outside a bag of milk on Steam](https://store.steampowered.com/app/1604000/)
 - [Cosmic Ultramarine on Steam](https://store.steampowered.com/app/3296760/Cosmic_Ultramarine/)
 
-## Current cards
+## Current ascent choices
 
-| Card | Role | Effect |
+| Tarot | Role | Permanent effect |
 | --- | --- | --- |
-| XVIII 月亮 | risky multiplier | Next publish total multiplier x1.40, plus 4 pollution |
-| XVI 高塔 | hand override | Force the current signal hand to count as complete, plus 7 pollution |
-| IX 隐者 | repeat control | Ignore one repeat-decay step on the next publish |
-| XII 倒吊人 | sacrifice | Lose 8 clarity now, gain 24 propagation base on the next publish |
-| XVII 星星 | permanent tuning | Add one missing current-trend tag to a selected completed meme |
-| XX 审判 | hand control | Reroll the current day's signal hand |
+| XVII 星星 | trend build | Extra multiplier when at least two trends match |
+| XIX 太阳 | propagation | Add propagation base to every publish |
+| XVIII 月亮 | pollution build | Add propagation base above 40 pollution |
+| IX 隐者 | repeat control | Ignore the first repeat-decay step |
+| XVI 高塔 | fusion build | Add multiplier to fused memes |
+| XII 倒吊人 | legacy relief | Reduce hidden relationship damage from legacy rules |
+| XX 审判 | signal hand | Add propagation base when today's hand is complete |
 
-## Presentation rules
+## Combinations
 
-- Card art uses the same five-color International Style palette and analog print texture as the social poster atlas.
-- Art contains no generated words. Godot lays out numerals, names, effects, prices, and disabled states so Chinese text stays exact and responsive.
-- The shop reveals one daily card and a `held 0/2` count. The publish page shows the held cards beside the daily signal hand.
-- Every score-changing effect appears in the preview as its own base, multiplier, repeat relief, or pollution-risk line.
-- Targeted effects require a completed meme in the publish blank; other cards can be used immediately.
+- `星星 + 太阳 + 月亮` unlocks `不分昼夜`: one extra action every day.
+- `星星 + 高塔` unlocks `星坠高塔`: another fusion multiplier.
+- `月亮 + 隐者` unlocks `月下隐者`: another repeat-decay grace.
 
 ## Research synthesis
 
-The atmosphere references two different strengths. Milk outside emphasizes distorted perception, oppressive sound, and verbal structures; Cosmic Ultramarine frames movement between virtual and real space through a terminal. The implementation therefore keeps the occult layer inside the phone, but lets its consequences leak into pollution, clarity, and later reality dialogue rather than creating a separate fantasy world.
+The Tarot layer remains inside the tower App. Its effects leak into action economy, publishing, fusion, and hidden reality damage without reintroducing a purchasable card inventory.
