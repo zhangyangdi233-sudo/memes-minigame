@@ -121,16 +121,17 @@ func test_world_items_are_free_one_shot_publish_modifiers() -> void:
 	_assert_true(game.collect_world_item({
 		"id": "street-lens",
 		"label": "回声镜片",
-		"effect": "publish_multiplier",
-		"value": 1.15,
-		"description": "下一次发布的总倍率 ×1.15。",
+		"effect": "publish_multiplier_bonus",
+		"value": 1,
+		"description": "下一次发布的整数倍率 +1。",
 	}), "an echo lens should stack with the street chip")
 	_assert_true(not game.collect_world_item({"id": "street-chip", "effect": "publish_base", "value": 8}), "the same world item id should never be collected twice")
 	_assert_eq(game.actions_remaining, actions_before, "exploration pickups should not spend today's actions")
 	_assert_true(game.is_world_item_collected("street-chip"), "collected world item ids should persist in the run")
 	var boosted: Dictionary = game.get_publish_breakdown(meme)
 	_assert_eq(int(boosted.get("world_item_base_bonus", 0)), 8, "street chip should add eight publish base")
-	_assert_true(absf(float(boosted.get("world_item_multiplier", 1.0)) - 1.15) < 0.001, "echo lens should add its separate publish multiplier")
+	_assert_eq(int(boosted.get("world_item_multiplier_bonus", 0)), 1, "echo lens should add one point to the shared integer multiplier")
+	_assert_eq(int(boosted.get("world_item_multiplier", 1)), 2, "legacy world-item multiplier output should remain an integer")
 	_assert_true(int(boosted.get("score", 0)) > int(plain.get("score", 0)), "world items should materially improve the propagation preview")
 	_assert_eq((boosted.get("active_world_item_labels", []) as Array).size(), 2, "publish preview should name both armed world items")
 
@@ -145,7 +146,7 @@ func test_world_items_are_free_one_shot_publish_modifiers() -> void:
 	_assert_true(game.pending_world_item_effects.is_empty(), "successful publication should consume all pending world-item modifiers")
 	var consumed: Dictionary = game.get_publish_breakdown(meme)
 	_assert_eq(int(consumed.get("world_item_base_bonus", 0)), 0, "consumed street chip should not affect the next preview")
-	_assert_eq(float(consumed.get("world_item_multiplier", 1.0)), 1.0, "consumed echo lens should not affect the next preview")
+	_assert_eq(int(consumed.get("world_item_multiplier_bonus", 0)), 0, "consumed echo lens should not affect the next preview")
 
 
 func test_pick_token_costs_action_and_adds_notebook_token() -> void:
@@ -268,7 +269,7 @@ func test_reward_modifier_changes_publish_scoring() -> void:
 	baseline.new_run()
 	var modified: RefCounted = _state_script.new()
 	modified.new_run()
-	modified.permanent_modifiers = [{"id": "echo_amplifier", "label": "回声增幅", "effect": "synergy_step", "value": 0.08}]
+	modified.permanent_modifiers = [{"id": "echo_amplifier", "label": "回声增幅", "effect": "trend_multiplier_bonus", "value": 1.0}]
 	var meme := {
 		"id": "m-reward",
 		"text": "哈吉米，今天必须解释",
@@ -660,11 +661,13 @@ func test_publish_breakdown_uses_base_times_multiplier_and_repeat_decay() -> voi
 	}
 	var first: Dictionary = game.get_publish_breakdown(meme)
 	_assert_true(int(first.get("base_value", 0)) > 0, "publish breakdown should expose an additive base value")
-	_assert_true(float(first.get("total_multiplier", 0.0)) > 1.0, "matching tags and pollution should create a visible resonance multiplier")
-	_assert_eq(int(first.get("score", 0)), int(round(float(first.get("base_value", 0)) * float(first.get("total_multiplier", 0.0)))), "publish score should read as base value times resonance multiplier")
+	_assert_true(int(first.get("total_multiplier", 0)) > 1, "matching tags and pollution should create a visible integer multiplier")
+	_assert_eq(int(first.get("score", 0)), int(first.get("base_value", 0)) * int(first.get("total_multiplier", 0)), "publish score should read as base value times one integer multiplier")
+	for key in ["synergy_multiplier", "pollution_multiplier", "emotion_multiplier", "repeat_multiplier", "contract_multiplier", "arcana_multiplier", "world_item_multiplier", "total_multiplier"]:
+		_assert_eq(float(first.get(key, 0)), float(int(first.get(key, 0))), "all exposed multiplier values should be whole numbers: %s" % key)
 	game.published_memes = [{"text": meme["text"], "score": first["score"], "floor": 1}]
 	var repeated: Dictionary = game.get_publish_breakdown(meme)
-	_assert_true(float(repeated.get("repeat_multiplier", 1.0)) < 1.0, "reusing the same meme should expose a repeat decay multiplier")
+	_assert_true(int(repeated.get("repeat_penalty", 0)) > 0, "reusing the same meme should subtract from the shared integer multiplier")
 	_assert_true(int(repeated.get("score", 0)) < int(first.get("score", 0)), "repeat decay should lower the final propagation score")
 
 
@@ -684,8 +687,8 @@ func test_daily_signal_contract_matches_and_boosts_score() -> void:
 	_assert_true(bool(breakdown.get("contract_matched", false)), "two day-one trend tags should complete the daily signal hand")
 	_assert_eq(breakdown.get("contract_label", ""), "双声回路", "the breakdown should expose the completed hand name")
 	_assert_true(int(breakdown.get("contract_base_bonus", 0)) > 0, "a completed hand should add visible propagation base")
-	_assert_true(float(breakdown.get("contract_multiplier", 1.0)) > 1.0, "a completed hand should add a visible multiplier")
-	_assert_eq(int(breakdown.get("score", 0)), int(round(float(breakdown.get("base_value", 0)) * float(breakdown.get("total_multiplier", 0.0)))), "signal hand scoring should remain legible as base times total multiplier")
+	_assert_true(int(breakdown.get("contract_multiplier_bonus", 0)) > 0, "a completed hand should add to the shared integer multiplier")
+	_assert_eq(int(breakdown.get("score", 0)), int(breakdown.get("base_value", 0)) * int(breakdown.get("total_multiplier", 0)), "signal hand scoring should remain legible as base times one integer multiplier")
 
 
 func test_signal_contract_risk_is_paid_on_publish() -> void:
@@ -746,7 +749,7 @@ func test_arcana_use_is_free_and_changes_publish_breakdown() -> void:
 	_assert_eq(game.owned_arcana_cards.size(), 0, "used arcana should be consumed from the held-card area")
 	var plain: Dictionary = baseline.get_publish_breakdown(meme)
 	var boosted: Dictionary = game.get_publish_breakdown(meme)
-	_assert_true(float(boosted.get("arcana_multiplier", 1.0)) > 1.0, "moon arcana should expose a separate multiplier")
+	_assert_eq(int(boosted.get("arcana_multiplier_bonus", 0)), 1, "moon arcana should add one point to the shared integer multiplier")
 	_assert_true(int(boosted.get("arcana_pollution_risk", 0)) > 0, "moon arcana should reveal its pollution price in preview")
 	_assert_true(int(boosted.get("score", 0)) > int(plain.get("score", 0)), "moon arcana should increase the predicted propagation score")
 	_assert_true("月亮" in boosted.get("active_arcana_labels", []), "publish preview should name the armed arcana")
@@ -804,7 +807,7 @@ func test_arcana_publish_effects_are_consumed_once_and_pay_their_risk() -> void:
 	_assert_eq(game.pollution, 4 + 2 * 2 + contract_risk + arcana_risk, "publishing should pay both signal-hand and arcana pollution risks")
 	_assert_true(game.pending_arcana_effects.is_empty(), "successful publish should clear one-shot arcana effects")
 	var next_preview: Dictionary = game.get_publish_breakdown(meme)
-	_assert_eq(float(next_preview.get("arcana_multiplier", 1.0)), 1.0, "consumed arcana multiplier should not leak into later publishes")
+	_assert_eq(int(next_preview.get("arcana_multiplier_bonus", 0)), 0, "consumed arcana bonus should not leak into later publishes")
 
 
 func test_tower_hermit_and_hanged_arcana_cover_the_other_build_paths() -> void:
@@ -832,7 +835,7 @@ func test_tower_hermit_and_hanged_arcana_cover_the_other_build_paths() -> void:
 	hermit_game.owned_arcana_cards = [{"uid": "held-hermit", "id": "hermit", "bought_day": 1}]
 	_assert_true(hermit_game.use_arcana_card("held-hermit"), "hermit arcana should arm repeat relief")
 	var relieved_preview: Dictionary = hermit_game.get_publish_breakdown(meme)
-	_assert_true(float(relieved_preview.get("repeat_multiplier", 0.0)) > float(repeated_preview.get("repeat_multiplier", 0.0)), "hermit arcana should reduce repeat decay")
+	_assert_true(int(relieved_preview.get("repeat_penalty", 0)) < int(repeated_preview.get("repeat_penalty", 0)), "hermit arcana should reduce the integer repeat penalty")
 	_assert_eq(int(relieved_preview.get("effective_repeat_count", -1)), 0, "one hermit should forgive one previous use")
 
 	var hanged_game: RefCounted = _state_script.new()

@@ -39,8 +39,7 @@ func _run() -> void:
 	_assert_true(camera != null, "reality view should retain the shared 3D camera")
 	_assert_true(top_bar != null and bottom_bar != null, "gameplay should expose fixed cinematic bars")
 	if top_bar != null and bottom_bar != null:
-		_assert_true(top_bar.visible and bottom_bar.visible, "cinematic bars should stay visible during gameplay")
-		_assert_true(top_bar.size.y > 24.0 and bottom_bar.size.y > 24.0, "cinematic bars should create a real movie-aspect frame")
+		_assert_true(not top_bar.visible and not bottom_bar.visible, "phone view should not be squeezed by the reality-only cinematic bars")
 		_assert_eq(float(top_bar.get_meta("target_aspect_ratio", 0.0)), 2.35, "cinematic bars should target the selected 2.35 aspect ratio")
 	if social_window != null and top_bar != null:
 		_assert_true(social_window.z_index > top_bar.z_index, "phone app windows should render above the cinematic bars")
@@ -53,6 +52,15 @@ func _run() -> void:
 		_assert_true(growth == 2 or growth == 3, "each ascent should add two or three rooms")
 	_assert_eq(int(floor_root.get_meta("room_count", 0)), 4, "generated first floor should match the room formula")
 	_assert_eq(int(floor_root.get_meta("ordinary_npc_count", 0)), 5, "first floor should contain five ordinary NPCs")
+	_assert_eq(str(floor_root.get_meta("district_style", "")), "sunlit_brick_street", "first floor should use the sunlit brick-road reference grammar")
+	_assert_true(_find_node_by_name(floor_root, "BrickWall") != null and _find_node_by_name(floor_root, "Crosswalk00") != null, "sunlit district should include tall brick walls and a zebra crossing")
+	var first_brick_wall := _find_node_by_name(floor_root, "BrickWall") as Node3D
+	if first_brick_wall != null:
+		_assert_true(absf(first_brick_wall.position.x) >= 9.5 and absf(first_brick_wall.position.x) <= 10.8, "sunlit brick walls should form the reference's narrow road canyon instead of sitting at the map perimeter")
+	var first_reference_portal := _find_node_by_name(floor_root, "ReferencePortal") as MeshInstance3D
+	_assert_true(first_reference_portal != null and str(first_reference_portal.get_meta("reference_texture", "")).contains("sunlit_brick_street"), "sunlit district should extend its geometry with the supplied reference image")
+	if first_reference_portal != null and first_reference_portal.mesh is QuadMesh:
+		_assert_true((first_reference_portal.mesh as QuadMesh).size.x >= 12.0, "sunlit reference continuation should fill the road horizon rather than appear as a small poster")
 	_assert_true(int(floor_root.get_meta("useful_item_count", 0)) > 0, "some first-floor rooms should contain useful items")
 	_assert_true(int(floor_root.get_meta("useful_item_count", 0)) < int(floor_root.get_meta("room_count", 0)), "some rooms should remain empty")
 	var useful_item := _find_useful_item(floor_root)
@@ -97,6 +105,10 @@ func _run() -> void:
 	_assert_true(_action_has_key("reality_interact", KEY_F), "world interaction should use F")
 
 	game_root.set_view_state("npc_up")
+	if top_bar != null and bottom_bar != null:
+		_assert_true(top_bar.visible and bottom_bar.visible, "putting the phone down should restore both cinematic bars")
+		_assert_true(top_bar.size.y > 24.0 and bottom_bar.size.y > 24.0, "reality walking should retain a visible movie frame")
+		_assert_true(top_bar.size.y <= game_root.get_viewport().get_visible_rect().size.y * 0.121, "responsive cinematic bars should never consume more than twelve percent per edge")
 	_assert_true(bool(game_root._reality_mouse_look_enabled), "putting the phone down should immediately enable free mouse look")
 	var yaw_before_mouse := float(game_root._reality_yaw)
 	var mouse_turn := InputEventMouseMotion.new()
@@ -185,6 +197,24 @@ func _run() -> void:
 	_assert_eq(int(floor_root.get_meta("ordinary_npc_count", 0)), 2, "higher floors should thin ordinary NPCs to two")
 	_assert_eq(_count_actors(floor_root, "npc"), 2, "fifth-floor actor population should match its metadata")
 	_assert_true(_find_actor(floor_root, "merchant") != null, "merchant should persist on the highest floor")
+	_assert_eq(str(floor_root.get_meta("district_style", "")), "night_white_blocks", "fifth floor should rotate back to the night white-block district")
+	_assert_true(_find_node_by_name(floor_root, "WhiteHouse") != null and _find_node_by_name(floor_root, "WarmPool") != null, "night district should contain white cubic homes and warm streetlights")
+	var night_house := _find_node_by_name(floor_root, "WhiteHouse") as Node3D
+	if night_house != null:
+		_assert_true(absf(night_house.position.x) <= 7.2, "night houses should crowd the path like the supplied reference instead of leaving a broad empty plaza")
+
+	game_root.game.tower_floor = 3
+	game_root._ensure_reality_floor_current()
+	floor_root = game_root.get_node_or_null("RealityFloor") as Node3D
+	_assert_eq(str(floor_root.get_meta("district_style", "")), "overgrown_gallery", "third floor should use the overgrown white-gallery district")
+	_assert_true(_find_node_by_name(floor_root, "GalleryRoof") != null and _find_node_by_name(floor_root, "GalleryCeilingSpan") != null and _find_node_by_name(floor_root, "GrassPatch00") != null, "overgrown district should combine a covered white colonnade with procedural grass")
+	var grass_patch := _find_node_by_name(floor_root, "GrassPatch00") as Node3D
+	if grass_patch != null:
+		_assert_true(grass_patch.get_child_count() >= 30, "gallery grass should read as dense encroachment rather than sparse markers")
+		var first_blade := grass_patch.get_child(0) as MeshInstance3D
+		_assert_true(first_blade != null and first_blade.mesh is ArrayMesh, "gallery vegetation should use tapered grass blades rather than cone placeholders")
+	var gallery_reference_portal := _find_node_by_name(floor_root, "ReferencePortal") as MeshInstance3D
+	_assert_true(gallery_reference_portal != null and str(gallery_reference_portal.get_meta("reference_texture", "")).contains("overgrown_gallery"), "gallery district should use the supplied reference as a distant spatial continuation")
 
 	game_root.queue_free()
 	await process_frame
