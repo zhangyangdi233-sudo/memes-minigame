@@ -21,6 +21,7 @@ func _capture() -> void:
 	var main := scene.instantiate()
 	root.add_child(main)
 	main.new_game()
+	main._skip_prologue()
 	main.set_view_state("npc_up")
 	main._phone_art_alpha = 0.0
 	if main._phone_down_backdrop_image != null:
@@ -31,10 +32,9 @@ func _capture() -> void:
 		player.position = merchant.position + Vector3(0.0, 0.0, 1.4)
 		main._refresh_nearby_reality_actor()
 		main._try_reality_interaction()
-		main.game.conversation_selected_choice_id = "ask_goods"
-		main.game.conversation_understood = true
+		main.game.conversation_selected_choice_id = "trade"
 		main.game.conversation_phase = "result"
-		main.game.conversation_feedback = "信号商人听懂了你的意思。"
+		main.game.conversation_feedback = "信号商人敲了敲柜台，空框发出比内容更清楚的声音。"
 		main._render()
 	for frame in 16:
 		await process_frame

@@ -41,6 +41,16 @@ func _run() -> void:
 			_assert_true(_signal_connection_is_deferred(main_menu_start, "pressed"), "starting a game should defer scene teardown until the button signal finishes")
 	if root.has_method("new_game"):
 		root.new_game()
+		var prologue := _find_node_by_name(root, "PrologueOverlay") as Control
+		var prologue_line := _find_node_by_name(root, "PrologueLine") as Label
+		var prologue_continue := _find_node_by_name(root, "PrologueContinueButton") as Button
+		_assert_true(prologue != null and prologue.visible, "a new run should begin with the original no-signal prologue")
+		_assert_true(prologue_line != null and not prologue_line.text.is_empty(), "prologue should expose authored narrative copy")
+		_assert_true(prologue_continue != null, "prologue should expose a continue control")
+		if prologue != null and root.has_method("_advance_prologue"):
+			for _line_index in 7:
+				root._advance_prologue()
+			_assert_true(not prologue.visible, "advancing every prologue transmission should reveal gameplay")
 		_assert_true(root.get_node_or_null("Camera3D") is Camera3D, "main scene should contain a Camera3D")
 		_assert_true(root.get_node_or_null("CanvasLayer") is CanvasLayer, "main scene should contain a CanvasLayer")
 		_assert_true(root.get_node_or_null("Road") is Node3D, "main scene should contain scrolling road node")
@@ -122,8 +132,8 @@ func _run() -> void:
 		var settings_vhs_toggle := _find_node_by_name(root, "SettingsVHSToggle") as CheckButton
 		var settings_return_main := _find_node_by_name(root, "SettingsReturnMainButton") as Button
 		var vhs_overlay := _find_node_by_name(root, "VHSOverlay") as Control
-		var vhs_tint := _find_node_by_name(root, "VHSTint") as ColorRect
-		var vhs_side_noise := _find_node_by_name(root, "VHSSideNoise") as ColorRect
+		var vhs_back_buffer := _find_node_by_name(root, "VHSBackBufferCopy") as BackBufferCopy
+		var vhs_dynamic_filter := _find_node_by_name(root, "VHSDynamicFilter") as ColorRect
 		var view_toggle_button := _find_node_by_name(root, "PhoneViewToggleButton") as Button
 		var action_overlay := root.get_node_or_null("CanvasLayer/UIRoot/ActionSpendOverlay") as Control
 		var action_blackout := root.get_node_or_null("CanvasLayer/UIRoot/ActionSpendOverlay/ActionSpendBlackout") as ColorRect
@@ -290,11 +300,18 @@ func _run() -> void:
 		_assert_true(settings_vhs_toggle != null, "settings window should expose a VHS toggle")
 		_assert_true(settings_return_main != null, "settings window should expose a return to main menu button")
 		_assert_true(vhs_overlay != null, "scene should expose a VHS overlay")
-		_assert_true(vhs_tint != null, "VHS overlay should include a global tint layer")
-		_assert_true(vhs_side_noise != null, "VHS overlay should include side signal noise")
+		_assert_true(vhs_back_buffer != null, "VHS overlay should copy the rendered viewport for post-processing")
+		_assert_true(vhs_dynamic_filter != null, "VHS overlay should expose one dynamic full-screen filter")
+		if vhs_dynamic_filter != null:
+			var vhs_material := vhs_dynamic_filter.material as ShaderMaterial
+			_assert_true(vhs_material != null and vhs_material.shader != null, "dynamic VHS filter should use a shader material")
+			if vhs_material != null and vhs_material.shader != null:
+				var shader_code := vhs_material.shader.code
+				_assert_true(shader_code.contains("hint_screen_texture"), "VHS shader should sample the rendered screen")
+				_assert_true(shader_code.contains("TIME") and shader_code.contains("29.97"), "VHS shader should animate around an old television field rate")
 		if vhs_overlay != null:
 			_assert_true(vhs_overlay.mouse_filter == Control.MOUSE_FILTER_IGNORE, "VHS overlay should never block UI clicks")
-			_assert_true(_count_nodes_named_prefix(vhs_overlay, "VHSScanline") >= 34, "VHS overlay should include enough scanlines to read as analog video")
+			_assert_eq(_count_nodes_named_prefix(vhs_overlay, "VHSScanline"), 0, "dynamic VHS shader should replace static scanline nodes")
 		_assert_true(view_toggle_button != null, "scene should expose a fixed take/put phone button")
 		_assert_true(action_overlay != null, "scene should expose the action spend overlay")
 		_assert_true(action_blackout == null, "action spend animation should not include a black fullscreen background")
@@ -665,14 +682,12 @@ func _run() -> void:
 			_assert_true(social_app_window.visible, "previous app window should remain open when another app opens")
 			_assert_true(babel_app_window.visible, "Babel app should open in its own window")
 			_assert_true(shop_app_window.visible, "shop app should open in its own window")
-			var arcana_shop_section := _find_node_by_name(root, "ArcanaShopSection") as VBoxContainer
-			var daily_arcana_card := _find_node_by_name(root, "DailyArcanaCardPanel") as PanelContainer
-			var daily_arcana_art := _find_node_by_name(root, "DailyArcanaCardArt") as TextureRect
-			var daily_arcana_buy := _find_node_by_name(root, "DailyArcanaBuyButton") as Button
-			_assert_true(arcana_shop_section != null, "shop should expose a dedicated arcana section")
-			_assert_true(daily_arcana_card != null, "shop should present the daily arcana as a card")
-			_assert_true(daily_arcana_art != null and daily_arcana_art.texture != null, "daily arcana should use generated card artwork")
-			_assert_true(daily_arcana_buy != null and daily_arcana_buy.custom_minimum_size.y >= 52.0, "arcana purchase should use a comfortable touch target")
+			var daily_meme_frame := _find_node_by_name(root, "DailyMemeFramePanel") as PanelContainer
+			var daily_meme_frame_buy := _find_node_by_name(root, "DailyMemeFrameBuyButton") as Button
+			_assert_true(_find_node_by_name(root, "ArcanaShopSection") == null, "shop should no longer sell arcana")
+			_assert_true(_find_node_by_name(root, "EmotionShopSection") == null, "shop should no longer sell emotion slots")
+			_assert_true(daily_meme_frame != null, "shop should sell the sparse daily meme frame offer")
+			_assert_true(daily_meme_frame_buy != null and daily_meme_frame_buy.custom_minimum_size.y >= 52.0, "meme frame purchase should use a comfortable touch target")
 			_assert_true(notebook_app_window != social_app_window, "notebook app should be an independent window node")
 			if social_app_window != null and social_feed_masonry != null:
 				var social_width := social_app_window.offset_right - social_app_window.offset_left
@@ -730,7 +745,6 @@ func _run() -> void:
 			_assert_true(social_nav_create.custom_minimum_size.y >= 44.0, "create nav touch target should be at least 44px tall")
 			_assert_true(social_nav_mine.custom_minimum_size.y >= 44.0, "profile nav touch target should be at least 44px tall")
 			var social_size_before_publish := social_app_window.size if social_app_window != null else Vector2.ZERO
-			root.game.owned_arcana_cards = [{"uid": "scene-moon", "id": "moon", "bought_day": root.game.day}]
 			social_nav_create.pressed.emit()
 			var publish_page_after_nav := _find_node_by_name(root, "SocialPublishPage") as VBoxContainer
 			var composer_after_nav := _find_node_by_name(root, "SocialPublishComposer") as PanelContainer
@@ -742,9 +756,6 @@ func _run() -> void:
 			var publish_contract_after_nav := _find_node_by_name(root, "SocialPublishContractPanel") as PanelContainer
 			var publish_contract_title_after_nav := _find_node_by_name(root, "SocialPublishContractTitle") as Label
 			var publish_contract_text_after_nav := _find_node_by_name(root, "SocialPublishContractText") as Label
-			var publish_arcana_panel_after_nav := _find_node_by_name(root, "SocialPublishArcanaPanel") as PanelContainer
-			var publish_arcana_hand_after_nav := _find_node_by_name(root, "SocialPublishArcanaHand") as HFlowContainer
-			var publish_arcana_button_after_nav := _find_node_by_name(root, "SocialPublishArcana_scene-moon") as Button
 			var feed_after_nav := _find_node_by_name(root, "SocialFeedMasonry") as HBoxContainer
 			var inline_close_after_publish := _find_node_by_name(root, "SocialAppInlineCloseButton") as Button
 			var bottom_nav_after_publish := _find_node_by_name(root, "SocialBottomNav") as HBoxContainer
@@ -754,9 +765,7 @@ func _run() -> void:
 			_assert_true(publish_action_bar_after_nav != null, "publish page should expose a fixed action bar for confirmation")
 			_assert_true(publish_score_after_nav != null, "publish page should expose a Balatro-like base-times-multiplier breakdown")
 			_assert_true(publish_contract_after_nav != null, "publish page should expose today's signal hand as a distinct scoring contract")
-			_assert_true(publish_arcana_panel_after_nav != null, "publish page should expose the held arcana area")
-			_assert_true(publish_arcana_hand_after_nav != null, "held arcana should stay grouped as a compact hand")
-			_assert_true(publish_arcana_button_after_nav != null and publish_arcana_button_after_nav.custom_minimum_size.y >= 72.0, "held arcana should be directly usable with a readable card-sized target")
+			_assert_true(_find_node_by_name(root, "SocialPublishArcanaPanel") == null, "publish page should not expose the removed arcana hand")
 			if publish_contract_title_after_nav != null and publish_contract_text_after_nav != null:
 				_assert_true(not publish_contract_title_after_nav.text.is_empty(), "daily signal hand should have a visible name")
 				_assert_true(str(publish_contract_text_after_nav.text).contains("奖励") and str(publish_contract_text_after_nav.text).contains("污染"), "daily signal hand should reveal both reward and pollution risk before publishing")
@@ -898,24 +907,15 @@ func _run() -> void:
 			_assert_eq(root.game.actions_remaining, 5, "flashback settlement should restore next-day actions")
 			_assert_true(not flashback_overlay.visible, "flashback overlay should hide after automatic settlement")
 		root.game.notebook_tokens = [
-			{"id": "n1", "text": "哈吉米", "tags": ["哈吉米"], "rarity": 1, "source_passive": {"id": "callback_resonance", "label": "回拨共鸣", "description": "命中风向时传播基础 +10", "effect": "trend_base", "value": 10}},
-			{"id": "n2", "text": "空位", "tags": ["空位"], "rarity": 1},
-			{"id": "n3", "text": "塔下", "tags": ["巴别塔"], "rarity": 1},
-			{"id": "n4", "text": "无信号", "tags": ["信号"], "rarity": 1},
-			{"id": "n5", "text": "打错", "tags": ["错字"], "rarity": 1},
-			{"id": "n6", "text": "沉默", "tags": ["沉默"], "rarity": 1},
+			{"id": "n1", "text": "哈", "tags": ["哈吉米"], "rarity": 1, "source_passive": {"id": "callback_resonance", "label": "回拨共鸣", "description": "命中风向时传播基础 +10", "effect": "trend_base", "value": 10}},
+			{"id": "n2", "text": "空", "tags": ["空位"], "rarity": 1},
+			{"id": "n3", "text": "塔", "tags": ["巴别塔"], "rarity": 1},
 		]
-		root.game.owned_emotion_slots = ["anxiety", "please", "counter", "silence", "anger", "prayer"]
-		root.game.equipped_emotion_slots = ["anxiety", "please"]
-		root.game.emotion_slot_texts = {
-			"anxiety": "我不是那个意思",
-			"please": "你说得也有道理",
-			"counter": "难道不是这样吗",
-			"silence": "我先不说了",
-			"anger": "别再这样问我",
-			"prayer": "请让我把话说完",
-		}
-		root.game.completed_memes = [{"id": "m1", "title": "表达 #1", "text": "哈吉米，到底是什么意思？", "tags": ["哈吉米"], "rarity": 1}]
+		root.game.owned_meme_frames = 1
+		root.game.completed_memes = [
+			{"id": "m1", "title": "单字 #1", "text": "哈", "tags": ["哈吉米"], "rarity": 1},
+			{"id": "m2", "title": "单字 #2", "text": "塔", "tags": ["巴别塔"], "rarity": 1},
+		]
 		root.game.set_active_app("social")
 		root._render()
 		meme_bank_popup = _find_node_by_name(root, "MemeBankPopup") as PanelContainer
@@ -956,8 +956,10 @@ func _run() -> void:
 		var notebook_craft_button := _find_node_by_name(root, "NotebookCraftButton") as Button
 		var notebook_token_flow := _find_node_by_name(root, "NotebookTokenFlow") as HFlowContainer
 		var sourced_notebook_token := _find_node_by_name(root, "NotebookToken_n1") as Button
-		var anxiety_equip := _find_node_by_name(root, "EmotionEquipButton_anxiety") as Button
-		var counter_equip := _find_node_by_name(root, "EmotionEquipButton_counter") as Button
+		var fusion_slots := _find_node_by_name(root, "NotebookFusionSlots") as HBoxContainer
+		var fusion_left := _find_node_by_name(root, "FusionSlotLeft") as Button
+		var fusion_right := _find_node_by_name(root, "FusionSlotRight") as Button
+		var fusion_button := _find_node_by_name(root, "NotebookFusionButton") as Button
 		if notebook_app_window != null:
 			_assert_eq(notebook_app_window.size, notebook_size_before_render, "opening notebook crafting should not stretch the notebook app window")
 		_assert_true(notebook_scroll != null, "notebook crafting should put expandable content inside an internal scroll area")
@@ -965,11 +967,9 @@ func _run() -> void:
 		_assert_true(notebook_token_flow != null, "notebook tokens should wrap instead of forcing horizontal overflow")
 		_assert_true(sourced_notebook_token != null and str(sourced_notebook_token.text).contains("回拨共鸣"), "notebook token should retain and display its source card passive")
 		_assert_true(notebook_action_bar != null, "notebook crafting should expose a fixed action bar")
-		_assert_true(_has_text(root, "情绪构筑  2/2"), "notebook should expose the two-slot emotion loadout count")
-		_assert_true(anxiety_equip != null and str(anxiety_equip.text) == "已装备", "an equipped emotion should be visibly marked in the notebook")
-		_assert_true(counter_equip != null and counter_equip.disabled, "a third emotion should stay disabled until one of two equipped slots is freed")
-		if anxiety_equip != null:
-			_assert_true(anxiety_equip.custom_minimum_size.y >= 44.0, "emotion loadout controls should meet the minimum touch target")
+		_assert_true(not _has_text(root, "情绪构筑"), "notebook should remove the old emotion loadout")
+		_assert_true(fusion_slots != null and fusion_left != null and fusion_right != null, "notebook should expose two meme fusion drop slots")
+		_assert_true(fusion_button != null and fusion_button.custom_minimum_size.y >= 52.0, "notebook should expose a touchable fusion confirmation")
 		if notebook_content != null and notebook_scroll != null:
 			_assert_true(_is_descendant_of(notebook_content, notebook_scroll), "notebook dynamic content should scroll inside the notebook window")
 		if notebook_craft_button != null and notebook_action_bar != null and notebook_scroll != null:
@@ -1025,6 +1025,8 @@ func _run() -> void:
 				root._render()
 				_assert_true(not _controls_overlap(meme_bank_popup, social_app_window), "meme bank corner should avoid a dragged social phone")
 		if social_app_window != null and social_status_bar != null and root.has_method("_on_window_handle_gui_input"):
+			_assert_true(not root._input_locked, "window dragging should begin with gameplay input unlocked")
+			_assert_true(prologue == null or not prologue.visible, "completed prologue should not intercept later window dragging")
 			var pointer_start := social_status_bar.global_position + Vector2(36, 24)
 			var pointer_end := pointer_start + Vector2(52, 34)
 			var direct_drag_start := social_app_window.position
@@ -1035,20 +1037,20 @@ func _run() -> void:
 			root._on_window_handle_gui_input(drag_press, "app:social", social_app_window, social_status_bar)
 			var drag_motion := InputEventMouseMotion.new()
 			drag_motion.global_position = pointer_end
-			root._input(drag_motion)
+			root._on_window_handle_gui_input(drag_motion, "app:social", social_app_window, social_status_bar)
 			var drag_release := InputEventMouseButton.new()
 			drag_release.button_index = MOUSE_BUTTON_LEFT
 			drag_release.pressed = false
 			drag_release.global_position = pointer_end
-			root._input(drag_release)
+			root._on_window_handle_gui_input(drag_release, "app:social", social_app_window, social_status_bar)
 			_assert_true(social_app_window.position != direct_drag_start, "real mouse-event dragging should move the social phone window")
 			var direct_drag_end := social_app_window.position
 			root._render()
 			_assert_eq(social_app_window.position, direct_drag_end, "real mouse-event dragged social phone position should survive render")
 		_assert_true(_has_node_with_method(root, "set_drag_payload"), "notebook and bank items should expose drag payloads")
 		_assert_true(_has_node_with_method(root, "configure_drop_target"), "slots and dialogue blank should expose drop targets")
-		root._on_slot_token_dropped({"kind": "token", "id": "n1"}, "object")
-		_assert_eq(root.game.draft_slots.get("object", ""), "n1", "dropping token should place it in a craft slot")
+		root._on_slot_token_dropped({"kind": "token", "id": "n1"}, "glyph")
+		_assert_eq(root.game.draft_slots.get("glyph", ""), "n1", "dropping one character should place it in the only craft slot")
 		_assert_eq(root.game.actions_remaining, 5, "dropping token should not spend an action")
 		var notebook_source_passive_strip := _find_node_by_name(root, "NotebookSourcePassiveStrip") as Label
 		_assert_true(notebook_source_passive_strip != null and str(notebook_source_passive_strip.text).contains("回拨共鸣"), "notebook draft should preview active source card passives before crafting")
@@ -1140,7 +1142,8 @@ func _run() -> void:
 			reality_typing_line = _find_node_by_name(root, "RealityTypingLine") as RichTextLabel
 			reality_typing_progress = _find_node_by_name(root, "RealityTypingProgress") as Label
 			_assert_true(reality_subtitle != null and reality_subtitle.visible, "F interaction should reveal the movie subtitle")
-			_assert_true(reality_subtitle_label != null and str(reality_subtitle_label.get("bbcode")).contains("我只收还能被别人听懂的东西"), "NPC speech should remain clear even when the protagonist is highly polluted")
+			_assert_true(reality_subtitle_label != null and str(reality_subtitle_label.get("bbcode")).contains("我卖的是能装住一个字的空框"), "merchant copy should follow the current floor's unique language")
+			_assert_true(reality_subtitle_label != null and not str(reality_subtitle_label.get("bbcode")).contains("听懂") and not str(reality_subtitle_label.get("bbcode")).contains("理解"), "reality dialogue should never tell the player whether an NPC understood")
 			_assert_true(reality_subtitle_label != null and str(reality_subtitle_label.get("bbcode")).contains("[curspull"), "all NPC dialogue text should use the cursor-pull text effect")
 			_assert_true(_rich_text_has_effect(reality_subtitle_label, "curspull"), "the plugin should install the curspull effect at runtime; got %s" % str(_rich_text_effect_names(reality_subtitle_label)))
 			_assert_true(reality_choices != null and reality_choices.visible and reality_choices.get_child_count() == 3, "F interaction should reveal exactly three response choices")
@@ -1180,14 +1183,13 @@ func _run() -> void:
 		root._active_reality_actor = reality_merchant
 		root.game.conversation_actor_type = "merchant"
 		root.game.conversation_actor_label = "信号商人"
-		root.game.conversation_selected_choice_id = "ask_goods"
-		root.game.conversation_understood = true
+		root.game.conversation_selected_choice_id = "trade"
 		root.game.conversation_phase = "result"
 		root.game.daily_communication_item_bought = false
 		root._render()
 		reality_merchant_offer = _find_node_by_name(root, "RealityMerchantOffer") as PanelContainer
 		reality_merchant_buy = _find_node_by_name(root, "RealityMerchantBuyButton") as Button
-		_assert_true(reality_merchant_offer != null and reality_merchant_offer.visible, "understood ask-goods response should reveal the merchant's limited-use item")
+		_assert_true(reality_merchant_offer != null and reality_merchant_offer.visible, "the authored trade response should reveal the merchant's limited-use item")
 		_assert_true(reality_merchant_buy != null and not reality_merchant_buy.disabled, "affordable merchant item should be purchasable")
 		var actions_before_item := int(root.game.actions_remaining)
 		root._on_buy_communication_item()
@@ -1207,6 +1209,7 @@ func _run() -> void:
 		_assert_true(ending_screen != null and bool(ending_screen.get_meta("empty_tower", false)), "tower ending should replace gameplay with a dedicated empty-tower screen")
 		_assert_true(ending_title != null and ending_title.text == "塔顶没有人", "tower ending should state that nobody is waiting at the top")
 		_assert_true(ending_body != null and str(ending_body.text).contains("没有智者"), "tower ending should make the sage's absence explicit")
+		_assert_true(ending_body != null and str(ending_body.text).contains("没有接线的发射机"), "tower ending should resolve the no-signal city with original radio imagery")
 		_assert_true(ending_choices != null and ending_choices.get_child_count() == 4, "tower ending should offer only blank, blocks, Hajimi, or silence")
 		_assert_true(ending_block_choice != null, "block residue should be one of the four final language choices")
 		if ending_block_choice != null:

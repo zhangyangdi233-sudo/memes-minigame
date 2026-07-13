@@ -22,6 +22,7 @@ func _capture() -> void:
 	root.add_child(main)
 	if main.has_method("new_game"):
 		main.new_game()
+		main._skip_prologue()
 	if main.has_method("set_view_state"):
 		main.set_view_state("npc_up")
 	main._phone_art_alpha = 0.0

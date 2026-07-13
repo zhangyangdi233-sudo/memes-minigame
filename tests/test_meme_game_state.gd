@@ -24,10 +24,11 @@ func _run() -> void:
 	test_social_follow_and_like_toggles_are_free_and_persistent()
 	test_world_items_are_free_one_shot_publish_modifiers()
 	test_pick_token_costs_action_and_adds_notebook_token()
-	test_buy_emotion_slot_costs_action_and_editing_is_free()
-	test_craft_uses_two_core_slots_and_optional_emotion_text()
-	test_emotion_loadout_limits_crafting_to_two_equipped_slots()
+	test_meme_frame_offer_is_infrequent_and_purchase_costs_action()
+	test_single_character_craft_consumes_one_frame()
+	test_meme_fusion_combines_two_memes_and_boosts_score()
 	test_ascent_offers_three_permanent_reward_choices()
+	test_star_sun_moon_combo_adds_one_daily_action()
 	test_ascent_reward_blocks_actions_and_cannot_be_farmed()
 	test_reward_modifier_changes_publish_scoring()
 	test_source_card_passive_follows_tokens_into_publish_scoring()
@@ -39,7 +40,7 @@ func _run() -> void:
 	test_typed_reality_choices_preview_legacy_without_spending()
 	test_typed_reality_reveals_one_character_and_spends_on_completion()
 	test_typed_reality_corruption_and_merchant_understanding_checks()
-	test_typed_reality_locks_out_after_three_failed_attempts()
+	test_each_floor_npc_has_unique_dialogue_without_understanding_prompt()
 	test_communication_item_purchase_costs_action_and_has_limited_charges()
 	test_communication_item_only_consumes_to_rescue_failed_understanding()
 	test_reality_dialogue_leaves_irreversible_relationship_residue()
@@ -49,12 +50,6 @@ func _run() -> void:
 	test_publish_breakdown_uses_base_times_multiplier_and_repeat_decay()
 	test_daily_signal_contract_matches_and_boosts_score()
 	test_signal_contract_risk_is_paid_on_publish()
-	test_arcana_purchase_costs_action_and_holding_is_capped()
-	test_arcana_use_is_free_and_changes_publish_breakdown()
-	test_star_arcana_adds_a_trend_tag_to_target_meme()
-	test_judgement_arcana_rerolls_the_daily_signal_hand()
-	test_arcana_publish_effects_are_consumed_once_and_pay_their_risk()
-	test_tower_hermit_and_hanged_arcana_cover_the_other_build_paths()
 	test_visible_six_day_trends_match_scoring_rotation()
 	test_day_settlement_can_raise_tower_and_unlock_ending()
 	test_ending_language_choice_is_limited_and_irreversible()
@@ -106,7 +101,6 @@ func test_world_items_are_free_one_shot_publish_modifiers() -> void:
 		"rarity": 1,
 		"pollution_bias": 0,
 		"clarity_bias": 0,
-		"emotion_count": 0,
 		"source_passives": [],
 	}
 	var plain: Dictionary = game.get_publish_breakdown(meme)
@@ -156,81 +150,73 @@ func test_pick_token_costs_action_and_adds_notebook_token() -> void:
 	_assert_true(result, "pick_token should return true for a new token")
 	_assert_eq(game.actions_remaining, 4, "picking a token should cost one action")
 	_assert_eq(game.notebook_tokens.size(), 1, "picked token should enter notebook")
-	_assert_eq(game.notebook_tokens[0]["text"], "哈吉米", "notebook token text should match")
+	_assert_eq(game.notebook_tokens[0]["text"], "哈", "every notebook pickup should be normalized to exactly one visible character")
 
 
-func test_buy_emotion_slot_costs_action_and_editing_is_free() -> void:
+func test_meme_frame_offer_is_infrequent_and_purchase_costs_action() -> void:
 	var game: RefCounted = _state_script.new()
 	game.new_run()
-	_assert_true(game.has_method("buy_daily_emotion_slot"), "state should expose buy_daily_emotion_slot")
-	if not game.has_method("buy_daily_emotion_slot"):
-		return
-	var slot_id := str(game.get("daily_emotion_slot_id"))
-	var bought: bool = game.buy_daily_emotion_slot()
-	_assert_true(bought, "buy_daily_emotion_slot should buy today's emotion")
-	_assert_eq(game.actions_remaining, 4, "buying an emotion slot should cost one action")
-	_assert_true(slot_id in game.owned_emotion_slots, "bought emotion slot should be owned")
-	_assert_true(slot_id in game.equipped_emotion_slots, "the first purchased emotion should auto equip")
-	game.set_emotion_slot_text(slot_id, "我不是那个意思")
-	_assert_eq(game.actions_remaining, 4, "editing emotion text should be free")
-	_assert_eq(game.emotion_slot_texts.get(slot_id, ""), "我不是那个意思", "emotion slot text should save player wording")
+	_assert_true(not game.get_daily_meme_frame_offer().is_empty(), "day one should offer an onboarding meme frame")
+	_assert_true(game.buy_daily_meme_frame(), "the offered meme frame should be purchasable")
+	_assert_eq(game.actions_remaining, 4, "buying a meme frame should cost one action")
+	_assert_eq(game.owned_meme_frames, 1, "the bought frame should enter inventory")
+	_assert_true(not game.buy_daily_meme_frame(), "the same daily frame offer should only be bought once")
+	game.needs_day_settlement = true
+	game.settle_day_if_needed()
+	_assert_true(game.get_daily_meme_frame_offer().is_empty(), "day two should not offer a frame")
+	game.needs_day_settlement = true
+	game.settle_day_if_needed()
+	_assert_true(game.get_daily_meme_frame_offer().is_empty(), "day three should not offer a frame")
+	game.needs_day_settlement = true
+	game.settle_day_if_needed()
+	_assert_true(not game.get_daily_meme_frame_offer().is_empty(), "the frame should return on day four after two absent days")
 
 
-func test_craft_uses_two_core_slots_and_optional_emotion_text() -> void:
+func test_single_character_craft_consumes_one_frame() -> void:
 	var game: RefCounted = _state_script.new()
 	game.new_run()
-	game.notebook_tokens = [
-		{"id": "n1", "text": "哈吉米", "tags": ["哈吉米"], "rarity": 1},
-		{"id": "n2", "text": "到底是什么意思", "tags": ["追问"], "rarity": 1},
-	]
-	game.owned_emotion_slots = ["anxiety"]
-	game.equipped_emotion_slots = ["anxiety"]
-	game.set_emotion_slot_text("anxiety", "我不是那个意思")
-	game.place_token_in_slot("object", "n1")
-	game.place_token_in_slot("saying", "n2")
+	game.notebook_tokens = [{"id": "n1", "text": "哈", "tags": ["哈吉米"], "rarity": 2, "source_passive": {}}]
+	game.owned_meme_frames = 1
+	_assert_eq(game.get_craft_slots().size(), 1, "the notebook should expose exactly one core slot")
+	_assert_eq(str(game.get_craft_slots()[0].get("id", "")), "glyph", "the only core slot should be the one-character glyph frame")
+	_assert_true(not game.place_token_in_slot("object", "n1"), "removed object and saying slots should reject tokens")
+	_assert_true(game.place_token_in_slot("glyph", "n1"), "the glyph should enter the purchased frame")
 	_assert_eq(game.actions_remaining, 5, "placing tokens should be free")
-	var crafted: bool = game.confirm_craft_with_emotions()
-	_assert_true(crafted, "confirm_craft_with_emotions should create a meme when core slots are filled")
+	var crafted: bool = game.confirm_craft()
+	_assert_true(crafted, "one frame plus one glyph should create a complete meme")
 	_assert_eq(game.actions_remaining, 4, "confirm craft should cost one action")
 	_assert_eq(game.completed_memes.size(), 1, "crafted meme should enter meme bank")
-	_assert_true(game.completed_memes[0]["text"].contains("哈吉米"), "crafted meme should include slot text")
-	_assert_true(game.completed_memes[0]["text"].contains("我不是那个意思"), "crafted meme should include edited emotion text")
-	_assert_true("焦虑" in game.completed_memes[0]["tags"], "emotion hidden tag should enter crafted meme")
+	_assert_eq(game.completed_memes[0]["text"], "哈", "a basic crafted meme should remain one character long")
+	_assert_eq(game.owned_meme_frames, 0, "crafting should consume exactly one purchased meme frame")
 
 
-func test_emotion_loadout_limits_crafting_to_two_equipped_slots() -> void:
+func test_meme_fusion_combines_two_memes_and_boosts_score() -> void:
 	var game: RefCounted = _state_script.new()
 	game.new_run()
-	game.owned_emotion_slots = ["anxiety", "please", "counter"]
-	game.equipped_emotion_slots = ["anxiety", "please"]
-	game.emotion_slot_texts = {
-		"anxiety": "我不是那个意思",
-		"please": "你说得也有道理",
-		"counter": "难道不是这样吗",
-	}
-	_assert_true(not game.toggle_equipped_emotion_slot("counter"), "a third emotion should not equip while two slots are occupied")
-	_assert_eq(game.equipped_emotion_slots.size(), 2, "failed third equip should preserve the two-slot loadout")
-	_assert_true(game.toggle_equipped_emotion_slot("please"), "an equipped emotion should be removable for free")
-	_assert_true(game.toggle_equipped_emotion_slot("counter"), "a different emotion should equip after a slot is freed")
-	_assert_eq(game.actions_remaining, 5, "changing the emotion loadout should not cost an action")
-	game.notebook_tokens = [
-		{"id": "n1", "text": "哈吉米", "tags": ["哈吉米"], "rarity": 1},
-		{"id": "n2", "text": "到底是什么意思", "tags": ["追问"], "rarity": 1},
-	]
-	game.place_token_in_slot("object", "n1")
-	game.place_token_in_slot("saying", "n2")
-	_assert_true(game.confirm_craft_with_emotions(), "the selected two-slot loadout should craft normally")
-	var crafted: Dictionary = game.completed_memes[0]
-	_assert_true(str(crafted["text"]).contains("我不是那个意思"), "equipped anxiety text should enter the crafted meme")
-	_assert_true(str(crafted["text"]).contains("难道不是这样吗"), "equipped counter text should enter the crafted meme")
-	_assert_true(not str(crafted["text"]).contains("你说得也有道理"), "unequipped emotion text should stay out of the crafted meme")
-	_assert_eq(int(crafted.get("emotion_count", 0)), 2, "crafted meme should record exactly two equipped emotions")
+	var first := {"id": "m-a", "title": "梗字「哈」", "text": "哈", "tags": ["哈吉米"], "rarity": 1, "pollution_bias": 1, "clarity_bias": -1, "fusion_level": 0, "source_passives": []}
+	var second := {"id": "m-b", "title": "梗字「塔」", "text": "塔", "tags": ["巴别塔"], "rarity": 2, "pollution_bias": 2, "clarity_bias": -1, "fusion_level": 0, "source_passives": []}
+	game.completed_memes = [first, second]
+	var plain_score := int(game.get_publish_breakdown(second).get("score", 0))
+	var pollution_before := int(game.pollution)
+	_assert_true(game.place_meme_in_fusion_slot("left", "m-a"), "the first complete meme should enter the left fusion slot")
+	_assert_true(game.place_meme_in_fusion_slot("right", "m-b"), "a different complete meme should enter the right fusion slot")
+	_assert_eq(game.actions_remaining, 5, "arranging fusion slots should be free")
+	_assert_true(game.confirm_meme_fusion(), "two different complete memes should fuse")
+	_assert_eq(game.actions_remaining, 4, "confirming fusion should cost one action")
+	var fused: Dictionary = game.completed_memes[0]
+	_assert_eq(str(fused.get("text", "")), "哈塔", "fusion should visibly join the two source memes")
+	_assert_eq(int(fused.get("fusion_level", 0)), 1, "the first fusion should record level one")
+	_assert_true(int(fused.get("pollution_bias", 0)) > int(first.get("pollution_bias", 0)) + int(second.get("pollution_bias", 0)), "fusion should carry more future pollution than both inputs combined")
+	_assert_true(game.pollution > pollution_before, "fusion itself should immediately increase run pollution")
+	_assert_true(int(game.get_publish_breakdown(fused).get("score", 0)) > plain_score, "the fused meme should be materially stronger than a basic source meme")
+	game.fusion_slots = {"left": "m-a", "right": "m-b"}
+	_assert_true(not game.confirm_meme_fusion(), "the same pair should not be fused repeatedly for infinite scaling")
 
 
 func test_ascent_offers_three_permanent_reward_choices() -> void:
 	var game: RefCounted = _state_script.new()
 	game.new_run()
-	game.heat = 220
+	game.heat = 620
 	for index in 5:
 		game.spend_action("ascent-%d" % index)
 	_assert_true(game.settle_day_if_needed(), "a completed high-progress day should settle")
@@ -240,6 +226,8 @@ func test_ascent_offers_three_permanent_reward_choices() -> void:
 	var ids: Array[String] = []
 	for choice in choices:
 		ids.append(str(choice.get("id", "")))
+		_assert_true(not str(choice.get("tarot_id", "")).is_empty(), "every ascent choice should be a named tarot card")
+		_assert_true(not str(choice.get("numeral", "")).is_empty(), "tarot ascent choices should retain their major-arcana numeral")
 	_assert_eq(ids.duplicate().size(), 3, "reward choices should expose three identifiers")
 	_assert_true(ids[0] != ids[1] and ids[0] != ids[2] and ids[1] != ids[2], "the three reward choices should be unique")
 	var actions_before: int = game.actions_remaining
@@ -248,6 +236,22 @@ func test_ascent_offers_three_permanent_reward_choices() -> void:
 	_assert_eq(game.permanent_modifiers.size(), 1, "chosen reward should persist in the run")
 	_assert_true(game.get_pending_ascent_reward_choices().is_empty(), "choosing should clear the current offer")
 	_assert_true(not game.choose_ascent_reward(ids[1]), "a reward outside the current offer should not be selectable")
+
+
+func test_star_sun_moon_combo_adds_one_daily_action() -> void:
+	var game: RefCounted = _state_script.new()
+	game.new_run()
+	for tarot_id in ["star", "sun", "moon"]:
+		game.pending_ascent_reward_choices = [{"id": tarot_id, "tarot_id": tarot_id, "numeral": "TEST", "label": tarot_id, "effect": "publish_base", "value": 0.0}]
+		_assert_true(game.choose_ascent_reward(tarot_id), "the prepared %s tarot reward should be selectable" % tarot_id)
+	_assert_true("star" in game.owned_tarot_ids and "sun" in game.owned_tarot_ids and "moon" in game.owned_tarot_ids, "the run should remember all collected tarot names")
+	var combos: Array = game.get_active_tarot_combos()
+	_assert_true(not combos.is_empty() and str(combos[0].get("id", "")) == "day_and_night", "star, sun and moon should activate the day-and-night combo")
+	_assert_eq(game.max_actions_per_day, 6, "the day-and-night combo should permanently add one daily action")
+	game.actions_remaining = 0
+	game.needs_day_settlement = true
+	game.settle_day_if_needed()
+	_assert_eq(game.actions_remaining, 6, "each new day should refill the combo-enhanced action capacity")
 
 
 func test_ascent_reward_blocks_actions_and_cannot_be_farmed() -> void:
@@ -289,14 +293,13 @@ func test_source_card_passive_follows_tokens_into_publish_scoring() -> void:
 	game.new_run()
 	game.notebook_tokens = [
 		{
-			"id": "card-object", "text": "不存在的十三层", "tags": ["巴别塔", "空位"], "rarity": 2,
+			"id": "card-glyph", "text": "塔", "tags": ["巴别塔", "空位"], "rarity": 2,
 			"source_passive": {"id": "floor_draft", "label": "空层底稿", "effect": "base_bonus", "value": 4.0},
 		},
-		{"id": "card-saying", "text": "还在施工", "tags": ["刷新"], "rarity": 1, "source_passive": {}},
 	]
-	game.place_token_in_slot("object", "card-object")
-	game.place_token_in_slot("saying", "card-saying")
-	_assert_true(game.confirm_craft_with_emotions(), "card-sourced tokens should craft normally")
+	game.owned_meme_frames = 1
+	game.place_token_in_slot("glyph", "card-glyph")
+	_assert_true(game.confirm_craft(), "a card-sourced glyph should craft normally inside one purchased frame")
 	var crafted: Dictionary = game.completed_memes[0]
 	_assert_eq(crafted.get("source_passives", []).size(), 1, "crafted meme should keep the source card passive")
 	var boosted: Dictionary = game.get_publish_breakdown(crafted)
@@ -458,37 +461,31 @@ func test_typed_reality_corruption_and_merchant_understanding_checks() -> void:
 	_assert_eq(game.conversation_understanding_rolls.size(), 3, "merchant understanding should always roll three pollution checks")
 
 
-func test_typed_reality_locks_out_after_three_failed_attempts() -> void:
+func test_each_floor_npc_has_unique_dialogue_without_understanding_prompt() -> void:
 	var game: RefCounted = _state_script.new()
 	game.new_run()
-	game.pollution = 100
-	var actor_id := ""
-	for candidate_index in 200:
-		var candidate := "lockout-%d" % candidate_index
-		game.start_typed_reality_conversation(candidate, "npc", "无名信徒")
-		var candidate_choice := str(game.get_typed_reality_choices()[0].get("id", ""))
-		game.select_typed_reality_choice(candidate_choice)
-		var all_fail := true
-		for attempt_index in 3:
-			game.conversation_attempts = attempt_index
-			if game._conversation_roll("understanding", game.conversation_clean_sentence.length(), 0) < 5:
-				all_fail = false
-				break
-		if all_fail:
-			actor_id = candidate
-			break
-	_assert_true(not actor_id.is_empty(), "test should find a deterministic actor id that fails three maximum-pollution checks")
+	var floor_counts := {1: 5, 2: 4, 3: 3, 4: 2, 5: 2}
+	for floor_number in floor_counts:
+		game.tower_floor = int(floor_number)
+		var prompts: Array[String] = []
+		var response_sentences: Array[String] = []
+		for npc_index in int(floor_counts[floor_number]):
+			game.reset_typed_reality_conversation()
+			_assert_true(game.start_typed_reality_conversation("npc_%d_npc%d" % [floor_number, npc_index], "npc", "NPC %d" % npc_index), "every generated NPC should open a conversation")
+			prompts.append(game.conversation_prompt)
+			var choices: Array = game.get_typed_reality_choices()
+			_assert_eq(choices.size(), 3, "every NPC should expose three authored responses")
+			response_sentences.append(str(choices[0].get("sentence", "")))
+		_assert_eq(game._unique(prompts).size(), prompts.size(), "all NPC prompts on floor %d should be different" % floor_number)
+		_assert_eq(game._unique(response_sentences).size(), response_sentences.size(), "all NPC response copy on floor %d should be different" % floor_number)
 	game.new_run()
 	game.pollution = 100
-	game.start_typed_reality_conversation(actor_id, "npc", "无名信徒")
-	for attempt_index in 3:
-		var choice_id := str(game.get_typed_reality_choices()[0].get("id", ""))
-		_assert_true(game.select_typed_reality_choice(choice_id), "each failed attempt should return to the three response choices")
-		while game.conversation_phase == "typing":
-			game.advance_typed_reality_character()
-	_assert_eq(game.conversation_phase, "locked_out", "three failed spoken attempts should lock the conversation until F is pressed again")
-	_assert_eq(game.conversation_attempts, 3, "lockout should happen on the third failed attempt")
-	_assert_eq(game.actions_remaining, 2, "each complete retry should spend one daily action")
+	game.start_typed_reality_conversation("npc_1_npc0", "npc", "迟到者")
+	game.select_typed_reality_choice(str(game.get_typed_reality_choices()[0].get("id", "")))
+	while game.conversation_phase == "typing":
+		game.advance_typed_reality_character()
+	_assert_eq(game.conversation_phase, "result", "a spoken answer should end in an authored reaction instead of an understanding retry loop")
+	_assert_true(not game.conversation_feedback.contains("听懂") and not game.conversation_feedback.contains("理解"), "reality feedback should never tell the player whether the NPC understood")
 
 
 func test_communication_item_purchase_costs_action_and_has_limited_charges() -> void:
@@ -506,10 +503,10 @@ func test_communication_item_purchase_costs_action_and_has_limited_charges() -> 
 	_assert_true(not game.buy_daily_communication_item(), "merchant should not sell the same daily communication item twice")
 	_assert_eq(game.actions_remaining, 4, "failed duplicate purchase should not spend an action")
 	game.start_typed_reality_conversation("merchant-offer", "merchant", "信号商人")
-	game.conversation_selected_choice_id = "ask_goods"
+	game.conversation_selected_choice_id = "trade"
 	game.conversation_understood = true
 	game.conversation_phase = "result"
-	_assert_true(game.should_show_merchant_communication_offer(), "understood ask-goods response should expose the merchant item offer")
+	_assert_true(game.should_show_merchant_communication_offer(), "the authored trade response should expose the merchant item offer without an understanding prompt")
 
 
 func test_communication_item_only_consumes_to_rescue_failed_understanding() -> void:
@@ -663,7 +660,7 @@ func test_publish_breakdown_uses_base_times_multiplier_and_repeat_decay() -> voi
 	_assert_true(int(first.get("base_value", 0)) > 0, "publish breakdown should expose an additive base value")
 	_assert_true(int(first.get("total_multiplier", 0)) > 1, "matching tags and pollution should create a visible integer multiplier")
 	_assert_eq(int(first.get("score", 0)), int(first.get("base_value", 0)) * int(first.get("total_multiplier", 0)), "publish score should read as base value times one integer multiplier")
-	for key in ["synergy_multiplier", "pollution_multiplier", "emotion_multiplier", "repeat_multiplier", "contract_multiplier", "arcana_multiplier", "world_item_multiplier", "total_multiplier"]:
+	for key in ["synergy_multiplier", "pollution_multiplier", "repeat_multiplier", "contract_multiplier", "world_item_multiplier", "total_multiplier"]:
 		_assert_eq(float(first.get(key, 0)), float(int(first.get(key, 0))), "all exposed multiplier values should be whole numbers: %s" % key)
 	game.published_memes = [{"text": meme["text"], "score": first["score"], "floor": 1}]
 	var repeated: Dictionary = game.get_publish_breakdown(meme)
@@ -712,142 +709,6 @@ func test_signal_contract_risk_is_paid_on_publish() -> void:
 	_assert_true(str(game.event_log[0]).contains("双声回路"), "publishing a hand should record the named combo in the event log")
 
 
-func test_arcana_purchase_costs_action_and_holding_is_capped() -> void:
-	var game: RefCounted = _state_script.new()
-	game.new_run()
-	game.money = 100
-	game.daily_arcana_card_id = "moon"
-	_assert_true(game.buy_daily_arcana_card(), "the daily arcana card should be purchasable")
-	_assert_eq(game.actions_remaining, 4, "buying an arcana card should cost one action")
-	_assert_eq(game.owned_arcana_cards.size(), 1, "purchased arcana should enter the held-card area")
-	game.daily_arcana_bought = false
-	game.daily_arcana_card_id = "hermit"
-	_assert_true(game.buy_daily_arcana_card(), "a second arcana should fit in the held-card area")
-	_assert_eq(game.owned_arcana_cards.size(), 2, "two held arcana should fill the inventory")
-	game.daily_arcana_bought = false
-	game.daily_arcana_card_id = "star"
-	_assert_true(not game.buy_daily_arcana_card(), "a third arcana should be rejected while both held slots are full")
-	_assert_eq(game.actions_remaining, 3, "a rejected full-inventory purchase should not spend an action")
-
-
-func test_arcana_use_is_free_and_changes_publish_breakdown() -> void:
-	var baseline: RefCounted = _state_script.new()
-	baseline.new_run()
-	var game: RefCounted = _state_script.new()
-	game.new_run()
-	var meme := {
-		"id": "arcana-preview",
-		"text": "哈吉米，今天还要追问",
-		"tags": ["哈吉米", "追问"],
-		"rarity": 1,
-		"pollution_bias": 0,
-	}
-	game.owned_arcana_cards = [{"uid": "held-moon", "id": "moon", "bought_day": 1}]
-	var actions_before: int = game.actions_remaining
-	_assert_true(game.use_arcana_card("held-moon"), "moon arcana should arm its next-publish effect")
-	_assert_eq(game.actions_remaining, actions_before, "using an already purchased arcana should be free")
-	_assert_eq(game.owned_arcana_cards.size(), 0, "used arcana should be consumed from the held-card area")
-	var plain: Dictionary = baseline.get_publish_breakdown(meme)
-	var boosted: Dictionary = game.get_publish_breakdown(meme)
-	_assert_eq(int(boosted.get("arcana_multiplier_bonus", 0)), 1, "moon arcana should add one point to the shared integer multiplier")
-	_assert_true(int(boosted.get("arcana_pollution_risk", 0)) > 0, "moon arcana should reveal its pollution price in preview")
-	_assert_true(int(boosted.get("score", 0)) > int(plain.get("score", 0)), "moon arcana should increase the predicted propagation score")
-	_assert_true("月亮" in boosted.get("active_arcana_labels", []), "publish preview should name the armed arcana")
-
-
-func test_star_arcana_adds_a_trend_tag_to_target_meme() -> void:
-	var game: RefCounted = _state_script.new()
-	game.new_run()
-	game.completed_memes = [{
-		"id": "star-target",
-		"title": "未对齐表达",
-		"text": "今天的路没有尽头",
-		"tags": ["日常"],
-		"rarity": 1,
-		"pollution_bias": 0,
-	}]
-	game.owned_arcana_cards = [{"uid": "held-star", "id": "star", "bought_day": 1}]
-	var actions_before: int = game.actions_remaining
-	_assert_true(game.use_arcana_card("held-star", "star-target"), "star arcana should modify a selected completed meme")
-	_assert_eq(game.actions_remaining, actions_before, "targeted arcana modification should not spend another action")
-	_assert_true("哈吉米" in game.completed_memes[0]["tags"], "star arcana should add the first missing current-trend tag")
-	_assert_eq(int(game.completed_memes[0].get("pollution_bias", 0)), 1, "star-marked memes should carry a small permanent pollution bias")
-
-
-func test_judgement_arcana_rerolls_the_daily_signal_hand() -> void:
-	var game: RefCounted = _state_script.new()
-	game.new_run()
-	var before_id := str(game.get_daily_signal_contract().get("id", ""))
-	game.owned_arcana_cards = [{"uid": "held-judgement", "id": "judgement", "bought_day": 1}]
-	_assert_true(game.use_arcana_card("held-judgement"), "judgement arcana should reroll the current signal hand")
-	var after_id := str(game.get_daily_signal_contract().get("id", ""))
-	_assert_true(after_id != before_id, "judgement should replace the visible daily hand with a different one")
-	_assert_eq(game.actions_remaining, 5, "rerolling with a held arcana should not spend an action")
-
-
-func test_arcana_publish_effects_are_consumed_once_and_pay_their_risk() -> void:
-	var game: RefCounted = _state_script.new()
-	game.new_run()
-	var meme := {
-		"id": "arcana-publish",
-		"title": "月面回声",
-		"text": "哈吉米，为什么还要追问",
-		"tags": ["哈吉米", "追问"],
-		"rarity": 1,
-		"pollution_bias": 0,
-	}
-	game.owned_arcana_cards = [{"uid": "held-moon", "id": "moon", "bought_day": 1}]
-	_assert_true(game.use_arcana_card("held-moon"), "moon arcana should arm before publishing")
-	var preview: Dictionary = game.get_publish_breakdown(meme)
-	var contract_risk := int(preview.get("contract_pollution_risk", 0))
-	var arcana_risk := int(preview.get("arcana_pollution_risk", 0))
-	game.completed_memes = [meme]
-	game.place_meme_in_blank("blank_1", "arcana-publish")
-	_assert_true(game.confirm_dialogue(), "an arcana-armed meme should publish normally")
-	_assert_eq(game.pollution, 4 + 2 * 2 + contract_risk + arcana_risk, "publishing should pay both signal-hand and arcana pollution risks")
-	_assert_true(game.pending_arcana_effects.is_empty(), "successful publish should clear one-shot arcana effects")
-	var next_preview: Dictionary = game.get_publish_breakdown(meme)
-	_assert_eq(int(next_preview.get("arcana_multiplier_bonus", 0)), 0, "consumed arcana bonus should not leak into later publishes")
-
-
-func test_tower_hermit_and_hanged_arcana_cover_the_other_build_paths() -> void:
-	var meme := {
-		"id": "arcana-paths",
-		"title": "未成立样本",
-		"text": "路面一直向后移动",
-		"tags": ["沉默"],
-		"rarity": 1,
-		"pollution_bias": 0,
-	}
-
-	var tower_game: RefCounted = _state_script.new()
-	tower_game.new_run()
-	tower_game.owned_arcana_cards = [{"uid": "held-tower", "id": "tower", "bought_day": 1}]
-	_assert_true(tower_game.use_arcana_card("held-tower"), "tower arcana should arm without a target meme")
-	var tower_preview: Dictionary = tower_game.get_publish_breakdown(meme)
-	_assert_true(bool(tower_preview.get("contract_matched", false)), "tower arcana should force an otherwise incomplete signal hand")
-	_assert_true(bool(tower_preview.get("arcana_force_contract", false)), "forced hand preview should identify the tower override")
-
-	var hermit_game: RefCounted = _state_script.new()
-	hermit_game.new_run()
-	hermit_game.published_memes = [{"text": meme["text"], "score": 20, "floor": 1}]
-	var repeated_preview: Dictionary = hermit_game.get_publish_breakdown(meme)
-	hermit_game.owned_arcana_cards = [{"uid": "held-hermit", "id": "hermit", "bought_day": 1}]
-	_assert_true(hermit_game.use_arcana_card("held-hermit"), "hermit arcana should arm repeat relief")
-	var relieved_preview: Dictionary = hermit_game.get_publish_breakdown(meme)
-	_assert_true(int(relieved_preview.get("repeat_penalty", 0)) < int(repeated_preview.get("repeat_penalty", 0)), "hermit arcana should reduce the integer repeat penalty")
-	_assert_eq(int(relieved_preview.get("effective_repeat_count", -1)), 0, "one hermit should forgive one previous use")
-
-	var hanged_game: RefCounted = _state_script.new()
-	hanged_game.new_run()
-	var plain_preview: Dictionary = hanged_game.get_publish_breakdown(meme)
-	hanged_game.owned_arcana_cards = [{"uid": "held-hanged", "id": "hanged", "bought_day": 1}]
-	_assert_true(hanged_game.use_arcana_card("held-hanged"), "hanged arcana should trade clarity for propagation base")
-	var sacrificed_preview: Dictionary = hanged_game.get_publish_breakdown(meme)
-	_assert_eq(hanged_game.clarity, 92, "hanged arcana should immediately remove eight clarity")
-	_assert_eq(int(sacrificed_preview.get("base_value", 0)), int(plain_preview.get("base_value", 0)) + 24, "hanged arcana should add exactly twenty-four propagation base")
-
-
 func test_visible_six_day_trends_match_scoring_rotation() -> void:
 	var game: RefCounted = _state_script.new()
 	game.new_run()
@@ -860,7 +721,7 @@ func test_visible_six_day_trends_match_scoring_rotation() -> void:
 func test_day_settlement_can_raise_tower_and_unlock_ending() -> void:
 	var game: RefCounted = _state_script.new()
 	game.new_run()
-	game.heat = 220
+	game.heat = 620
 	game.pollution = 90
 	game.tower_floor = 4
 	game.published_memes = [{"id": "m4", "text": "塔顶直播没有画面", "tags": ["空位"], "floor": 4, "score": 80}]
