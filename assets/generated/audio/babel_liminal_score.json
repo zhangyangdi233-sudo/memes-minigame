@@ -1,0 +1,43 @@
+{
+  "title": "Babel Liminal Score",
+  "authoring": "Original deterministic synthesis; no samples, recordings, or extracted melodies",
+  "license": "Project-owned original asset",
+  "seed": 80199611,
+  "bpm": 80,
+  "bars": 32,
+  "duration_seconds": 96.0,
+  "loop_begin": 0,
+  "loop_end": 2116800,
+  "stems": {
+    "reality": {
+      "file": "babel_reality_liminal.wav",
+      "sha256": "85bd9b9534382a6c7894815baf86f61361db1ba57ccdbaa32247ff33c28037d1",
+      "frames": 2116800,
+      "sample_rate": 22050,
+      "channels": 2,
+      "seam_delta_pcm": 954,
+      "peak_dbfs": -3.0,
+      "rms_dbfs": -14.171
+    },
+    "phone": {
+      "file": "babel_phone_signal.wav",
+      "sha256": "e361ea4b487e2ea0ef15a8d970a245429cdbf7fb9cb7fad69192cf6a7b04f698",
+      "frames": 2116800,
+      "sample_rate": 22050,
+      "channels": 2,
+      "seam_delta_pcm": 411,
+      "peak_dbfs": -3.0,
+      "rms_dbfs": -21.184
+    },
+    "pollution": {
+      "file": "babel_pollution_rot.wav",
+      "sha256": "783a08eff0b9991fcf359dd44729d8ea32b4a5f8c093c5e02ea86122cdc6764d",
+      "frames": 2116800,
+      "sample_rate": 22050,
+      "channels": 2,
+      "seam_delta_pcm": 306,
+      "peak_dbfs": -3.0,
+      "rms_dbfs": -23.7
+    }
+  }
+}

@@ -30,11 +30,14 @@ The protagonist identity is based on the project owner's `IMG_3060.PNG`, `未命
 
 `tools/generate_visual_assets.py` may recreate only the small HUD icons and player portrait. It intentionally does not regenerate curated imagegen art or retired road, hand-phone, NPC, or split social-poster files.
 
-`tools/generate_audio_assets.py` deterministically synthesizes four mono 22.05 kHz WAV files from oscillators and seeded noise: the phone-road loop, reality-room loop, pollution flashback burst, and action tick. No external recordings are used.
+`tools/generate_audio_assets.py` deterministically synthesizes the short utility sounds and the two retired eight-second ambience beds from oscillators and seeded noise.
+
+`tools/generate_music_stems.py` renders the active original score, `Babel Liminal Score`, as three phase-aligned 96-second stereo WAV stems at 22.05 kHz: reality, phone signal, and pollution. The composition uses only mathematical oscillators, integer-cycle periodic noise, FM synthesis, and deterministic envelopes. It contains no samples, recordings, extracted melodies, modelled voices, or third-party impulse responses. The reproducibility metadata, exact frame count, loop seam measurements, and SHA-256 hashes are stored in `audio/babel_liminal_score.json`.
 
 Run the non-writing integrity check with:
 
 ```bash
 python3 tools/generate_visual_assets.py --verify
 python3 tools/generate_audio_assets.py --verify
+python3 tools/generate_music_stems.py --verify
 ```

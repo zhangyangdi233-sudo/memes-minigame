@@ -92,6 +92,10 @@ func _run() -> void:
 			"res://assets/generated/social/poster_sheet.png",
 			"res://assets/generated/audio/phone_road_loop.wav",
 			"res://assets/generated/audio/reality_room_loop.wav",
+			"res://assets/generated/audio/babel_phone_signal.wav",
+			"res://assets/generated/audio/babel_reality_liminal.wav",
+			"res://assets/generated/audio/babel_pollution_rot.wav",
+			"res://assets/generated/audio/babel_liminal_score.json",
 			"res://assets/generated/audio/pollution_flashback.wav",
 			"res://assets/generated/audio/action_tick.wav",
 		]:

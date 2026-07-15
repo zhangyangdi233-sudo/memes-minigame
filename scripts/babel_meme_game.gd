@@ -45,8 +45,9 @@ const HUD_MONEY_ICON_PATH := "res://assets/generated/ui/hud_money_icon.png"
 const HUD_SETTINGS_ICON_PATH := "res://assets/generated/ui/hud_settings_icon.png"
 const PHONE_LAUNCHER_WALLPAPER_PATH := "res://assets/generated/1/IMG_4835.PNG"
 const SOCIAL_POSTER_SHEET_PATH := "res://assets/generated/social/poster_sheet.png"
-const PHONE_AMBIENCE_PATH := "res://assets/generated/audio/phone_road_loop.wav"
-const REALITY_AMBIENCE_PATH := "res://assets/generated/audio/reality_room_loop.wav"
+const PHONE_AMBIENCE_PATH := "res://assets/generated/audio/babel_phone_signal.wav"
+const REALITY_AMBIENCE_PATH := "res://assets/generated/audio/babel_reality_liminal.wav"
+const POLLUTION_AMBIENCE_PATH := "res://assets/generated/audio/babel_pollution_rot.wav"
 const FLASHBACK_AUDIO_PATH := "res://assets/generated/audio/pollution_flashback.wav"
 const ACTION_TICK_AUDIO_PATH := "res://assets/generated/audio/action_tick.wav"
 const SOCIAL_POSTER_COLUMNS := 4
@@ -378,6 +379,7 @@ var _flashback_words: Array[Label] = []
 var _flashback_tween: Tween
 var _phone_ambience: AudioStreamPlayer
 var _reality_ambience: AudioStreamPlayer
+var _pollution_ambience: AudioStreamPlayer
 var _flashback_audio: AudioStreamPlayer
 var _action_tick_audio: AudioStreamPlayer
 var _audio_tween: Tween
@@ -1077,6 +1079,7 @@ func _active_actor_display_name() -> String:
 func _build_audio_players() -> void:
 	_phone_ambience = _make_audio_player("PhoneRoadAmbience", PHONE_AMBIENCE_PATH, true, -60.0)
 	_reality_ambience = _make_audio_player("RealityRoomAmbience", REALITY_AMBIENCE_PATH, true, -60.0)
+	_pollution_ambience = _make_audio_player("PollutionMusicLayer", POLLUTION_AMBIENCE_PATH, true, -60.0)
 	_flashback_audio = _make_audio_player("PollutionFlashbackAudio", FLASHBACK_AUDIO_PATH, false, -8.0)
 	_action_tick_audio = _make_audio_player("ActionTickAudio", ACTION_TICK_AUDIO_PATH, false, -15.0)
 	_sync_audio_state(true)
@@ -1107,58 +1110,72 @@ func _load_generated_wav(path: String, looped: bool) -> AudioStreamWAV:
 
 
 func _sync_audio_state(immediate: bool = false) -> void:
-	if _phone_ambience == null or _reality_ambience == null:
+	if _phone_ambience == null or _reality_ambience == null or _pollution_ambience == null:
 		return
 	if not _game_started or game == null:
-		_phone_ambience.set_meta("target_volume_db", -60.0)
-		_reality_ambience.set_meta("target_volume_db", -60.0)
+		for player in [_phone_ambience, _reality_ambience, _pollution_ambience]:
+			player.set_meta("target_volume_db", -60.0)
 		if is_inside_tree():
-			_phone_ambience.stop()
-			_reality_ambience.stop()
+			for player in [_phone_ambience, _reality_ambience, _pollution_ambience]:
+				player.stop()
 			if _flashback_audio != null:
 				_flashback_audio.stop()
 		return
 	var in_phone: bool = game.view_state == "phone_down"
-	var phone_target: float = -18.0 if in_phone else -48.0
+	var phone_target: float = -8.0 if in_phone else -42.0
 	var intimate_typing: bool = _reality_interaction_active and game.conversation_phase == "typing"
-	var reality_target: float = -48.0 if in_phone else (-16.0 if intimate_typing else -21.0)
+	var reality_target: float = -26.0 if in_phone else (-7.0 if intimate_typing else -10.0)
+	var pollution_target := _pollution_music_target(int(game.pollution))
 	_phone_ambience.set_meta("target_volume_db", phone_target)
 	_reality_ambience.set_meta("target_volume_db", reality_target)
-	_phone_ambience.set_meta("flashback_ducked", false)
-	_reality_ambience.set_meta("flashback_ducked", false)
+	_pollution_ambience.set_meta("target_volume_db", pollution_target)
+	for player in [_phone_ambience, _reality_ambience, _pollution_ambience]:
+		player.set_meta("flashback_ducked", false)
 	if _audio_tween != null and _audio_tween.is_valid():
 		_audio_tween.kill()
 	_audio_tween = null
 	if immediate:
 		_phone_ambience.volume_db = phone_target
 		_reality_ambience.volume_db = reality_target
+		_pollution_ambience.volume_db = pollution_target
 	if not is_inside_tree():
 		return
-	if not _phone_ambience.playing:
-		_phone_ambience.play()
-	if not _reality_ambience.playing:
-		_reality_ambience.play()
+	for player in [_phone_ambience, _reality_ambience, _pollution_ambience]:
+		if not player.playing:
+			player.play()
 	if immediate:
 		return
 	_audio_tween = create_tween().set_parallel(true)
 	_audio_tween.tween_property(_phone_ambience, "volume_db", phone_target, 0.55).set_trans(Tween.TRANS_QUINT).set_ease(Tween.EASE_IN_OUT)
 	_audio_tween.tween_property(_reality_ambience, "volume_db", reality_target, 0.55).set_trans(Tween.TRANS_QUINT).set_ease(Tween.EASE_IN_OUT)
+	_audio_tween.tween_property(_pollution_ambience, "volume_db", pollution_target, 2.4).set_trans(Tween.TRANS_SINE).set_ease(Tween.EASE_IN_OUT)
+
+
+func _pollution_music_target(pollution_value: int) -> float:
+	var pollution := clampi(pollution_value, 0, 100)
+	if pollution <= 40:
+		return -60.0
+	if pollution <= 60:
+		return remap(float(pollution), 41.0, 60.0, -42.0, -24.0)
+	if pollution <= 80:
+		return remap(float(pollution), 60.0, 80.0, -24.0, -10.0)
+	return remap(float(pollution), 80.0, 100.0, -10.0, -3.0)
 
 
 func _duck_ambience_for_flashback() -> void:
 	if _audio_tween != null and _audio_tween.is_valid():
 		_audio_tween.kill()
 	_audio_tween = null
-	for player in [_phone_ambience, _reality_ambience]:
+	for player in [_phone_ambience, _reality_ambience, _pollution_ambience]:
 		if player != null:
 			player.set_meta("flashback_ducked", true)
 	if not is_inside_tree():
-		for player in [_phone_ambience, _reality_ambience]:
+		for player in [_phone_ambience, _reality_ambience, _pollution_ambience]:
 			if player != null:
 				player.volume_db = -44.0
 		return
 	_audio_tween = create_tween().set_parallel(true)
-	for player in [_phone_ambience, _reality_ambience]:
+	for player in [_phone_ambience, _reality_ambience, _pollution_ambience]:
 		if player != null:
 			_audio_tween.tween_property(player, "volume_db", -44.0, 0.10).set_trans(Tween.TRANS_QUINT).set_ease(Tween.EASE_OUT)
 
@@ -4479,6 +4496,7 @@ func _finish_action_spend_animation() -> void:
 		_play_day_transition()
 		return
 	_set_input_locked(false)
+	_sync_audio_state(false)
 	_render()
 	if _hud_actions_label != null and _action_spend_after_actions >= 0:
 		_hud_actions_label.text = _action_text(_action_spend_after_actions)
