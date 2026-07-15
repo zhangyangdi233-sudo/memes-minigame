@@ -5,6 +5,11 @@
 .import/
 *.translation
 
+# Generated QA capture sidecars and ad-hoc test/tool script UIDs
+tools/current_*.png.import
+tests/*.gd.uid
+tools/*.gd.uid
+
 # Local logs and crash dumps
 *.log
 *.tmp

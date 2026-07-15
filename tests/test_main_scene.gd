@@ -224,6 +224,7 @@ func _run() -> void:
 		var reality_typing_line := _find_node_by_name(root, "RealityTypingLine") as RichTextLabel
 		var reality_typing_progress := _find_node_by_name(root, "RealityTypingProgress") as Label
 		var reality_continue := _find_node_by_name(root, "RealityConversationContinue") as Button
+		_assert_true(root.has_method("_on_reality_continue_pressed"), "reality conversation UI should continue multi-turn NPC dialogue before exiting")
 		var reality_aid_status := _find_node_by_name(root, "RealityAidStatus") as Label
 		var reality_merchant_offer := _find_node_by_name(root, "RealityMerchantOffer") as PanelContainer
 		var reality_merchant_buy := _find_node_by_name(root, "RealityMerchantBuyButton") as Button
@@ -728,7 +729,7 @@ func _run() -> void:
 			if social_feed_masonry != null:
 				_assert_eq(social_feed_masonry.get_child_count(), 2, "mobile social feed should keep a two-column discovery layout")
 		if social_post_card != null and social_post_card_1 != null:
-			_assert_true(social_post_card.custom_minimum_size.y != social_post_card_1.custom_minimum_size.y, "masonry post cards should use staggered heights")
+			_assert_eq(social_post_card.custom_minimum_size.y, social_post_card_1.custom_minimum_size.y, "localized social post cards should keep one stable height")
 		if social_post_caption != null:
 			var caption_length := str(social_post_caption.text).length()
 			_assert_true(caption_length >= 8 and caption_length <= 14, "home feed captions should stay within the researched 8-14 character mobile range")

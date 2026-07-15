@@ -13,7 +13,11 @@ func _capture() -> void:
 	root.size = VIEW_SIZE
 	if not _ensure_capture_supported():
 		return
-	var floor_number := clampi(int(OS.get_environment("BABEL_CAPTURE_FLOOR")), 1, 5)
+	var requested_floor := int(OS.get_environment("BABEL_CAPTURE_FLOOR"))
+	var user_args := OS.get_cmdline_user_args()
+	if not user_args.is_empty():
+		requested_floor = int(user_args[0])
+	var floor_number := clampi(requested_floor, 1, 5)
 	if floor_number == 0:
 		floor_number = 1
 	var scene := load("res://scenes/babel_meme_game.tscn") as PackedScene

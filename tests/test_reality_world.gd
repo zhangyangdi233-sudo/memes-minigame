@@ -25,6 +25,7 @@ func _run() -> void:
 		return
 	var game_root := scene.instantiate()
 	root.add_child(game_root)
+	game_root._locale.set_locale("zh")
 	game_root.new_game()
 	for _line_index in 7:
 		game_root._advance_prologue()
@@ -53,8 +54,14 @@ func _run() -> void:
 	for floor_number in range(2, 6):
 		var growth: int = game_root._room_count_for_floor(floor_number) - game_root._room_count_for_floor(floor_number - 1)
 		_assert_true(growth == 2 or growth == 3, "each ascent should add two or three rooms")
+	var expected_npc_counts := [4, 3, 2, 1, 0]
+	for floor_index in expected_npc_counts.size():
+		var floor_number := floor_index + 1
+		_assert_eq(game_root._npc_count_for_floor(floor_number), expected_npc_counts[floor_index], "ordinary NPC population should follow the reduced floor sequence")
+		if floor_index > 0:
+			_assert_true(expected_npc_counts[floor_index] < expected_npc_counts[floor_index - 1], "ordinary NPC population should strictly decrease on every ascent")
 	_assert_eq(int(floor_root.get_meta("room_count", 0)), 4, "generated first floor should match the room formula")
-	_assert_eq(int(floor_root.get_meta("ordinary_npc_count", 0)), 5, "first floor should contain five ordinary NPCs")
+	_assert_eq(int(floor_root.get_meta("ordinary_npc_count", 0)), 4, "first floor should contain four ordinary NPCs")
 	_assert_eq(str(floor_root.get_meta("district_style", "")), "sunlit_brick_street", "first floor should use the sunlit brick-road reference grammar")
 	var map_width := float(floor_root.get_meta("map_width", 0.0))
 	var map_length := float(floor_root.get_meta("map_length", 0.0))
@@ -127,7 +134,7 @@ func _run() -> void:
 	var merchant := _find_actor(floor_root, "merchant")
 	var ordinary_npcs := _count_actors(floor_root, "npc")
 	_assert_true(merchant != null, "every floor should contain exactly one merchant actor")
-	_assert_eq(ordinary_npcs, 5, "first floor should place all five ordinary NPC billboards")
+	_assert_eq(ordinary_npcs, 4, "first floor should place all four ordinary NPC billboards")
 	var npc_z_positions: Array[float] = []
 	_collect_actor_z_positions(floor_root, "npc", npc_z_positions)
 	npc_z_positions.sort()
@@ -309,16 +316,53 @@ func _run() -> void:
 		game_root._exit_reality_interaction()
 		_assert_true(not game_root._reality_interaction_active, "leaving dialogue should return to free walking")
 
+	game_root.game.tower_floor = 2
+	game_root._ensure_reality_floor_current()
+	floor_root = game_root.get_node_or_null("RealityFloor") as Node3D
+	await physics_frame
+	_assert_eq(int(floor_root.get_meta("room_count", 0)), 6, "second floor should retain its six gameplay rooms")
+	_assert_eq(int(floor_root.get_meta("ordinary_npc_count", 0)), 3, "second floor should reduce ordinary NPCs to three")
+	_assert_eq(_count_actors(floor_root, "npc"), 3, "second-floor actor population should match its metadata")
+	_assert_eq(str(floor_root.get_meta("district_style", "")), "night_white_blocks", "second floor should use the night white-block district")
+	_assert_eq(str(floor_root.get_meta("atmosphere_mode", "")), "slow_burn_suspense", "suspense atmosphere should begin on the second floor")
+	_assert_true(float(floor_root.get_meta("fog_density", 0.0)) >= 0.0179, "second-floor fog should be visibly denser than first-floor daylight haze")
+	_assert_true(float(floor_root.get_meta("ambient_light_energy", 1.0)) <= 0.20, "second-floor ambient light should leave deliberate shadowed sightlines")
+	_assert_eq(str(floor_root.get_meta("suspense_color_temperature", "")), "cold_green", "second-floor global light should use a cold green temperature against warm lamps")
+	_assert_true(_find_node_by_name(floor_root, "WarmPool") != null and _find_node_by_name(floor_root, "SuspenseLight00") != null, "second floor should contrast warm street pools with colder suspense lights")
+	_assert_true(_find_node_by_name(floor_root, "SuspenseOcclusion") != null, "second floor should add procedural sightline occlusion")
+	_assert_true(int(floor_root.get_meta("suspense_occluder_count", 0)) >= 5, "slow-burn atmosphere should repeat several non-blocking sightline screens")
+	_assert_true(int(floor_root.get_meta("controlled_repeat_count", 0)) > int(floor_root.get_meta("suspense_occluder_count", 0)), "architectural repetition should include one restrained spatial anomaly")
+	_assert_eq(int(floor_root.get_meta("jump_scare_trigger_count", -1)), 0, "suspense geometry should not add jump-scare trigger areas")
+	_assert_true(float(floor_root.get_meta("minimum_clear_path_width", 0.0)) >= 5.6, "occluders should preserve a generous continuous walking lane")
+	_assert_eq(int(floor_root.get_meta("night_house_segment_count", 0)), 6, "second floor should turn all six rooms into connected terrace segments")
+	_assert_true(float(floor_root.get_meta("night_house_coverage_ratio", 0.0)) >= 0.98, "second-floor houses should cover nearly the full inhabited street length")
+	_assert_true(float(floor_root.get_meta("night_house_max_gap", 99.0)) <= 1.2, "adjacent house segments should use narrow seams instead of detached-building gaps")
+	_assert_true(int(floor_root.get_meta("night_facade_bay_count", 0)) >= 48, "continuous terraces should expose a dense rhythm of repeated house bays")
+	var continuous_houses: Array[Node3D] = []
+	_collect_nodes_with_meta(floor_root, "continuous_house_segment", continuous_houses)
+	_assert_eq(continuous_houses.size(), 6, "every second-floor room should contribute one continuous house segment")
+	for house in continuous_houses:
+		_assert_true(float(house.get_meta("segment_length", 0.0)) >= 60.0, "second-floor house segments should be elongated rather than isolated cubes")
+	var floor_two_spawn: Vector3 = floor_root.call("start_position")
+	_assert_true(bool(floor_root.call("contains_playable_position", floor_two_spawn)), "second-floor spawn should remain inside the playable street")
+	var floor_two_centerline_hit := _centerline_collision(floor_root, player)
+	_assert_true(floor_two_centerline_hit.is_empty(), "second-floor central walking lane should remain collision-free: %s" % str(floor_two_centerline_hit.get("collider", "")))
+	var floor_two_fog_density := float(floor_root.get_meta("fog_density", 0.0))
+
 	game_root.game.tower_floor = 5
 	game_root._ensure_reality_floor_current()
 	floor_root = game_root.get_node_or_null("RealityFloor") as Node3D
+	await physics_frame
 	_assert_eq(int(floor_root.get_meta("room_count", 0)), 14, "fifth floor should grow to fourteen rooms")
 	_assert_true(float(floor_root.get_meta("map_length", 0.0)) > map_length, "higher floors should lengthen the same shared street as lots are added")
 	_assert_eq(str(floor_root.get_meta("layout_mode", "")), "shared_street", "higher floors should preserve the shared-street layout")
 	_assert_eq(int(floor_root.get_meta("air_wall_count", 0)), 4, "expanded floors should rebuild their four perimeter air walls")
-	_assert_eq(int(floor_root.get_meta("ordinary_npc_count", 0)), 2, "higher floors should thin ordinary NPCs to two")
-	_assert_eq(_count_actors(floor_root, "npc"), 2, "fifth-floor actor population should match its metadata")
+	_assert_eq(int(floor_root.get_meta("ordinary_npc_count", 0)), 0, "highest floor should remove ordinary NPCs while retaining the merchant")
+	_assert_eq(_count_actors(floor_root, "npc"), 0, "fifth-floor actor population should match its metadata")
 	_assert_true(_find_actor(floor_root, "merchant") != null, "merchant should persist on the highest floor")
+	_assert_eq(str(floor_root.get_meta("atmosphere_mode", "")), "slow_burn_suspense", "highest floor should preserve the suspense system")
+	_assert_true(float(floor_root.get_meta("fog_density", 0.0)) > floor_two_fog_density, "fog should deepen with each ascent after floor two")
+	_assert_true(_centerline_collision(floor_root, player).is_empty(), "fifth-floor housing and occluders should preserve the central walking lane")
 	_assert_eq(str(floor_root.get_meta("district_style", "")), "night_white_blocks", "fifth floor should rotate back to the night white-block district")
 	_assert_true(_find_node_by_name(floor_root, "WhiteHouse") != null and _find_node_by_name(floor_root, "WarmPool") != null, "night district should contain white cubic homes and warm streetlights")
 	var night_house := _find_node_by_name(floor_root, "WhiteHouse") as Node3D
@@ -328,8 +372,29 @@ func _run() -> void:
 	game_root.game.tower_floor = 3
 	game_root._ensure_reality_floor_current()
 	floor_root = game_root.get_node_or_null("RealityFloor") as Node3D
+	await physics_frame
 	_assert_eq(str(floor_root.get_meta("district_style", "")), "overgrown_gallery", "third floor should use the overgrown white-gallery district")
+	_assert_eq(int(floor_root.get_meta("ordinary_npc_count", 0)), 2, "third floor should reduce ordinary NPCs to two")
+	_assert_eq(_count_actors(floor_root, "npc"), 2, "third-floor actor population should match its metadata")
 	_assert_true(_find_node_by_name(floor_root, "GalleryRoof") != null and _find_node_by_name(floor_root, "GalleryCeilingSpan") != null and _find_node_by_name(floor_root, "GrassPatch00") != null, "overgrown district should combine a covered white colonnade with procedural grass")
+	_assert_true(bool(floor_root.get_meta("gallery_continuous", false)), "third-floor gallery architecture should be one elongated continuum")
+	_assert_true(float(floor_root.get_meta("gallery_span_ratio", 0.0)) >= 0.95, "gallery roofs and outer walls should span nearly the full street")
+	_assert_true(float(floor_root.get_meta("gallery_column_spacing", 99.0)) <= 7.2, "third-floor columns should maintain a continuous rhythm without long empty breaks")
+	_assert_true(int(floor_root.get_meta("gallery_column_count", 0)) >= 90, "third-floor colonnade should repeat along the full elongated building")
+	var gallery_roof := _find_node_by_name(floor_root, "GalleryRoof") as Node3D
+	if gallery_roof != null:
+		_assert_true(bool(gallery_roof.get_meta("continuous_gallery", false)), "gallery roof should identify itself as a continuous structure")
+		_assert_true(float(gallery_roof.get_meta("span_length", 0.0)) >= float(floor_root.get_meta("map_length", 0.0)) - 14.1, "gallery roof should replace short disconnected roof pieces with one long span")
+	var gallery_columns: Array[Node3D] = []
+	_collect_nodes_with_meta(floor_root, "gallery_column", gallery_columns)
+	_assert_eq(gallery_columns.size(), int(floor_root.get_meta("gallery_column_count", 0)), "gallery column metadata should match the generated collision columns")
+	var first_gallery_column := _find_node_by_name(floor_root, "GalleryColumnW00") as Node3D
+	if first_gallery_column != null:
+		_assert_true(absf(first_gallery_column.position.x) - 0.26 >= 2.8, "gallery column collisions should preserve the declared 5.6-metre central lane")
+	_assert_eq(str(floor_root.get_meta("atmosphere_mode", "")), "slow_burn_suspense", "third floor should keep the suspense atmosphere under the colonnade")
+	_assert_true(float(floor_root.get_meta("fog_density", 0.0)) > floor_two_fog_density, "third-floor fog should deepen beyond floor two")
+	_assert_eq(int(floor_root.get_meta("jump_scare_trigger_count", -1)), 0, "third-floor suspense should rely on space and repetition instead of jump-scare areas")
+	_assert_true(_centerline_collision(floor_root, player).is_empty(), "third-floor continuous colonnade should keep its centerline walkable")
 	var grass_patch := _find_node_by_name(floor_root, "GrassPatch00") as Node3D
 	if grass_patch != null:
 		_assert_true(grass_patch.get_child_count() >= 30, "gallery grass should read as dense encroachment rather than sparse markers")
@@ -338,8 +403,35 @@ func _run() -> void:
 	var gallery_reference_portal := _find_node_by_name(floor_root, "ReferencePortal") as MeshInstance3D
 	_assert_true(gallery_reference_portal != null and str(gallery_reference_portal.get_meta("reference_texture", "")).contains("overgrown_gallery"), "gallery district should use the supplied reference as a distant spatial continuation")
 
+	var floor_three_fog_density := float(floor_root.get_meta("fog_density", 0.0))
+	game_root.game.tower_floor = 4
+	game_root._ensure_reality_floor_current()
+	floor_root = game_root.get_node_or_null("RealityFloor") as Node3D
+	await physics_frame
+	_assert_eq(int(floor_root.get_meta("ordinary_npc_count", 0)), 1, "fourth floor should leave one ordinary NPC")
+	_assert_eq(_count_actors(floor_root, "npc"), 1, "fourth-floor actor population should match its metadata")
+	_assert_eq(str(floor_root.get_meta("atmosphere_mode", "")), "slow_burn_suspense", "returning district geometry should retain the darker post-floor-two treatment")
+	_assert_true(float(floor_root.get_meta("fog_density", 0.0)) > floor_three_fog_density, "fourth-floor fog should continue the floor-by-floor progression")
+	_assert_true(int(floor_root.get_meta("suspense_occluder_count", 0)) >= 5, "fourth floor should retain the non-blocking occlusion rhythm")
+	_assert_eq(int(floor_root.get_meta("jump_scare_trigger_count", -1)), 0, "fourth-floor suspense should remain free of jump-scare triggers")
+	_assert_true(_centerline_collision(floor_root, player).is_empty(), "fourth-floor suspense screens should not block the long street")
+
 	game_root.queue_free()
 	await process_frame
+
+
+func _centerline_collision(floor_root: Node3D, player: CharacterBody3D) -> Dictionary:
+	if floor_root == null or floor_root.get_world_3d() == null:
+		return {"missing_world": true}
+	var half_length := float(floor_root.get_meta("map_length", 0.0)) * 0.5
+	var from := floor_root.to_global(Vector3(0.0, 1.1, -half_length + 10.0))
+	var to := floor_root.to_global(Vector3(0.0, 1.1, half_length - 10.0))
+	var query := PhysicsRayQueryParameters3D.create(from, to)
+	query.collision_mask = 1
+	query.collide_with_areas = false
+	if player != null:
+		query.exclude = [player.get_rid()]
+	return floor_root.get_world_3d().direct_space_state.intersect_ray(query)
 
 
 func _action_has_key(action_name: StringName, keycode: Key) -> bool:

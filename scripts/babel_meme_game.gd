@@ -55,6 +55,9 @@ const SOCIAL_POSTER_COLUMNS := 4
 const SOCIAL_POSTER_ROWS := 3
 const SOCIAL_POSTER_COUNT := SOCIAL_POSTER_COLUMNS * SOCIAL_POSTER_ROWS
 const SOCIAL_FEED_WHEEL_STEP := 2
+const SOCIAL_FEED_CARD_HEIGHT := 344.0
+const SOCIAL_FEED_POSTER_HEIGHT := 214.0
+const SOCIAL_FEED_CAPTION_HEIGHT := 62.0
 const REALITY_MOVE_SPEED := 3.3
 const REALITY_SPRINT_MULTIPLIER := 1.85
 const REALITY_ACCELERATION := 14.0
@@ -72,7 +75,7 @@ const HUD_RAIL_FRAME_MARGIN := 10.0
 const SAVE_PATH := "user://babel_meme_save.dat"
 const SAVE_FILE_VERSION := 1
 const SOCIAL_CHANNELS := [
-	{"id": "following", "label": "关注"},
+	{"id": "following", "label": "关注流"},
 	{"id": "discover", "label": "发现"},
 	{"id": "tower_base", "label": "塔下"},
 	{"id": "nearby", "label": "附近"},
@@ -416,6 +419,10 @@ var _social_screen := "home"
 var _social_channel := "discover"
 var _social_detail_post_index := 0
 var _social_detail_open := false
+var _oldweb_page := "index"
+var _oldweb_archive_unlocked := false
+var _oldweb_status_text := ""
+var _oldweb_code_input: LineEdit
 var _notebook_crafting_tab := "frame"
 var _social_detail_window: PanelContainer
 var _social_detail_body: VBoxContainer
@@ -607,6 +614,9 @@ func _begin_game_session(session_state: MemeGameState, world_data: Dictionary, s
 	_social_channel = "discover"
 	_social_detail_post_index = 0
 	_social_detail_open = false
+	_oldweb_page = "index"
+	_oldweb_archive_unlocked = false
+	_oldweb_status_text = ""
 	_notebook_crafting_tab = "frame"
 	_app_windows = {}
 	_app_titles = {}
@@ -669,6 +679,8 @@ func _save_progress() -> bool:
 		"social_screen": _social_screen,
 		"social_channel": _social_channel,
 		"social_detail_post_index": _social_detail_post_index,
+		"oldweb_page": _oldweb_page,
+		"oldweb_archive_unlocked": _oldweb_archive_unlocked,
 	}
 	var payload := {
 		"version": SAVE_FILE_VERSION,
@@ -715,6 +727,10 @@ func _restore_saved_world(world_data: Dictionary) -> void:
 	_social_screen = str(world_data.get("social_screen", "home"))
 	_social_channel = _normalize_social_channel(str(world_data.get("social_channel", "discover")))
 	_social_detail_post_index = clampi(int(world_data.get("social_detail_post_index", 0)), 0, maxi(0, SOCIAL_POST_CARDS.size() - 1))
+	_oldweb_page = str(world_data.get("oldweb_page", "index"))
+	if _oldweb_page not in ["index", "guestbook", "mirror", "source"]:
+		_oldweb_page = "index"
+	_oldweb_archive_unlocked = bool(world_data.get("oldweb_archive_unlocked", false))
 
 
 func _normalize_social_channel(channel: String) -> String:
@@ -1807,7 +1823,7 @@ func _build_ui() -> void:
 	_reality_continue_button.name = "RealityConversationContinue"
 	_reality_continue_button.text = "结束"
 	_reality_continue_button.custom_minimum_size = Vector2(92, 48)
-	_reality_continue_button.pressed.connect(_exit_reality_interaction)
+	_reality_continue_button.pressed.connect(_on_reality_continue_pressed)
 	subtitle_box.add_child(_reality_continue_button)
 
 	_meme_bank_window = Control.new()
@@ -2878,6 +2894,8 @@ func _render_social_app() -> void:
 			_render_social_publish_page(page_host)
 		"profile":
 			_render_social_profile_page(page_host)
+		"archive":
+			_render_oldweb_archive_page(page_host)
 		_:
 			_render_social_home_page(page_host)
 
@@ -2943,7 +2961,7 @@ func _render_social_home_page(parent: VBoxContainer) -> void:
 		var card_panel := _panel()
 		card_panel.name = "SocialPostCard%d" % post_index
 		card_panel.set_meta("social_card", true)
-		card_panel.custom_minimum_size = Vector2(0, 232 + (post_index % 4) * 38)
+		card_panel.custom_minimum_size = Vector2(0, SOCIAL_FEED_CARD_HEIGHT)
 		card_panel.size_flags_horizontal = Control.SIZE_EXPAND_FILL
 		card_panel.mouse_filter = Control.MOUSE_FILTER_STOP
 		card_panel.gui_input.connect(_on_social_card_gui_input.bind(post_index))
@@ -2955,7 +2973,10 @@ func _render_social_home_page(parent: VBoxContainer) -> void:
 		_render_social_card_poster(card, post_index, post)
 		var caption := _label(_social_caption(post, post_index), 14, _theme_color("ink"))
 		caption.name = "SocialPostCaption%d" % post_index
+		caption.custom_minimum_size.y = SOCIAL_FEED_CAPTION_HEIGHT
 		caption.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
+		caption.max_lines_visible = 3
+		caption.text_overrun_behavior = TextServer.OVERRUN_TRIM_ELLIPSIS
 		card.add_child(caption)
 		var meta_row := HBoxContainer.new()
 		meta_row.add_theme_constant_override("separation", 4)
@@ -3033,7 +3054,7 @@ func _render_social_card_poster(parent: VBoxContainer, post_index: int, post: Di
 	var poster := PanelContainer.new()
 	poster.name = "SocialPostPoster%d" % post_index
 	poster.set_meta("poster_frame", true)
-	poster.custom_minimum_size.y = 136 + (post_index % 4) * 46
+	poster.custom_minimum_size.y = SOCIAL_FEED_POSTER_HEIGHT
 	poster.size_flags_horizontal = Control.SIZE_EXPAND_FILL
 	poster.add_theme_stylebox_override("panel", _style(_social_poster_color(post_index), _theme_color("accent")))
 	parent.add_child(poster)
@@ -3352,6 +3373,153 @@ func _render_social_profile_page(parent: VBoxContainer) -> void:
 	var note := _label("你的语言档案会随着塔层上升变窄。", 16, _theme_color("accent"))
 	note.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
 	profile_page.add_child(note)
+	var archive_button := Button.new()
+	archive_button.name = "OldWebArchiveButton"
+	archive_button.text = "旧站镜像 / CACHE_%02d" % game.day
+	archive_button.custom_minimum_size.y = 64
+	archive_button.pressed.connect(_set_social_screen.bind("archive"))
+	profile_page.add_child(archive_button)
+
+
+func _render_oldweb_archive_page(parent: VBoxContainer) -> void:
+	var archive_page := VBoxContainer.new()
+	archive_page.name = "OldWebArchivePage"
+	archive_page.size_flags_vertical = Control.SIZE_EXPAND_FILL
+	archive_page.add_theme_constant_override("separation", 6)
+	parent.add_child(archive_page)
+
+	var header := PanelContainer.new()
+	header.name = "OldWebArchiveHeader"
+	header.set_meta("oldweb_dark_panel", true)
+	header.add_theme_stylebox_override("panel", _oldweb_style(_theme_color("ink"), _theme_color("muted")))
+	archive_page.add_child(header)
+	var header_box := VBoxContainer.new()
+	header_box.add_theme_constant_override("separation", 3)
+	header.add_child(header_box)
+	var title := _label("BABEL-LINK 98", 22, _theme_color("flash_text"))
+	title.set_meta("on_dark", true)
+	header_box.add_child(title)
+	var marquee := _label("[UNDER CONSTRUCTION / 请勿在午夜刷新]", 13, _theme_color("surface"))
+	marquee.set_meta("on_dark", true)
+	header_box.add_child(marquee)
+	var counter := _label("访客 %s  ·  最后更新 1998-13-05" % str(13 + game.day).pad_zeros(6), 12, _theme_color("muted"))
+	counter.set_meta("on_dark", true)
+	header_box.add_child(counter)
+
+	var nav := HBoxContainer.new()
+	nav.name = "OldWebArchiveNav"
+	nav.add_theme_constant_override("separation", 3)
+	archive_page.add_child(nav)
+	for nav_data in [
+		{"id": "index", "label": "首页"},
+		{"id": "guestbook", "label": "访客簿"},
+		{"id": "mirror", "label": "镜像"},
+		{"id": "source", "label": "源码"},
+	]:
+		var nav_button := Button.new()
+		nav_button.name = "OldWebNav%s" % str(nav_data["id"]).capitalize()
+		nav_button.set_meta("oldweb_button", true)
+		nav_button.text = str(nav_data["label"])
+		nav_button.custom_minimum_size = Vector2(82, 44)
+		nav_button.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+		nav_button.disabled = str(nav_data["id"]) == _oldweb_page
+		nav_button.pressed.connect(_on_oldweb_page_pressed.bind(str(nav_data["id"])))
+		nav.add_child(nav_button)
+
+	var body_frame := PanelContainer.new()
+	body_frame.name = "OldWebArchiveBodyFrame"
+	body_frame.set_meta("oldweb_light_panel", true)
+	body_frame.size_flags_vertical = Control.SIZE_EXPAND_FILL
+	body_frame.add_theme_stylebox_override("panel", _oldweb_style(_theme_color("surface"), _theme_color("accent")))
+	archive_page.add_child(body_frame)
+	var scroll := ScrollContainer.new()
+	scroll.name = "OldWebArchiveScroll"
+	scroll.horizontal_scroll_mode = ScrollContainer.SCROLL_MODE_SHOW_NEVER
+	scroll.size_flags_vertical = Control.SIZE_EXPAND_FILL
+	body_frame.add_child(scroll)
+	var content := VBoxContainer.new()
+	content.name = "OldWebArchiveContent"
+	content.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+	content.add_theme_constant_override("separation", 9)
+	scroll.add_child(content)
+	match _oldweb_page:
+		"guestbook":
+			_add_oldweb_copy(content, "访客 013：我没有留下名字，但名字已经显示在上面。", 16)
+			_add_oldweb_copy(content, "访客 005：第五层没有页面，只有返回上一页。", 16)
+			_add_oldweb_copy(content, "站长留言：如果你能看见这行，说明你的楼层已经被缓存。", 16)
+		"mirror":
+			_add_oldweb_copy(content, "镜像 A / 校舍十三层 / 状态：仍在施工", 15)
+			_add_oldweb_copy(content, "镜像 B / 无信号短信 / 时间戳：明日", 15)
+			_add_oldweb_copy(content, "镜像 C / 塔顶直播 / 观众：0", 15)
+		"source":
+			_render_oldweb_source_page(content)
+		_:
+			_add_oldweb_copy(content, "这个网站比巴别塔早七年上线。所有日期都写着明天。", 17)
+			_add_oldweb_copy(content, "站长留言：如果你能看见这行，说明你的楼层已经被缓存。", 15)
+			_add_oldweb_copy(content, "断链：/tower/floor/13/index.htm", 14)
+	var free_note := _label("浏览旧站不消耗今日行动。", 12, _theme_color("accent"))
+	free_note.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
+	archive_page.add_child(free_note)
+
+
+func _render_oldweb_source_page(content: VBoxContainer) -> void:
+	_add_oldweb_copy(content, "查看网页源代码", 18)
+	if _oldweb_archive_unlocked:
+		var unlocked := PanelContainer.new()
+		unlocked.name = "OldWebArchiveUnlocked"
+		unlocked.set_meta("oldweb_dark_panel", true)
+		unlocked.add_theme_stylebox_override("panel", _oldweb_style(_theme_color("ink"), _theme_color("flash_text")))
+		content.add_child(unlocked)
+		var unlocked_copy := _label("缓存 1305 已解锁\n\n原始记录：塔并不是向上建造的。每次有人重复一句话，地面就向下退一层。所谓登顶，只是所有旧页面都停止回应。", 15, _theme_color("flash_text"))
+		unlocked_copy.set_meta("on_dark", true)
+		unlocked_copy.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
+		unlocked.add_child(unlocked_copy)
+		return
+	_oldweb_code_input = LineEdit.new()
+	_oldweb_code_input.name = "OldWebArchiveCodeInput"
+	_oldweb_code_input.set_meta("oldweb_input", true)
+	_oldweb_code_input.placeholder_text = "输入四位缓存编号"
+	_oldweb_code_input.max_length = 4
+	_oldweb_code_input.custom_minimum_size.y = 48
+	content.add_child(_oldweb_code_input)
+	var verify := Button.new()
+	verify.name = "OldWebArchiveVerifyButton"
+	verify.set_meta("oldweb_button", true)
+	verify.text = "校验"
+	verify.custom_minimum_size.y = 48
+	verify.pressed.connect(_on_oldweb_archive_verify)
+	content.add_child(verify)
+	if not _oldweb_status_text.is_empty():
+		var status := _label(_oldweb_status_text, 13, _theme_color("accent"))
+		status.name = "OldWebArchiveStatus"
+		status.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
+		content.add_child(status)
+
+
+func _add_oldweb_copy(parent: VBoxContainer, text: String, font_size: int) -> void:
+	var line := _label(text, font_size, _theme_color("ink"))
+	line.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
+	parent.add_child(line)
+
+
+func _on_oldweb_page_pressed(page_id: String) -> void:
+	if _input_locked or page_id not in ["index", "guestbook", "mirror", "source"]:
+		return
+	_oldweb_page = page_id
+	_oldweb_status_text = ""
+	_render()
+
+
+func _on_oldweb_archive_verify() -> void:
+	if _input_locked or _oldweb_code_input == null:
+		return
+	var code := _oldweb_code_input.text.strip_edges()
+	if code == "1305":
+		_oldweb_archive_unlocked = true
+		_oldweb_status_text = "缓存 1305 已解锁"
+	else:
+		_oldweb_status_text = "缓存编号错误。服务器把你的输入记成了访客名。"
+	_render()
 
 
 func _render_social_bottom_nav(phone_box: VBoxContainer) -> void:
@@ -3825,7 +3993,12 @@ func _render_reality() -> void:
 	_reality_typing_line.visible = typing
 	_reality_typing_progress.visible = typing
 	_reality_continue_button.visible = _reality_interaction_active
-	_reality_continue_button.text = "结束" if result else "离开"
+	if result and game.conversation_can_continue:
+		_reality_continue_button.text = "继续交谈"
+	elif result:
+		_reality_continue_button.text = "结束"
+	else:
+		_reality_continue_button.text = "离开"
 	var aid_status := game.get_communication_item_status()
 	_reality_aid_status.text = "沟通辅助  %s" % aid_status if not aid_status.is_empty() else ""
 	_reality_aid_status.visible = _reality_interaction_active and not typing and not aid_status.is_empty()
@@ -3925,6 +4098,18 @@ func _on_reality_choice_selected(choice_id: String) -> void:
 		_reality_hover_choice_id = ""
 		_render()
 		_sync_audio_state(false)
+
+
+func _on_reality_continue_pressed() -> void:
+	if _input_locked:
+		return
+	if game.conversation_phase == "result" and game.continue_typed_reality_conversation():
+		_localize_active_conversation()
+		_reality_hover_choice_id = ""
+		_render()
+		_sync_audio_state(false)
+		return
+	_exit_reality_interaction()
 
 
 func _on_buy_communication_item() -> void:
@@ -4234,18 +4419,7 @@ func _social_author_display(author_id: String) -> String:
 
 
 func _social_pickable_units(text: String) -> Array[String]:
-	var result: Array[String] = []
-	if _locale.current_locale == "en":
-		var word_regex := RegEx.new()
-		word_regex.compile("[A-Za-z0-9']+")
-		for match_result in word_regex.search_all(text):
-			result.append(match_result.get_string())
-		return result
-	for character_index in text.length():
-		var character := text.substr(character_index, 1)
-		if _is_pickable_social_character(character):
-			result.append(character)
-	return result
+	return _locale.pickable_units(text)
 
 
 func _social_pickup_post_indices(day_number: int) -> Array[int]:
@@ -4623,6 +4797,14 @@ func _apply_ui_theme(node: Node = null) -> void:
 			button.add_theme_stylebox_override("normal", flat)
 			button.add_theme_stylebox_override("hover", _flat_button_state_style(Color(_theme_color("muted"), 0.24)))
 			button.add_theme_stylebox_override("pressed", _flat_button_state_style(Color(_theme_color("muted"), 0.40)))
+		elif button.has_meta("oldweb_button"):
+			button.add_theme_color_override("font_color", _theme_color("ink"))
+			button.add_theme_color_override("font_hover_color", _theme_color("surface"))
+			button.add_theme_color_override("font_pressed_color", _theme_color("flash_text"))
+			button.add_theme_stylebox_override("normal", _oldweb_style(_theme_color("surface"), _theme_color("accent")))
+			button.add_theme_stylebox_override("hover", _oldweb_style(_theme_color("ink"), _theme_color("ink")))
+			button.add_theme_stylebox_override("pressed", _oldweb_style(_theme_color("ink"), _theme_color("flash_text")))
+			button.add_theme_stylebox_override("disabled", _oldweb_style(_theme_color("surface").darkened(0.10), _theme_color("accent")))
 		else:
 			button.add_theme_color_override("font_color", _theme_color("ink"))
 			button.add_theme_color_override("font_hover_color", _theme_color("ink"))
@@ -4645,6 +4827,10 @@ func _apply_ui_theme(node: Node = null) -> void:
 			(node as PanelContainer).add_theme_stylebox_override("panel", _social_card_style())
 		elif node.has_meta("poster_frame"):
 			(node as PanelContainer).add_theme_stylebox_override("panel", _poster_frame_style())
+		elif node.has_meta("oldweb_dark_panel"):
+			(node as PanelContainer).add_theme_stylebox_override("panel", _oldweb_style(_theme_color("ink"), _theme_color("muted")))
+		elif node.has_meta("oldweb_light_panel"):
+			(node as PanelContainer).add_theme_stylebox_override("panel", _oldweb_style(_theme_color("surface"), _theme_color("accent")))
 		elif node.has_meta("detail_dark_panel"):
 			(node as PanelContainer).add_theme_stylebox_override("panel", _detail_dark_style())
 		elif node.has_meta("social_feed_dark"):
@@ -4665,7 +4851,10 @@ func _apply_ui_theme(node: Node = null) -> void:
 		var edit := node as LineEdit
 		edit.add_theme_color_override("font_color", _theme_color("ink"))
 		edit.add_theme_color_override("font_placeholder_color", _theme_color("accent"))
-		edit.add_theme_stylebox_override("normal", _style(_theme_color("surface"), _theme_color("accent")))
+		if edit.has_meta("oldweb_input"):
+			edit.add_theme_stylebox_override("normal", _oldweb_style(_theme_color("surface"), _theme_color("accent")))
+		else:
+			edit.add_theme_stylebox_override("normal", _style(_theme_color("surface"), _theme_color("accent")))
 	for child in node.get_children():
 		_apply_ui_theme(child)
 
@@ -5489,6 +5678,16 @@ func _soft_style(bg: Color, border: Color) -> StyleBoxFlat:
 	style.set_border_width_all(1)
 	style.set_corner_radius_all(16)
 	style.set_content_margin_all(16)
+	return style
+
+
+func _oldweb_style(bg: Color, border: Color) -> StyleBoxFlat:
+	var style := StyleBoxFlat.new()
+	style.bg_color = bg
+	style.border_color = border
+	style.set_border_width_all(2)
+	style.set_corner_radius_all(0)
+	style.set_content_margin_all(8)
 	return style
 
 

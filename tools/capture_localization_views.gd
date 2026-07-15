@@ -3,6 +3,8 @@ extends SceneTree
 const LANGUAGE_OUTPUT := "/Users/zhang/Documents/游戏/babel-meme-game/tools/current_language_selection.png"
 const ENGLISH_SOCIAL_OUTPUT := "/Users/zhang/Documents/游戏/babel-meme-game/tools/current_social_english.png"
 const JAPANESE_SOCIAL_OUTPUT := "/Users/zhang/Documents/游戏/babel-meme-game/tools/current_social_japanese.png"
+const JAPANESE_DETAIL_OUTPUT := "/Users/zhang/Documents/游戏/babel-meme-game/tools/current_social_japanese_detail.png"
+const OLDWEB_ARCHIVE_OUTPUT := "/Users/zhang/Documents/游戏/babel-meme-game/tools/current_oldweb_archive.png"
 const VIEW_SIZE := Vector2i(1672, 941)
 const HEADLESS_CAPTURE_ERROR := "Screenshot capture requires a rendered display. Run this tool without --headless from a GUI session."
 
@@ -44,6 +46,20 @@ func _capture() -> void:
 	for frame in 8:
 		await process_frame
 	if not _save_view(JAPANESE_SOCIAL_OUTPUT):
+		return
+
+	main._open_social_post(0)
+	for frame in 8:
+		await process_frame
+	if not _save_view(JAPANESE_DETAIL_OUTPUT):
+		return
+
+	main._close_social_detail_window()
+	main._set_social_screen("archive")
+	main._on_oldweb_page_pressed("source")
+	for frame in 8:
+		await process_frame
+	if not _save_view(OLDWEB_ARCHIVE_OUTPUT):
 		return
 	print("saved localization screenshots")
 	quit(0)

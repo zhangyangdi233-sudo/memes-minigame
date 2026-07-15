@@ -83,6 +83,8 @@ const SIGNAL_CONTRACTS := [
 
 const MEME_FRAME_PRICE := 7
 const MEME_FRAME_OFFER_INTERVAL := 3
+const NPC_MEME_FRAME_REWARD_CHANCE_PERCENT := 35
+const NPC_MEME_FRAME_REWARD_PITY_LIMIT := 3
 const ASCENT_REWARDS := [
 	{"id": "star", "tarot_id": "star", "numeral": "XVII", "label": "星星", "description": "命中至少 2 个风向时，整数倍率额外 +1。", "effect": "trend_multiplier_bonus", "value": 1.0},
 	{"id": "sun", "tarot_id": "sun", "numeral": "XIX", "label": "太阳", "description": "每次发布获得额外 14 点传播基础。", "effect": "publish_base", "value": 14.0},
@@ -208,6 +210,83 @@ const REALITY_DIALOGUES_BY_FLOOR := {
 		]},
 	],
 }
+const REALITY_FOLLOWUPS_BY_NPC_INDEX := {
+	0: {
+		"turns": [
+			{"line": "站牌忽然显示“无信号”。可这条街从来没有接入过线路。你还要等吗？", "result": "迟到者把手机举向塔影，屏幕上的叉号短暂变成一扇门。", "choices": [
+				{"id": "late_signal_wait", "summary": "继续等候", "sentence": "再等一班吧；没有线路，不等于没有人正试着抵达。"},
+				{"id": "late_signal_tower", "summary": "追查塔影", "sentence": "信号也许不是从天上消失，而是被塔一层层收走了。"},
+				{"id": "late_signal_walk", "summary": "沿路步行", "sentence": "我们顺着遗产标记走，看看旧句子把终点改到了哪里。"},
+			]},
+			{"line": "车终于来了。报站器只念上一层留下的梗，不再念地名。你在哪里下车？", "result": "迟到者在没有地名的一站按铃。车门打开，塔的影子没有跟下来。", "choices": [
+				{"id": "late_stop_today", "summary": "遗产之后", "sentence": "等它念完遗产，我要在第一个属于今天的停顿下车。"},
+				{"id": "late_stop_silence", "summary": "沉默站点", "sentence": "没有报站声的地方就是我的站，至少那里还没有被命名。"},
+				{"id": "late_stop_own", "summary": "留在车上", "sentence": "我先不下车，直到有人用自己的话说出一个方向。"},
+			]},
+		],
+		"interrupt": "报站声被污染成连续的旧梗。迟到者捂住听筒，车还没有来，谈话先驶远了。",
+	},
+	1: {
+		"turns": [
+			{"line": "墙里的回声开始替我们回答，而且每次都比原话多一句遗产。要把哪一句留下？", "result": "回声住户贴近墙面，听见自己的声音从更高一层缓慢返回。", "choices": [
+				{"id": "echo_keep_original", "summary": "留下原话", "sentence": "只留下我们刚才说的句子，遗产可以经过，但不要冒充回声。"},
+				{"id": "echo_mark_legacy", "summary": "标记遗产", "sentence": "把多出来的旧话标上楼层，让它不能假装今天才出生。"},
+				{"id": "echo_close_pipe", "summary": "关闭管道", "sentence": "先关掉这段管道，沉默也比被替写的回答更诚实。"},
+			]},
+			{"line": "水龙头流出一串陌生口音。住户说这就是语言污染的味道。你怎么确认还是水？", "result": "回声住户接住一滴无声的水。它没有复述任何人，钥匙终于松开。", "choices": [
+				{"id": "echo_check_reflection", "summary": "观察倒影", "sentence": "如果倒影还会被波纹打断，它至少没有完全变成一句口号。"},
+				{"id": "echo_try_name", "summary": "尝试命名", "sentence": "先叫它水一次；如果它立刻要求复读，我们就换一个杯子。"},
+				{"id": "echo_leave_nameless", "summary": "保持无名", "sentence": "不急着命名，让它在语言找到之前先作为液体留下。"},
+			]},
+		],
+		"interrupt": "管道抢先说完所有答案。回声住户关上阀门，墙里仍有人继续这场谈话。",
+	},
+	2: {
+		"turns": [
+			{"line": "档案柜要求给你的每句话填写“遗产来源”。原创一栏已经被涂黑。你填什么？", "result": "抄写员把表格转过来，背面密密麻麻都是尚未发生的引用。", "choices": [
+				{"id": "copy_source_now", "summary": "填写此刻", "sentence": "来源写此刻；这句话也许借过词，但犹豫是我自己的。"},
+				{"id": "copy_refuse_source", "summary": "拒绝来源", "sentence": "我不替活着的话伪造祖先，请把这一栏保持空白。"},
+				{"id": "copy_mark_pollution", "summary": "登记污染", "sentence": "标注语言污染；相似不一定是继承，也可能是感染。"},
+			]},
+			{"line": "盖章机说，未被塔收录的句子不算存在。抄写员把印章递给你。", "result": "抄写员收回没有落下的印章，把你的句子夹进两页制度之间。", "choices": [
+				{"id": "copy_no_stamp", "summary": "不盖印章", "sentence": "存在不该由塔批准；让这句话带着空白离开档案。"},
+				{"id": "copy_edge_stamp", "summary": "盖在边缘", "sentence": "只盖在纸的边缘，证明制度碰过它，却没有拥有它。"},
+				{"id": "copy_rewrite_rule", "summary": "改写条款", "sentence": "先把条款改成“说出即存在”，再决定是否需要印章。"},
+			]},
+		],
+		"interrupt": "盖章机吞掉了句子的主语。抄写员拉下断电杆，本次登记以空白中止。",
+	},
+	3: {
+		"turns": [
+			{"line": "塔里的发射机没有接线，信徒却说每晚都能收到圣歌。你认为声音从哪里来？", "result": "无名信徒仰头辨认那段旋律，塔窗一层接一层地亮错顺序。", "choices": [
+				{"id": "believer_crowd", "summary": "来自人群", "sentence": "也许是人群在塔下互相复述，最后忘了第一句话属于谁。"},
+				{"id": "believer_legacy", "summary": "来自遗产", "sentence": "遗产梗会自己寻找嗓子，圣歌只是它们同时借到人的时刻。"},
+				{"id": "believer_static", "summary": "来自静电", "sentence": "没有信号时，静电也会被当成启示；先别急着跪下。"},
+			]},
+			{"line": "信徒请你献出一句不会污染别人的话，作为进入上层的圣歌。", "result": "无名信徒没有唱你的句子，只把它安静地留在门外。塔门第一次自己开了。", "choices": [
+				{"id": "believer_question", "summary": "保留疑问", "sentence": "我只能献出一个问题：我们是否允许别人不回答。"},
+				{"id": "believer_names", "summary": "归还名字", "sentence": "把每个人的名字还给本人，不把它们编进共同的副歌。"},
+				{"id": "believer_pause", "summary": "献出停顿", "sentence": "我献出一句话结束后的停顿，让下一人有地方开口。"},
+			]},
+		],
+		"interrupt": "圣歌突然只剩同一个梗。无名信徒停止合唱，塔门在污染扩散前合上。",
+	},
+	4: {
+		"turns": [
+			{"line": "旧帖显示这里“信号满格”，可所有回复都写着十年后发送。你要点开哪一条？", "result": "旧帖目击者滑动屏幕，日期栏像坏掉的电梯一样上下跳动。", "choices": [
+				{"id": "post_earliest", "summary": "最早回复", "sentence": "打开最早的一条，看看是谁先把未来误认成了遗产。"},
+				{"id": "post_unsent", "summary": "未发回复", "sentence": "打开那条尚未发送的，也许它还来得及换一种说法。"},
+				{"id": "post_close", "summary": "关闭帖子", "sentence": "先关掉帖子；无信号时，时间不该假装自己已经上传。"},
+			]},
+			{"line": "最后一条回复只有一个梗框，里面空着。帖子问：要把今天的哪个词留给过去？", "result": "旧帖目击者没有截屏。空框自行保存，又把今天完整地退还给你。", "choices": [
+				{"id": "post_leave_exist", "summary": "留下存在", "sentence": "留下“存在”；过去需要知道我们没有只活成引用。"},
+				{"id": "post_leave_signal", "summary": "留下无信号", "sentence": "留下“无信号”；让未来明白沉默也可能是线路断了。"},
+				{"id": "post_leave_nothing", "summary": "什么不留", "sentence": "什么都不留；过去不该提前继承我们尚未说完的话。"},
+			]},
+		],
+		"interrupt": "帖子开始自动复制你尚未说出的词。旧帖目击者拔掉电源，屏幕仍亮在中断处。",
+	},
+}
 const MERCHANT_DIALOGUES_BY_FLOOR := {
 	1: {"line": "我卖的是能装住一个字的空框。字会漏出来，框不会。", "result": "信号商人敲了敲柜台，空框发出比内容更清楚的声音。"},
 	2: {"line": "本层交易必须附上一句遗产。价格不会因此减少。", "result": "信号商人收走了声音，没有说明它被记在哪一本账里。"},
@@ -295,6 +374,7 @@ const SAVE_FIELD_NAMES := [
 	"npc_understanding", "reality_phase", "relationship_residue", "last_relationship_residue_gain",
 	"last_relationship_money_loss", "reality_dialogue_count", "owned_communication_items",
 	"daily_communication_item_bought", "last_communication_item_used", "last_communication_item_remaining",
+	"npc_meme_frame_reward_pity", "npc_meme_frame_reward_attempt_keys", "last_npc_meme_frame_reward",
 ]
 
 var day: int = 1
@@ -372,10 +452,22 @@ var conversation_feedback: String = ""
 var conversation_locale: String = "zh"
 var conversation_clean_units: Array[String] = []
 var conversation_legacy_texts: Array[String] = []
+var conversation_turns: Array = []
+var conversation_turn_index: int = 0
+var conversation_history: Array = []
+var conversation_can_continue: bool = false
+var conversation_completed: bool = false
+var conversation_interrupted: bool = false
+var conversation_interrupt_line: String = ""
+var conversation_action_spent: bool = false
+var conversation_reward: Dictionary = {}
 var owned_communication_items: Array = []
 var daily_communication_item_bought: bool = false
 var last_communication_item_used: String = ""
 var last_communication_item_remaining: int = 0
+var npc_meme_frame_reward_pity: int = 0
+var npc_meme_frame_reward_attempt_keys: Array[String] = []
+var last_npc_meme_frame_reward: Dictionary = {}
 
 
 func new_run() -> void:
@@ -435,6 +527,9 @@ func new_run() -> void:
 	daily_communication_item_bought = false
 	last_communication_item_used = ""
 	last_communication_item_remaining = 0
+	npc_meme_frame_reward_pity = 0
+	npc_meme_frame_reward_attempt_keys = []
+	last_npc_meme_frame_reward = {}
 	reset_typed_reality_conversation()
 
 
@@ -467,6 +562,7 @@ func load_save_data(save_data: Dictionary) -> bool:
 	actions_remaining = clampi(actions_remaining, 0, max_actions_per_day)
 	pollution = clampi(pollution, 0, 100)
 	clarity = clampi(clarity, 0, 100)
+	npc_meme_frame_reward_pity = clampi(npc_meme_frame_reward_pity, 0, NPC_MEME_FRAME_REWARD_PITY_LIMIT - 1)
 	if view_state != "phone_down" and view_state != "npc_up":
 		view_state = "phone_down"
 	reset_typed_reality_conversation()
@@ -642,22 +738,27 @@ func start_typed_reality_conversation(actor_id: String, actor_type: String, acto
 	conversation_actor_type = "merchant" if actor_type == "merchant" else "npc"
 	conversation_actor_label = actor_label
 	var dialogue := _reality_dialogue_for_actor(actor_id, conversation_actor_type)
-	conversation_prompt = str(dialogue.get("line", "你打算说什么？"))
-	conversation_result_line = str(dialogue.get("result", "%s移开了视线。" % actor_label))
-	conversation_choices = (dialogue.get("choices", []) as Array).duplicate(true)
-	conversation_selected_choice_id = ""
-	conversation_clean_sentence = ""
-	conversation_revealed_units = []
-	conversation_reveal_index = 0
+	conversation_turns = [{
+		"line": str(dialogue.get("line", "你打算说什么？")),
+		"result": str(dialogue.get("result", "%s移开了视线。" % actor_label)),
+		"choices": (dialogue.get("choices", []) as Array).duplicate(true),
+	}]
+	for followup in dialogue.get("continuation_turns", []):
+		conversation_turns.append((followup as Dictionary).duplicate(true))
+	conversation_turn_index = 0
+	conversation_history = []
+	conversation_can_continue = false
+	conversation_completed = false
+	conversation_interrupted = false
+	conversation_interrupt_line = str(dialogue.get("interrupt", ""))
+	conversation_action_spent = false
+	conversation_reward = {}
 	conversation_attempts = 0
-	conversation_understood = false
-	conversation_understanding_rolls = []
-	conversation_feedback = ""
 	conversation_locale = "zh"
-	conversation_clean_units = []
 	conversation_legacy_texts = []
 	last_communication_item_used = ""
 	last_communication_item_remaining = 0
+	_load_typed_reality_turn(0)
 	conversation_phase = "choosing"
 	return true
 
@@ -683,12 +784,70 @@ func reset_typed_reality_conversation() -> void:
 	conversation_locale = "zh"
 	conversation_clean_units = []
 	conversation_legacy_texts = []
+	conversation_turns = []
+	conversation_turn_index = 0
+	conversation_history = []
+	conversation_can_continue = false
+	conversation_completed = false
+	conversation_interrupted = false
+	conversation_interrupt_line = ""
+	conversation_action_spent = false
+	conversation_reward = {}
 	last_communication_item_used = ""
 	last_communication_item_remaining = 0
 
 
 func get_typed_reality_choices() -> Array:
 	return conversation_choices.duplicate(true)
+
+
+func get_typed_reality_progress() -> Dictionary:
+	return {
+		"phase": conversation_phase,
+		"turn_index": conversation_turn_index,
+		"turn_number": conversation_turn_index + 1 if not conversation_turns.is_empty() else 0,
+		"total_turns": conversation_turns.size(),
+		"can_continue": conversation_can_continue,
+		"completed": conversation_completed,
+		"interrupted": conversation_interrupted,
+		"action_spent": conversation_action_spent,
+		"history_count": conversation_history.size(),
+		"reward": conversation_reward.duplicate(true),
+	}
+
+
+func get_typed_reality_history() -> Array:
+	return conversation_history.duplicate(true)
+
+
+func continue_typed_reality_conversation() -> bool:
+	if conversation_phase != "result" or not conversation_can_continue:
+		return false
+	var next_turn := conversation_turn_index + 1
+	if next_turn >= conversation_turns.size():
+		return false
+	conversation_can_continue = false
+	_load_typed_reality_turn(next_turn)
+	conversation_phase = "choosing"
+	return true
+
+
+func _load_typed_reality_turn(turn_index: int) -> void:
+	if turn_index < 0 or turn_index >= conversation_turns.size():
+		return
+	var turn: Dictionary = conversation_turns[turn_index]
+	conversation_turn_index = turn_index
+	conversation_prompt = str(turn.get("line", "你打算说什么？"))
+	conversation_result_line = str(turn.get("result", "%s移开了视线。" % conversation_actor_label))
+	conversation_choices = (turn.get("choices", []) as Array).duplicate(true)
+	conversation_selected_choice_id = ""
+	conversation_clean_sentence = ""
+	conversation_revealed_units = []
+	conversation_reveal_index = 0
+	conversation_understood = false
+	conversation_understanding_rolls = []
+	conversation_feedback = ""
+	conversation_clean_units = []
 
 
 func configure_conversation_locale(locale_code: String, localized_legacy_texts: Array[String]) -> void:
@@ -705,14 +864,21 @@ func _reality_dialogue_for_actor(actor_id: String, actor_type: String) -> Dictio
 		merchant_entry["choices"] = (MERCHANT_CHOICES_BY_FLOOR.get(floor_number, MERCHANT_CHOICES_BY_FLOOR[1]) as Array).duplicate(true)
 		return merchant_entry
 	var entries: Array = REALITY_DIALOGUES_BY_FLOOR.get(floor_number, REALITY_DIALOGUES_BY_FLOOR[1])
-	var actor_index := 0
-	for index in 8:
-		if actor_id.ends_with("npc%d" % index):
-			actor_index = index
-			break
+	var actor_index := _reality_actor_index(actor_id)
 	if entries.is_empty():
 		return {"line": "你打算说什么？", "result": "对方没有马上回答。", "choices": (REALITY_RESPONSE_SETS["npc"] as Array).duplicate(true)}
-	return (entries[actor_index % entries.size()] as Dictionary).duplicate(true)
+	var dialogue: Dictionary = (entries[actor_index % entries.size()] as Dictionary).duplicate(true)
+	var arc: Dictionary = REALITY_FOLLOWUPS_BY_NPC_INDEX.get(actor_index, REALITY_FOLLOWUPS_BY_NPC_INDEX[0])
+	dialogue["continuation_turns"] = (arc.get("turns", []) as Array).duplicate(true)
+	dialogue["interrupt"] = str(arc.get("interrupt", ""))
+	return dialogue
+
+
+func _reality_actor_index(actor_id: String) -> int:
+	for index in 8:
+		if actor_id.ends_with("npc%d" % index):
+			return index
+	return 0
 
 
 func get_daily_communication_item() -> Dictionary:
@@ -800,6 +966,10 @@ func advance_typed_reality_character() -> Dictionary:
 		"action_spent": false,
 		"understood": false,
 		"locked_out": false,
+		"conversation_completed": false,
+		"can_continue": false,
+		"interrupted": false,
+		"reward": {},
 	}
 	if conversation_phase != "typing":
 		return result
@@ -823,13 +993,18 @@ func advance_typed_reality_character() -> Dictionary:
 		return result
 
 	result["completed"] = true
-	if not spend_action("typed-reality-dialogue"):
-		conversation_phase = "result"
-		conversation_feedback = "今天已经没有能说出口的行动。"
-		return result
-	result["action_spent"] = true
+	if not conversation_action_spent:
+		if not spend_action("typed-reality-dialogue"):
+			conversation_phase = "result"
+			conversation_interrupted = true
+			conversation_feedback = "今天已经没有能说出口的行动。"
+			result["locked_out"] = true
+			result["interrupted"] = true
+			return result
+		conversation_action_spent = true
+		result["action_spent"] = true
+		reality_dialogue_count += 1
 	conversation_attempts += 1
-	reality_dialogue_count += 1
 	last_clean_sentence = conversation_clean_sentence
 	last_polluted_sentence = get_typed_reality_spoken_sentence()
 	var understood := _resolve_typed_reality_understanding()
@@ -838,11 +1013,42 @@ func advance_typed_reality_character() -> Dictionary:
 	if not understood:
 		last_relationship_residue_gain = clampi(1 + int(pollution / 18.0) + legacy_rules.size(), 1, 14)
 		relationship_residue = clampi(relationship_residue + last_relationship_residue_gain, 0, 100)
-	conversation_phase = "result"
 	conversation_feedback = conversation_result_line
 	var aid_feedback := _communication_item_feedback()
 	if not aid_feedback.is_empty():
 		conversation_feedback += "\n" + aid_feedback
+	conversation_history.append({
+		"turn_index": conversation_turn_index,
+		"prompt": conversation_prompt,
+		"choice_id": conversation_selected_choice_id,
+		"clean_sentence": conversation_clean_sentence,
+		"spoken_sentence": last_polluted_sentence,
+		"understood": understood,
+		"understanding_rolls": conversation_understanding_rolls.duplicate(),
+		"result": conversation_result_line,
+	})
+	conversation_phase = "result"
+	if not understood:
+		conversation_can_continue = false
+		conversation_interrupted = true
+		if not conversation_interrupt_line.is_empty():
+			conversation_feedback += "\n" + conversation_interrupt_line
+		result["interrupted"] = true
+		return result
+
+	if conversation_turn_index + 1 < conversation_turns.size():
+		conversation_can_continue = true
+		result["can_continue"] = true
+		return result
+
+	conversation_can_continue = false
+	conversation_completed = true
+	result["conversation_completed"] = true
+	if conversation_actor_type == "npc":
+		conversation_reward = _resolve_npc_meme_frame_reward(conversation_actor_id)
+		result["reward"] = conversation_reward.duplicate(true)
+		if bool(conversation_reward.get("awarded", false)):
+			conversation_feedback += "\n对方把一个梗框留在你手边。框沿没有商人的价签。"
 	return result
 
 
@@ -962,6 +1168,66 @@ func _conversation_roll(channel: String, character_index: int, check_index: int)
 		channel,
 	]
 	return posmod(int(hash(key)), 100)
+
+
+func get_npc_meme_frame_reward_rules() -> Dictionary:
+	return {
+		"chance_percent": NPC_MEME_FRAME_REWARD_CHANCE_PERCENT,
+		"pity_limit": NPC_MEME_FRAME_REWARD_PITY_LIMIT,
+		"pity_progress": npc_meme_frame_reward_pity,
+		"successes_until_guarantee": maxi(1, NPC_MEME_FRAME_REWARD_PITY_LIMIT - npc_meme_frame_reward_pity),
+		"dedup_scope": "actor_per_day",
+	}
+
+
+func get_last_npc_meme_frame_reward() -> Dictionary:
+	return last_npc_meme_frame_reward.duplicate(true)
+
+
+func _npc_meme_frame_reward_roll(actor_id: String, reward_day: int = -1) -> int:
+	var resolved_day := day if reward_day < 0 else reward_day
+	return posmod(int(hash("npc-meme-frame|%d|%s" % [resolved_day, actor_id])), 100)
+
+
+func _resolve_npc_meme_frame_reward(actor_id: String) -> Dictionary:
+	var attempt_key := "%d|%s" % [day, actor_id]
+	var reward := {
+		"eligible": true,
+		"awarded": false,
+		"duplicate": false,
+		"guaranteed": false,
+		"actor_id": actor_id,
+		"day": day,
+		"chance_percent": NPC_MEME_FRAME_REWARD_CHANCE_PERCENT,
+		"roll": -1,
+		"pity_before": npc_meme_frame_reward_pity,
+		"pity_after": npc_meme_frame_reward_pity,
+		"reason": "none",
+	}
+	if attempt_key in npc_meme_frame_reward_attempt_keys:
+		reward["eligible"] = false
+		reward["duplicate"] = true
+		last_npc_meme_frame_reward = reward.duplicate(true)
+		return reward
+
+	npc_meme_frame_reward_attempt_keys.append(attempt_key)
+	var roll := _npc_meme_frame_reward_roll(actor_id, day)
+	var guaranteed := npc_meme_frame_reward_pity + 1 >= NPC_MEME_FRAME_REWARD_PITY_LIMIT
+	var awarded := guaranteed or roll < NPC_MEME_FRAME_REWARD_CHANCE_PERCENT
+	reward["roll"] = roll
+	reward["guaranteed"] = guaranteed
+	reward["awarded"] = awarded
+	if awarded:
+		owned_meme_frames += 1
+		npc_meme_frame_reward_pity = 0
+		reward["reason"] = "pity" if guaranteed else "chance"
+		var reason_label := "保底" if guaranteed else "概率命中"
+		event_log.push_front("现实交流奖励：获得一个梗框（%s）。" % reason_label)
+	else:
+		npc_meme_frame_reward_pity += 1
+	reward["pity_after"] = npc_meme_frame_reward_pity
+	last_npc_meme_frame_reward = reward.duplicate(true)
+	return reward
 
 
 func settle_day_if_needed() -> bool:
@@ -1773,7 +2039,15 @@ func _first_pickable_character(value: String, locale_code: String = "zh") -> Str
 		word_regex.compile("[A-Za-z0-9']+")
 		var match_result := word_regex.search(value)
 		return match_result.get_string() if match_result != null else ""
-	var ignored := " \t\r\n，。！？；：、,.!?;:（）()【】[]《》<>“”\"'—-…"
+	var ignored := " \t\r\n　，。！？；：、,.!?;:（）()【】[]《》<>〈〉「」『』〔〕“”\"'—-…・"
+	if locale_code == "ja":
+		var start := 0
+		var end := value.length()
+		while start < end and ignored.contains(value.substr(start, 1)):
+			start += 1
+		while end > start and ignored.contains(value.substr(end - 1, 1)):
+			end -= 1
+		return value.substr(start, end - start)
 	for index in value.length():
 		var character := value.substr(index, 1)
 		if not ignored.contains(character):

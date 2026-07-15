@@ -113,19 +113,42 @@ func translate_array(values: Array) -> Array[String]:
 
 
 func first_pickable_unit(source: String) -> String:
+	var units := pickable_units(source)
+	return units[0] if not units.is_empty() else ""
+
+
+func pickable_units(source: String) -> Array[String]:
 	var localized := translate(source).strip_edges()
+	var result: Array[String] = []
 	if localized.is_empty():
-		return ""
+		return result
 	if current_locale == "en":
-		var word_regex := RegEx.new()
-		word_regex.compile("[A-Za-z0-9']+")
-		var match_result := word_regex.search(localized)
-		return match_result.get_string() if match_result != null else localized
+		var english_word_regex := RegEx.new()
+		english_word_regex.compile("[A-Za-z0-9]+(?:['’][A-Za-z0-9]+)*")
+		for match_result in english_word_regex.search_all(localized):
+			result.append(match_result.get_string())
+		return result
+	if current_locale == "ja":
+		var japanese_word_regex := RegEx.new()
+		japanese_word_regex.compile("[A-Za-z0-9]+[\\x{4E00}-\\x{9FFF}々〆ヵヶ]*|[\\x{4E00}-\\x{9FFF}々〆ヵヶ]+|[\\x{3040}-\\x{309F}ー]+|[\\x{30A0}-\\x{30FF}ー]+")
+		for match_result in japanese_word_regex.search_all(localized):
+			var unit := _trim_japanese_leading_particle(match_result.get_string())
+			if not unit.is_empty():
+				result.append(unit)
+		return result
 	for index in localized.length():
 		var character := localized.substr(index, 1)
 		if not character.strip_edges().is_empty() and character not in ["，", "。", "！", "？", "、", "「", "」", "『", "』"]:
-			return character
-	return ""
+			result.append(character)
+	return result
+
+
+func _trim_japanese_leading_particle(unit: String) -> String:
+	if unit.length() <= 1:
+		return "" if unit in ["の", "に", "へ", "を", "が", "は", "で", "と"] else unit
+	if unit.substr(0, 1) in ["の", "に", "へ", "を", "が", "は", "で", "と"]:
+		return unit.substr(1)
+	return unit
 
 
 func has_untranslated_han(text: String) -> bool:

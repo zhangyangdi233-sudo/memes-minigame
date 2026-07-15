@@ -18,6 +18,14 @@ const MAP_END_MARGIN := 12.0 * WORLD_LENGTH_SCALE
 const WALL_HEIGHT := 3.4
 const AIR_WALL_HEIGHT := 6.0
 const AIR_WALL_THICKNESS := 0.5
+const ORDINARY_NPC_COUNTS := [4, 3, 2, 1, 0]
+const NIGHT_TERRACE_END_MARGIN := 8.0
+const NIGHT_TERRACE_GAP := 1.2
+const NIGHT_FACADE_BAY := 7.6
+const GALLERY_END_MARGIN := 7.0
+const GALLERY_COLUMN_TARGET_SPACING := 7.2
+const GALLERY_COLUMN_X := 3.2
+const SUSPENSE_CLEAR_PATH_WIDTH := 5.6
 const DISTRICT_STYLES := ["sunlit_brick_street", "night_white_blocks", "overgrown_gallery"]
 const DISTRICT_REFERENCE_TEXTURES := {
 	"sunlit_brick_street": "res://assets/generated/world/reference_districts/sunlit_brick_street.png",
@@ -53,7 +61,8 @@ static func room_count_for_floor(floor_number: int) -> int:
 
 
 static func npc_count_for_floor(floor_number: int) -> int:
-	return maxi(2, 6 - maxi(1, floor_number))
+	var floor_index := clampi(maxi(1, floor_number), 1, ORDINARY_NPC_COUNTS.size()) - 1
+	return int(ORDINARY_NPC_COUNTS[floor_index])
 
 
 static func district_style_for_floor(floor_number: int) -> String:
@@ -79,6 +88,24 @@ func rebuild(floor_number: int, palette: Dictionary, actor_textures: Dictionary)
 	set_meta("world_length_scale", WORLD_LENGTH_SCALE)
 	set_meta("air_wall_count", 12 if district_style == "sunlit_brick_street" else 4)
 	set_meta("district_style", district_style)
+	set_meta("npc_population_rule", "strictly_descending")
+	set_meta("atmosphere_mode", "open_daylight" if built_floor == 1 else "slow_burn_suspense")
+	set_meta("suspense_occluder_count", 0)
+	set_meta("suspense_light_count", 0)
+	set_meta("controlled_repeat_count", 0)
+	set_meta("jump_scare_trigger_count", 0)
+	set_meta("minimum_clear_path_width", STREET_WIDTH)
+	set_meta("suspense_occlusion_rule", "none")
+	set_meta("night_house_segment_count", 0)
+	set_meta("night_house_coverage_ratio", 0.0)
+	set_meta("night_house_max_gap", 0.0)
+	set_meta("night_facade_bay_count", 0)
+	set_meta("gallery_continuous", false)
+	set_meta("gallery_span", 0.0)
+	set_meta("gallery_span_ratio", 0.0)
+	set_meta("gallery_column_count", 0)
+	set_meta("gallery_column_spacing", 0.0)
+	set_meta("gallery_repeat_anomaly_count", 0)
 
 	_build_environment(palette)
 	_build_architecture(palette)
@@ -195,24 +222,43 @@ func _build_environment(palette: Dictionary) -> void:
 	environment.background_color = _style_background_color(palette)
 	environment.ambient_light_source = Environment.AMBIENT_SOURCE_COLOR
 	environment.ambient_light_color = _style_ambient_color(palette)
-	environment.ambient_light_energy = 0.22 if district_style == "night_white_blocks" else (0.58 if district_style == "overgrown_gallery" else 0.78)
+	if built_floor == 1:
+		environment.ambient_light_energy = 0.78
+	elif district_style == "night_white_blocks":
+		environment.ambient_light_energy = 0.17
+	elif district_style == "overgrown_gallery":
+		environment.ambient_light_energy = 0.20
+	else:
+		environment.ambient_light_energy = 0.29
 	environment.reflected_light_source = Environment.REFLECTION_SOURCE_DISABLED
 	environment.fog_enabled = true
 	environment.fog_light_color = _style_fog_color(palette)
-	environment.fog_light_energy = 0.28 if district_style == "night_white_blocks" else 0.52
-	environment.fog_density = (0.012 if district_style == "night_white_blocks" else 0.005) + built_floor * 0.0012
-	environment.fog_height = 1.1
-	environment.fog_height_density = 0.16
+	environment.fog_light_energy = 0.52 if built_floor == 1 else (0.16 if district_style == "overgrown_gallery" else maxf(0.16, 0.27 - float(built_floor - 2) * 0.025))
+	environment.fog_density = 0.0062 if built_floor == 1 else 0.018 + float(built_floor - 2) * 0.0035
+	environment.fog_height = 1.1 if built_floor == 1 else 0.72
+	environment.fog_height_density = 0.16 if built_floor == 1 else 0.27 + float(built_floor - 2) * 0.025
 	_environment.environment = environment
 	add_child(_environment)
+	set_meta("fog_density", environment.fog_density)
+	set_meta("fog_height_density", environment.fog_height_density)
+	set_meta("ambient_light_energy", environment.ambient_light_energy)
+	set_meta("suspense_color_temperature", "daylight" if built_floor == 1 else ("cold_green" if built_floor <= 3 else "cold_blue"))
 
 	var key_light := DirectionalLight3D.new()
 	key_light.name = "RealityKeyLight"
 	key_light.rotation_degrees = Vector3(-48.0, -34.0, 0.0)
-	key_light.light_color = Color("DCE8E1") if district_style == "night_white_blocks" else Color("FFF3D3")
-	key_light.light_energy = 0.46 if district_style == "night_white_blocks" else (1.65 if district_style == "overgrown_gallery" else 1.32)
+	if built_floor == 1:
+		key_light.light_color = Color("FFF3D3")
+		key_light.light_energy = 1.32
+	else:
+		var cold_key_colors := [Color("AFC7BE"), Color("C2CEC0"), Color("A9BBC4"), Color("96ACB6")]
+		var cold_key_energy := [0.34, 0.28, 0.36, 0.24]
+		key_light.light_color = cold_key_colors[built_floor - 2]
+		key_light.light_energy = cold_key_energy[built_floor - 2]
 	key_light.shadow_enabled = true
 	add_child(key_light)
+	set_meta("key_light_color", key_light.light_color)
+	set_meta("key_light_energy", key_light.light_energy)
 
 
 func _build_architecture(palette: Dictionary) -> void:
@@ -249,6 +295,8 @@ func _build_architecture(palette: Dictionary) -> void:
 			_build_overgrown_gallery(architecture, palette)
 		_:
 			_build_sunlit_brick_street(architecture, palette)
+	if built_floor >= 2:
+		_build_suspense_layer(architecture, palette)
 
 	_build_air_walls(architecture)
 
@@ -487,53 +535,137 @@ func _build_crossroad_markings(parent: Node3D, palette: Dictionary) -> void:
 func _build_night_white_blocks(parent: Node3D, palette: Dictionary) -> void:
 	_add_box(parent, "NightWalk", Vector3(4.8, 0.035, map_length - 1.2), Vector3(-2.35, 0.018, 0.0), "night_path", palette, false)
 	var lot_rows := int(ceil(float(room_count) / 2.0))
+	var terrace_span := map_length - NIGHT_TERRACE_END_MARGIN * 2.0
+	var segment_pitch := terrace_span / float(lot_rows)
+	var segment_length := segment_pitch - NIGHT_TERRACE_GAP
+	var facade_bay_count := 0
 	for room_index in room_count:
 		var row := int(room_index / 2)
 		var side := -1.0 if room_index % 2 == 0 else 1.0
-		var center_z := (float(lot_rows - 1) * LOT_SPACING * 0.5) - float(row) * LOT_SPACING
-		_build_night_house(parent, room_index, row, side, center_z, palette)
+		var center_z := (float(lot_rows - 1) * segment_pitch * 0.5) - float(row) * segment_pitch
+		facade_bay_count += _build_night_house(parent, room_index, row, side, center_z, segment_length, palette)
+	set_meta("night_house_segment_count", room_count)
+	set_meta("night_house_coverage_ratio", segment_length / segment_pitch)
+	set_meta("night_house_max_gap", NIGHT_TERRACE_GAP)
+	set_meta("night_facade_bay_count", facade_bay_count)
 	_build_reference_portal(parent, str(DISTRICT_REFERENCE_TEXTURES[district_style]), palette)
 
 
-func _build_night_house(parent: Node3D, room_index: int, row: int, side: float, center_z: float, palette: Dictionary) -> void:
+func _build_night_house(parent: Node3D, room_index: int, row: int, side: float, center_z: float, segment_length: float, palette: Dictionary) -> int:
 	var room := _new_room(parent, room_index)
 	var height := 4.5 + float((room_index + built_floor) % 3) * 0.8
 	var depth := 5.4
 	var center_x := side * (4.35 + depth * 0.5)
-	_add_box(room, "WhiteHouse", Vector3(depth, height, LOT_WIDTH), Vector3(center_x, height * 0.5, center_z), "white_wall", palette, true)
+	var house := _add_box(room, "WhiteHouse", Vector3(depth, height, segment_length), Vector3(center_x, height * 0.5, center_z), "white_wall", palette, true)
+	house.set_meta("continuous_house_segment", true)
+	house.set_meta("segment_length", segment_length)
+	_add_box(room, "TerraceParapet", Vector3(depth + 0.18, 0.22, segment_length), Vector3(center_x, height + 0.11, center_z), "white_wall", palette, false)
 	var face_x := center_x - side * (depth * 0.5 + 0.025)
-	for window_index in 3:
-		var window_y := 1.35 + float(window_index % 2) * 1.75
-		var window_z := center_z - 2.0 + float(window_index) * 2.0
-		_add_box(room, "Window%d" % window_index, Vector3(0.06, 0.92, 0.92), Vector3(face_x, window_y, window_z), "window", palette, false)
+	var module_count := maxi(4, int(floor(segment_length / NIGHT_FACADE_BAY)))
+	var module_spacing := segment_length / float(module_count)
+	var anomaly_bay := posmod(room_index * 3 + built_floor, module_count)
+	for module_index in module_count:
+		var module_z := center_z - segment_length * 0.5 + module_spacing * (float(module_index) + 0.5)
+		if module_index > 0:
+			_add_box(
+				room,
+				"FacadeJoint%02d" % module_index,
+				Vector3(0.075, height - 0.34, 0.09),
+				Vector3(face_x - side * 0.04, height * 0.5, module_z - module_spacing * 0.5),
+				"window",
+				palette,
+				false
+			)
+		for storey_index in 2:
+			var controlled_anomaly := module_index == anomaly_bay and storey_index == 1
+			var window_height := 0.48 if controlled_anomaly else 0.82
+			var window_y := 1.38 + float(storey_index) * 1.72 + (0.18 if controlled_anomaly else 0.0)
+			var window := _add_box(
+				room,
+				"Window%02d_%d" % [module_index, storey_index],
+				Vector3(0.065, window_height, 0.84),
+				Vector3(face_x - side * 0.045, window_y, module_z),
+				"window",
+				palette,
+				false
+			)
+			if controlled_anomaly:
+				window.set_meta("controlled_repeat_anomaly", true)
+		if module_index % 4 == 1:
+			var repeated_door := _add_box(
+				room,
+				"RepeatedDoor%02d" % module_index,
+				Vector3(0.07, 2.18, 1.08),
+				Vector3(face_x - side * 0.055, 1.09, module_z + module_spacing * 0.22),
+				"window",
+				palette,
+				false
+			)
+			repeated_door.set_meta("architectural_repeat", true)
 	if row % 2 == 0:
-		_build_street_lamp(room, Vector3(-4.25, 0.0, center_z - 2.2), palette, false)
+		_build_street_lamp(room, Vector3(side * 3.55, 0.0, center_z - minf(2.2, segment_length * 0.18)), palette, false)
 	if room_index % 4 == 2:
 		_build_mood_panel(room, room_index, Vector3(face_x - side * 0.04, 2.4, center_z + 1.4), side, palette)
 	_place_room_reward(room, room_index, Vector3(side * 3.65, 0.0, center_z), palette)
+	return module_count
 
 
 func _build_overgrown_gallery(parent: Node3D, palette: Dictionary) -> void:
 	_add_box(parent, "GalleryWalk", Vector3(6.2, 0.05, map_length - 1.0), Vector3(0.0, 0.025, 0.0), "gallery_floor", palette, false)
+	var gallery_span := _build_gallery_continuum(parent, palette)
 	var lot_rows := int(ceil(float(room_count) / 2.0))
+	var bay_pitch := gallery_span / float(lot_rows)
 	for room_index in room_count:
 		var row := int(room_index / 2)
 		var side := -1.0 if room_index % 2 == 0 else 1.0
-		var center_z := (float(lot_rows - 1) * LOT_SPACING * 0.5) - float(row) * LOT_SPACING
+		var center_z := (float(lot_rows - 1) * bay_pitch * 0.5) - float(row) * bay_pitch
 		_build_gallery_bay(parent, room_index, row, side, center_z, palette)
 	_build_reference_portal(parent, str(DISTRICT_REFERENCE_TEXTURES[district_style]), palette)
 
 
+func _build_gallery_continuum(parent: Node3D, palette: Dictionary) -> float:
+	var gallery_span := map_length - GALLERY_END_MARGIN * 2.0
+	for side in [-1.0, 1.0]:
+		var side_name := "West" if side < 0.0 else "East"
+		var roof_name := "GalleryRoof" if side < 0.0 else "GalleryRoofEast"
+		var roof := _add_box(parent, roof_name, Vector3(5.1, 0.28, gallery_span), Vector3(side * 5.15, 3.55, 0.0), "white_wall", palette, true)
+		roof.set_meta("continuous_gallery", true)
+		roof.set_meta("span_length", gallery_span)
+		var outer_wall := _add_box(parent, "OuterWall%s" % side_name, Vector3(0.34, 3.55, gallery_span), Vector3(side * 7.7, 1.78, 0.0), "white_wall", palette, true)
+		outer_wall.set_meta("continuous_gallery", true)
+		outer_wall.set_meta("span_length", gallery_span)
+	var center_roof := _add_box(parent, "GalleryCeilingSpan", Vector3(5.4, 0.24, gallery_span), Vector3(0.0, 3.55, 0.0), "white_wall", palette, true)
+	center_roof.set_meta("continuous_gallery", true)
+	center_roof.set_meta("span_length", gallery_span)
+
+	var column_run := gallery_span - 2.0
+	var interval_count := maxi(1, int(ceil(column_run / GALLERY_COLUMN_TARGET_SPACING)))
+	var column_spacing := column_run / float(interval_count)
+	var column_count := 0
+	var anomaly_index := int(floor(float(interval_count) * 0.62))
+	for column_index in range(interval_count + 1):
+		var column_z := -column_run * 0.5 + float(column_index) * column_spacing
+		for side in [-1.0, 1.0]:
+			var side_name := "W" if side < 0.0 else "E"
+			var column := _add_box(parent, "GalleryColumn%s%02d" % [side_name, column_index], Vector3(0.52, 3.55, 0.52), Vector3(side * GALLERY_COLUMN_X, 1.78, column_z), "white_wall", palette, true)
+			column.set_meta("gallery_column", true)
+			column_count += 1
+		if column_index == anomaly_index:
+			var echo_column := _add_box(parent, "GalleryEchoColumn", Vector3(0.52, 3.55, 0.52), Vector3(GALLERY_COLUMN_X, 1.78, column_z + 0.72), "white_wall", palette, true)
+			echo_column.set_meta("gallery_column", true)
+			echo_column.set_meta("controlled_repeat_anomaly", true)
+			column_count += 1
+	set_meta("gallery_continuous", true)
+	set_meta("gallery_span", gallery_span)
+	set_meta("gallery_span_ratio", gallery_span / map_length)
+	set_meta("gallery_column_count", column_count)
+	set_meta("gallery_column_spacing", column_spacing)
+	set_meta("gallery_repeat_anomaly_count", 1)
+	return gallery_span
+
+
 func _build_gallery_bay(parent: Node3D, room_index: int, row: int, side: float, center_z: float, palette: Dictionary) -> void:
 	var room := _new_room(parent, room_index)
-	var bay_center_x := side * 5.15
-	_add_box(room, "GalleryRoof", Vector3(5.1, 0.28, LOT_WIDTH + 1.3), Vector3(bay_center_x, 3.55, center_z), "white_wall", palette, true)
-	if side < 0.0:
-		_add_box(room, "GalleryCeilingSpan", Vector3(5.4, 0.24, LOT_WIDTH + 1.3), Vector3(0.0, 3.55, center_z), "white_wall", palette, true)
-	_add_box(room, "OuterWall", Vector3(0.34, 3.55, LOT_WIDTH + 1.3), Vector3(side * 7.7, 1.78, center_z), "white_wall", palette, true)
-	for column_index in 4:
-		var column_z := center_z - 3.1 + float(column_index) * 2.05
-		_add_box(room, "Column%d" % column_index, Vector3(0.52, 3.55, 0.52), Vector3(side * 2.75, 1.78, column_z), "white_wall", palette, true)
 	for patch_index in 4:
 		var patch_side := -1.0 if (room_index + patch_index) % 2 == 0 else 1.0
 		var patch_pos := Vector3(patch_side * (0.85 + float(patch_index % 2) * 0.75), 0.0, center_z - 2.6 + float(patch_index) * 1.65)
@@ -541,6 +673,80 @@ func _build_gallery_bay(parent: Node3D, room_index: int, row: int, side: float, 
 	if row % 2 == 1:
 		_build_mood_panel(room, room_index, Vector3(side * 7.5, 2.0, center_z), side, palette)
 	_place_room_reward(room, room_index, Vector3(side * 2.15, 0.0, center_z), palette)
+
+
+func _build_suspense_layer(parent: Node3D, palette: Dictionary) -> void:
+	var suspense := Node3D.new()
+	suspense.name = "SuspenseOcclusion"
+	suspense.set_meta("slow_burn_suspense", true)
+	parent.add_child(suspense)
+	var occluder_count := clampi(int(round(map_length / 42.0)), 5, 10)
+	var usable_span := map_length - 44.0
+	var threshold_spacing := usable_span / float(occluder_count + 1)
+	var screen_width := 1.5
+	var screen_center_x := SUSPENSE_CLEAR_PATH_WIDTH * 0.5 + screen_width * 0.5
+	var screen_role := "white_wall" if district_style == "overgrown_gallery" else "wall_dark"
+	for threshold_index in occluder_count:
+		var side := -1.0 if threshold_index % 2 == 0 else 1.0
+		var threshold_z := -usable_span * 0.5 + threshold_spacing * float(threshold_index + 1)
+		if district_style == "sunlit_brick_street" and absf(threshold_z) < 12.0:
+			threshold_z += -14.0 if threshold_z < 0.0 else 14.0
+		var controlled_anomaly := threshold_index == int(floor(float(occluder_count) * 0.67))
+		var screen_height := 2.25 if controlled_anomaly else 3.05
+		var screen := _add_box(
+			suspense,
+			"SightlineScreen%02d" % threshold_index,
+			Vector3(screen_width, screen_height, 0.34),
+			Vector3(side * screen_center_x, screen_height * 0.5, threshold_z + (1.15 if controlled_anomaly else 0.0)),
+			screen_role,
+			palette,
+			true
+		)
+		screen.set_meta("suspense_occluder", true)
+		screen.set_meta("clear_path_width", SUSPENSE_CLEAR_PATH_WIDTH)
+		screen.set_meta("controlled_repeat_anomaly", controlled_anomaly)
+		var lintel := _add_box(
+			suspense,
+			"RepeatedLintel%02d" % threshold_index,
+			Vector3(SUSPENSE_CLEAR_PATH_WIDTH + 0.24, 0.18, 0.34),
+			Vector3(0.0, 3.18, threshold_z),
+			"wall_dark" if controlled_anomaly else screen_role,
+			palette,
+			false
+		)
+		lintel.set_meta("architectural_repeat", true)
+		lintel.set_meta("controlled_repeat_anomaly", controlled_anomaly)
+
+	var light_count := clampi(int(ceil(float(occluder_count) * 0.5)), 3, 5)
+	for light_index in light_count:
+		var progress := float(light_index + 1) / float(light_count + 1)
+		var light_z := lerpf(-usable_span * 0.5, usable_span * 0.5, progress)
+		var warm_exception := light_index == light_count - 2
+		var light_x := -1.9 if light_index % 2 == 0 else 1.9
+		_add_box(
+			suspense,
+			"SuspenseFixture%02d" % light_index,
+			Vector3(0.82, 0.12, 0.28),
+			Vector3(light_x, 3.12, light_z),
+			"lamp_light",
+			palette,
+			false
+		)
+		var pool := OmniLight3D.new()
+		pool.name = "SuspenseLight%02d" % light_index
+		pool.position = Vector3(light_x, 2.78, light_z)
+		pool.light_color = Color("D0A572") if warm_exception else Color("9DB9B4")
+		pool.light_energy = 0.42 if warm_exception else 0.58
+		pool.omni_range = 12.5
+		pool.shadow_enabled = light_index % 2 == 0
+		pool.set_meta("temperature_exception", warm_exception)
+		suspense.add_child(pool)
+	set_meta("suspense_occluder_count", occluder_count)
+	set_meta("suspense_light_count", light_count)
+	set_meta("controlled_repeat_count", occluder_count * 2 + 1)
+	set_meta("jump_scare_trigger_count", 0)
+	set_meta("minimum_clear_path_width", SUSPENSE_CLEAR_PATH_WIDTH)
+	set_meta("suspense_occlusion_rule", "alternating_side_screens")
 
 
 func _new_room(parent: Node3D, room_index: int) -> Node3D:
@@ -1001,13 +1207,13 @@ func _role_color(role: String, palette: Dictionary) -> Color:
 		"brick_dark":
 			return Color("8F7655").lerp(_color(palette, "accent"), 0.08)
 		"white_wall":
-			return Color("F0F2E9") if district_style == "night_white_blocks" else Color("EEF0E4")
+			return Color("F0F2E9") if district_style == "night_white_blocks" else Color("9DA99C")
 		"window":
 			return Color("0B0D0B").lerp(_color(palette, "ink"), 0.35)
 		"grass":
 			return (Color("17321D") if district_style == "night_white_blocks" else Color("4F7134")).lerp(_color(palette, "accent"), 0.18)
 		"gallery_floor":
-			return Color("E1E5D8").lerp(_color(palette, "surface"), 0.12)
+			return Color("68756B").lerp(_color(palette, "accent"), 0.08)
 		"sunlit_paving":
 			return Color("D7C8A8").lerp(_color(palette, "surface"), 0.16)
 		"night_path":
@@ -1045,6 +1251,14 @@ func _role_color(role: String, palette: Dictionary) -> Color:
 
 
 func _style_background_color(palette: Dictionary) -> Color:
+	if built_floor >= 2:
+		match district_style:
+			"night_white_blocks":
+				return Color("0B1112").lerp(_color(palette, "ink"), 0.14)
+			"overgrown_gallery":
+				return Color("202923").lerp(_color(palette, "ink"), 0.14)
+			_:
+				return Color("263A42").lerp(_color(palette, "ink"), 0.12)
 	match district_style:
 		"sunlit_brick_street":
 			return Color("1479B8").lerp(_color(palette, "accent"), 0.10)
@@ -1057,6 +1271,14 @@ func _style_background_color(palette: Dictionary) -> Color:
 
 
 func _style_ambient_color(palette: Dictionary) -> Color:
+	if built_floor >= 2:
+		match district_style:
+			"night_white_blocks":
+				return Color("89A096").lerp(_color(palette, "muted"), 0.12)
+			"overgrown_gallery":
+				return Color("7A8A7D").lerp(_color(palette, "muted"), 0.10)
+			_:
+				return Color("9FB4BC").lerp(_color(palette, "muted"), 0.12)
 	match district_style:
 		"night_white_blocks":
 			return Color("AEB8A2").lerp(_color(palette, "muted"), 0.18)
@@ -1067,6 +1289,14 @@ func _style_ambient_color(palette: Dictionary) -> Color:
 
 
 func _style_fog_color(palette: Dictionary) -> Color:
+	if built_floor >= 2:
+		match district_style:
+			"night_white_blocks":
+				return Color("202B2A").lerp(_color(palette, "accent"), 0.06)
+			"overgrown_gallery":
+				return Color("39463D").lerp(_color(palette, "accent"), 0.08)
+			_:
+				return Color("607780").lerp(_color(palette, "accent"), 0.08)
 	match district_style:
 		"night_white_blocks":
 			return Color("23181A").lerp(_color(palette, "accent"), 0.10)

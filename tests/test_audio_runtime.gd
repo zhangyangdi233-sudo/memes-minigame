@@ -1,5 +1,7 @@
 extends SceneTree
 
+const SCORE_METADATA_PATH := "res://assets/generated/audio/babel_liminal_score.json"
+
 var _failures: Array[String] = []
 
 
@@ -55,6 +57,7 @@ func _run() -> void:
 			_assert_true(phone_stream.loop_end == 2_116_800, "the original score should render an exact 96-second loop")
 		_assert_true(absf(phone.get_playback_position() - reality.get_playback_position()) < 0.05, "phone and reality score stems should begin in sync")
 		_assert_true(absf(reality.get_playback_position() - pollution_music.get_playback_position()) < 0.05, "pollution score stem should begin in sync with reality")
+	_validate_score_metadata()
 
 	game_root.game.pollution = 50
 	game_root._sync_audio_state(true)
@@ -100,6 +103,63 @@ func _run() -> void:
 	game_root._finish_action_spend_animation()
 	game_root.queue_free()
 	await process_frame
+
+
+func _validate_score_metadata() -> void:
+	var metadata_text := FileAccess.get_file_as_string(SCORE_METADATA_PATH)
+	_assert_true(not metadata_text.is_empty(), "score reproducibility metadata should be readable at runtime")
+	if metadata_text.is_empty():
+		return
+	var parsed: Variant = JSON.parse_string(metadata_text)
+	_assert_true(parsed is Dictionary, "score reproducibility metadata should contain valid JSON")
+	if not parsed is Dictionary:
+		return
+	var metadata := parsed as Dictionary
+	_assert_eq(int(metadata.get("format_version", 0)), 2, "score metadata should use the thematic-transform contract")
+	_assert_near(float(metadata.get("duration_seconds", 0.0)), 96.0, 0.001, "score metadata should preserve the 96-second structure")
+	_assert_eq(int(metadata.get("loop_end", 0)), 2_116_800, "score metadata should preserve the shared loop frame count")
+
+	var creative_direction := metadata.get("creative_direction", {}) as Dictionary
+	_assert_eq(str(creative_direction.get("reference_scope", "")), "High-level mood and production traits only", "reference use should be limited to high-level traits")
+	var originality := metadata.get("originality", {}) as Dictionary
+	_assert_true(not bool(originality.get("melody_transcribed", true)), "the score should not transcribe a reference melody")
+	_assert_true(not bool(originality.get("samples_used", true)), "the score should not contain samples")
+	_assert_true(not bool(originality.get("recordings_used", true)), "the score should not contain source recordings")
+	_assert_true(not bool(originality.get("third_party_audio_used", true)), "the score should not contain third-party audio")
+
+	var composition := metadata.get("composition", {}) as Dictionary
+	var motif := composition.get("motif", {}) as Dictionary
+	_assert_eq(str(motif.get("name", "")), "cold_window_five", "the score should publish its memorable five-note motif")
+	_assert_eq(motif.get("intervals_semitones", []), [0.0, 3.0, 7.0, 2.0, 5.0], "the main motif should retain its original interval identity")
+	_assert_eq(motif.get("onsets_beats", []), [0.0, 1.5, 2.25, 4.0, 6.5], "the main motif should retain its asymmetrical rhythm")
+	var harmony := composition.get("harmony", {}) as Dictionary
+	_assert_eq(int(harmony.get("field_bars", 0)), 4, "harmony variations should stay aligned to four-bar fields")
+	_assert_eq((harmony.get("fields", []) as Array).size(), 8, "the loop should contain eight harmony fields")
+	var transformations := composition.get("transformations", {}) as Dictionary
+	var phone_transform := transformations.get("phone", {}) as Dictionary
+	var pollution_transform := transformations.get("pollution", {}) as Dictionary
+	_assert_eq(phone_transform.get("intervals_semitones", []), [0.0, 3.0, -5.0, 2.0, 5.0], "phone packets should octave-fold the shared motif")
+	_assert_near(float(phone_transform.get("time_scale", 0.0)), 0.25, 0.001, "phone packets should compress the motif to quarter time")
+	_assert_eq(pollution_transform.get("intervals_semitones", []), [0.0, -3.0, -7.0, -2.0, -5.0], "pollution should invert the shared motif")
+	_assert_near(float(pollution_transform.get("time_scale", 0.0)), 0.65, 0.001, "pollution should distort the motif timing")
+
+	var adaptive_mix := metadata.get("adaptive_mix", {}) as Dictionary
+	_assert_true(bool(adaptive_mix.get("phase_aligned", false)), "metadata should retain the phase-aligned adaptive mix contract")
+	_assert_true(bool(adaptive_mix.get("independent_stems", false)), "metadata should retain independent adaptive stems")
+	var scenario_peaks := adaptive_mix.get("verified_scenario_peak_dbfs", {}) as Dictionary
+	_assert_eq(scenario_peaks.size(), 6, "all runtime mix extremes should have offline peak checks")
+	for scenario: String in scenario_peaks:
+		_assert_true(float(scenario_peaks[scenario]) <= -1.0, "%s adaptive mix should retain master headroom" % scenario)
+	var stems := metadata.get("stems", {}) as Dictionary
+	for stem_name: String in ["reality", "phone", "pollution"]:
+		var stem := stems.get(stem_name, {}) as Dictionary
+		var filename := str(stem.get("file", ""))
+		var audio_path := "res://assets/generated/audio/%s" % filename
+		_assert_true(FileAccess.file_exists(audio_path), "%s stem file should exist" % stem_name)
+		_assert_eq(FileAccess.get_sha256(audio_path), str(stem.get("sha256", "")), "%s stem should match deterministic metadata" % stem_name)
+		_assert_eq(int(stem.get("frames", 0)), 2_116_800, "%s stem should preserve exact phase alignment" % stem_name)
+		_assert_true(float(stem.get("peak_dbfs", 0.0)) <= -2.9, "%s stem should preserve master headroom" % stem_name)
+		_assert_true(int(stem.get("seam_delta_pcm", 99_999)) <= 1_400, "%s stem should remain pop-free at the loop boundary" % stem_name)
 
 
 func _assert_true(value: bool, message: String) -> void:

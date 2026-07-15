@@ -2,7 +2,7 @@
 
 ## Design intent
 
-The former shop-and-publish Arcana hand has been removed. Tarot now appears only after a tower ascent as a three-choice permanent reward. The shop sells only infrequent one-character meme frames.
+The former shop-and-publish Arcana hand has been removed. Tarot now appears only after a tower ascent as a three-choice permanent reward. The shop sells only infrequent single-unit Meme Frames; the unit is a Chinese character, a Japanese lexical unit, or an English word.
 
 The system keeps a readable signal-hand score at the center while moving long-term build decisions to ascent milestones. Tarot choices are permanent, cannot be purchased, and can form named combinations.
 

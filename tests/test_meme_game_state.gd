@@ -24,6 +24,7 @@ func _run() -> void:
 	test_social_follow_and_like_toggles_are_free_and_persistent()
 	test_world_items_are_free_one_shot_publish_modifiers()
 	test_pick_token_costs_action_and_adds_notebook_token()
+	test_japanese_pickup_preserves_complete_token()
 	test_meme_frame_offer_is_infrequent_and_purchase_costs_action()
 	test_single_character_craft_consumes_one_frame()
 	test_meme_fusion_combines_two_memes_and_boosts_score()
@@ -41,6 +42,12 @@ func _run() -> void:
 	test_typed_reality_reveals_one_character_and_spends_on_completion()
 	test_typed_reality_corruption_and_merchant_understanding_checks()
 	test_each_floor_npc_has_unique_dialogue_without_understanding_prompt()
+	test_each_npc_archetype_exposes_three_turn_conversation_arc()
+	test_extended_reality_dialogue_catalog_is_complete()
+	test_multi_turn_conversation_spends_one_action_and_rewards_on_pity()
+	test_npc_meme_frame_reward_chance_pity_and_daily_dedup()
+	test_merchant_keeps_trade_flow_and_never_rolls_npc_reward()
+	test_npc_reward_save_fields_are_backward_compatible()
 	test_communication_item_purchase_costs_action_and_has_limited_charges()
 	test_communication_item_only_consumes_to_rescue_failed_understanding()
 	test_reality_dialogue_leaves_irreversible_relationship_residue()
@@ -151,6 +158,19 @@ func test_pick_token_costs_action_and_adds_notebook_token() -> void:
 	_assert_eq(game.actions_remaining, 4, "picking a token should cost one action")
 	_assert_eq(game.notebook_tokens.size(), 1, "picked token should enter notebook")
 	_assert_eq(game.notebook_tokens[0]["text"], "哈", "every notebook pickup should be normalized to exactly one visible character")
+
+
+func test_japanese_pickup_preserves_complete_token() -> void:
+	var game: RefCounted = _state_script.new()
+	game.new_run()
+	_assert_true(game.pick_token("ja-existence", {
+		"id": "existence", "text": "  「存在」。 ", "content_locale": "ja", "tags": ["空位"], "rarity": 1,
+	}), "Japanese existence token should be pickable")
+	_assert_eq(str(game.notebook_tokens[0].get("text", "")), "存在", "Japanese pickup should preserve 存在 as one complete token")
+	_assert_true(game.pick_token("ja-elevator", {
+		"id": "elevator", "text": "『エレベーター』", "content_locale": "ja", "tags": ["巴别塔"], "rarity": 1,
+	}), "Japanese elevator token should be pickable")
+	_assert_eq(str(game.notebook_tokens[1].get("text", "")), "エレベーター", "Japanese pickup should preserve エレベーター as one complete token")
 
 
 func test_meme_frame_offer_is_infrequent_and_purchase_costs_action() -> void:
@@ -486,6 +506,173 @@ func test_each_floor_npc_has_unique_dialogue_without_understanding_prompt() -> v
 		game.advance_typed_reality_character()
 	_assert_eq(game.conversation_phase, "result", "a spoken answer should end in an authored reaction instead of an understanding retry loop")
 	_assert_true(not game.conversation_feedback.contains("听懂") and not game.conversation_feedback.contains("理解"), "reality feedback should never tell the player whether the NPC understood")
+	_assert_true(game.conversation_interrupted and not game.conversation_can_continue, "a failed exchange should use the authored interruption and stop the arc")
+	_assert_true(game.conversation_feedback.contains("谈话先驶远了"), "the interrupted arc should expose its authored world response")
+	_assert_true(game.npc_meme_frame_reward_attempt_keys.is_empty(), "an interrupted NPC conversation should not roll a Meme Frame reward")
+
+
+func test_each_npc_archetype_exposes_three_turn_conversation_arc() -> void:
+	var game: RefCounted = _state_script.new()
+	game.new_run()
+	game.tower_floor = 1
+	for npc_index in 5:
+		game.reset_typed_reality_conversation()
+		_assert_true(game.start_typed_reality_conversation("arc_npc%d" % npc_index, "npc", "NPC %d" % npc_index), "each NPC archetype should start its authored arc")
+		var progress: Dictionary = game.get_typed_reality_progress()
+		_assert_eq(int(progress.get("total_turns", 0)), 3, "each NPC archetype should have an opening and two follow-up exchanges")
+		_assert_true(not game.conversation_interrupt_line.is_empty(), "each NPC archetype should have an authored interruption")
+		for turn in game.conversation_turns:
+			_assert_true(not str(turn.get("line", "")).is_empty(), "every reality turn should have an NPC prompt")
+			_assert_true(not str(turn.get("result", "")).is_empty(), "every reality turn should have an authored response or ending")
+			_assert_eq((turn.get("choices", []) as Array).size(), 3, "every reality turn should offer three player responses")
+
+
+func test_extended_reality_dialogue_catalog_is_complete() -> void:
+	var catalog_script := load("res://scripts/localization/state_catalog.gd") as Script
+	_assert_true(catalog_script != null, "state localization catalog should load")
+	if catalog_script == null:
+		return
+	var catalog: RefCounted = catalog_script.new()
+	var en: Dictionary = catalog.entries("en")
+	var ja: Dictionary = catalog.entries("ja")
+	var game: RefCounted = _state_script.new()
+	game.new_run()
+	for npc_index in 5:
+		game.reset_typed_reality_conversation()
+		game.start_typed_reality_conversation("catalog_npc%d" % npc_index, "npc", "NPC")
+		var authored_values: Array[String] = [game.conversation_interrupt_line]
+		for turn in game.conversation_turns:
+			authored_values.append(str(turn.get("line", "")))
+			authored_values.append(str(turn.get("result", "")))
+			for choice in turn.get("choices", []):
+				authored_values.append(str(choice.get("summary", "")))
+				authored_values.append(str(choice.get("sentence", "")))
+		for source_text in authored_values:
+			_assert_true(en.has(source_text) and not str(en.get(source_text, "")).is_empty(), "extended NPC text should have an English catalog entry: %s" % source_text)
+			_assert_true(ja.has(source_text) and not str(ja.get(source_text, "")).is_empty(), "extended NPC text should have a Japanese catalog entry: %s" % source_text)
+	for reward_text in ["对方把一个梗框留在你手边。框沿没有商人的价签。", "保底", "概率命中", "现实交流奖励：获得一个梗框（%s）。"]:
+		_assert_true(en.has(reward_text) and ja.has(reward_text), "NPC reward feedback should be present in both translated catalogs: %s" % reward_text)
+
+
+func test_multi_turn_conversation_spends_one_action_and_rewards_on_pity() -> void:
+	var successful_actor_id := ""
+	for candidate_index in 200:
+		var probe: RefCounted = _state_script.new()
+		probe.new_run()
+		var candidate := "reward_probe_%d_npc0" % candidate_index
+		probe.start_typed_reality_conversation(candidate, "npc", "迟到者")
+		_complete_typed_reality_arc(probe)
+		if probe.conversation_completed:
+			successful_actor_id = candidate
+			break
+	_assert_true(not successful_actor_id.is_empty(), "test should find a deterministic NPC arc whose three responses all resolve")
+	if successful_actor_id.is_empty():
+		return
+
+	var game: RefCounted = _state_script.new()
+	game.new_run()
+	game.npc_meme_frame_reward_pity = 2
+	var actions_before: int = game.actions_remaining
+	var frames_before: int = game.owned_meme_frames
+	_assert_true(game.start_typed_reality_conversation(successful_actor_id, "npc", "迟到者"), "the selected successful NPC arc should start")
+	var final_result := _complete_typed_reality_arc(game)
+	_assert_true(game.conversation_completed, "three resolved exchanges should complete the whole NPC conversation")
+	_assert_eq(game.get_typed_reality_history().size(), 3, "completed NPC conversation should retain all three exchanges in history")
+	_assert_true(bool(final_result.get("conversation_completed", false)), "the final typing result should identify whole-conversation completion")
+	_assert_eq(game.actions_remaining, actions_before - 1, "all three exchanges plus reward should consume exactly one action")
+	_assert_eq(game.owned_meme_frames, frames_before + 1, "a pity-guaranteed completion should grant one Meme Frame")
+	var reward: Dictionary = game.get_last_npc_meme_frame_reward()
+	_assert_true(bool(reward.get("awarded", false)) and bool(reward.get("guaranteed", false)), "pity completion should expose a guaranteed awarded reward")
+	_assert_eq(int(game.get_typed_reality_progress().get("total_turns", 0)), 3, "completed progress should retain the total arc length")
+
+
+func test_npc_meme_frame_reward_chance_pity_and_daily_dedup() -> void:
+	var game: RefCounted = _state_script.new()
+	game.new_run()
+	var rules: Dictionary = game.get_npc_meme_frame_reward_rules()
+	_assert_eq(int(rules.get("chance_percent", 0)), 35, "NPC Meme Frame base chance should be explicit and stable")
+	_assert_eq(int(rules.get("pity_limit", 0)), 3, "the third eligible successful NPC conversation should be guaranteed")
+	_assert_eq(str(rules.get("dedup_scope", "")), "actor_per_day", "reward API should expose same-actor same-day deduplication")
+
+	var miss_actor_ids: Array[String] = []
+	var chance_actor_id := ""
+	for candidate_index in 500:
+		var candidate := "reward-roll-%d" % candidate_index
+		var roll: int = game._npc_meme_frame_reward_roll(candidate)
+		if roll >= 35 and miss_actor_ids.size() < 3:
+			miss_actor_ids.append(candidate)
+		elif roll < 35 and chance_actor_id.is_empty():
+			chance_actor_id = candidate
+		if miss_actor_ids.size() == 3 and not chance_actor_id.is_empty():
+			break
+	_assert_eq(miss_actor_ids.size(), 3, "test should find three deterministic non-winning reward rolls")
+	_assert_true(not chance_actor_id.is_empty(), "test should find a deterministic winning reward roll")
+	if miss_actor_ids.size() < 3 or chance_actor_id.is_empty():
+		return
+
+	var first: Dictionary = game._resolve_npc_meme_frame_reward(miss_actor_ids[0])
+	_assert_true(not bool(first.get("awarded", false)), "first non-winning roll should advance pity without a frame")
+	_assert_eq(game.npc_meme_frame_reward_pity, 1, "one eligible miss should create one pity progress")
+	var duplicate: Dictionary = game._resolve_npc_meme_frame_reward(miss_actor_ids[0])
+	_assert_true(bool(duplicate.get("duplicate", false)) and not bool(duplicate.get("eligible", true)), "same NPC on the same day should not create another reward roll")
+	_assert_eq(game.npc_meme_frame_reward_pity, 1, "a duplicate completion should not alter pity")
+	var second: Dictionary = game._resolve_npc_meme_frame_reward(miss_actor_ids[1])
+	_assert_true(not bool(second.get("awarded", false)), "second non-winning roll should still miss before the guarantee")
+	_assert_eq(game.npc_meme_frame_reward_pity, 2, "two eligible misses should leave the next success guaranteed")
+	var third: Dictionary = game._resolve_npc_meme_frame_reward(miss_actor_ids[2])
+	_assert_true(bool(third.get("awarded", false)) and bool(third.get("guaranteed", false)), "third eligible success should award despite its non-winning probability roll")
+	_assert_eq(game.npc_meme_frame_reward_pity, 0, "awarding a frame should reset pity")
+	_assert_eq(game.owned_meme_frames, 1, "pity sequence should award exactly one frame")
+	game.day = 2
+	var next_day: Dictionary = game._resolve_npc_meme_frame_reward(miss_actor_ids[0])
+	_assert_true(bool(next_day.get("eligible", false)) and not bool(next_day.get("duplicate", true)), "the same NPC should become eligible again on a later day")
+
+	var chance_game: RefCounted = _state_script.new()
+	chance_game.new_run()
+	var chance_reward: Dictionary = chance_game._resolve_npc_meme_frame_reward(chance_actor_id)
+	_assert_true(bool(chance_reward.get("awarded", false)) and not bool(chance_reward.get("guaranteed", false)), "a roll below 35 should award through base probability")
+	_assert_eq(str(chance_reward.get("reason", "")), "chance", "probability award should identify its reason")
+
+
+func test_merchant_keeps_trade_flow_and_never_rolls_npc_reward() -> void:
+	var game: RefCounted = _state_script.new()
+	game.new_run()
+	game.npc_meme_frame_reward_pity = 2
+	_assert_true(game.start_typed_reality_conversation("merchant-preserved", "merchant", "信号商人"), "merchant conversation should still start")
+	_assert_eq(int(game.get_typed_reality_progress().get("total_turns", 0)), 1, "merchant should retain its compact trade exchange")
+	var choices: Array = game.get_typed_reality_choices()
+	_assert_true(not choices.is_empty() and str(choices[0].get("id", "")) == "trade", "merchant should retain the authored trade choice")
+	game.select_typed_reality_choice("trade")
+	while game.conversation_phase == "typing":
+		game.advance_typed_reality_character()
+	_assert_true(game.should_show_merchant_communication_offer(), "merchant trade response should still expose the communication-item offer")
+	_assert_true(game.npc_meme_frame_reward_attempt_keys.is_empty(), "merchant conversation should never enter the ordinary NPC frame reward pool")
+	_assert_eq(game.owned_meme_frames, 0, "merchant dialogue itself should not grant the ordinary NPC completion reward")
+	_assert_eq(game.npc_meme_frame_reward_pity, 2, "merchant dialogue should not consume or reset ordinary NPC pity")
+
+
+func test_npc_reward_save_fields_are_backward_compatible() -> void:
+	var game: RefCounted = _state_script.new()
+	game.new_run()
+	game.npc_meme_frame_reward_pity = 2
+	game.npc_meme_frame_reward_attempt_keys.append("1|npc_saved")
+	game.last_npc_meme_frame_reward = {"awarded": false, "roll": 88}
+	var current_save: Dictionary = game.to_save_data()
+	var restored: RefCounted = _state_script.new()
+	_assert_true(restored.load_save_data(current_save), "current save should restore NPC reward state")
+	_assert_eq(restored.npc_meme_frame_reward_pity, 2, "current save should preserve pity progress")
+	_assert_eq(restored.npc_meme_frame_reward_attempt_keys, ["1|npc_saved"], "current save should preserve reward deduplication keys")
+
+	var old_save: Dictionary = current_save.duplicate(true)
+	var old_state: Dictionary = old_save.get("state", {})
+	old_state.erase("npc_meme_frame_reward_pity")
+	old_state.erase("npc_meme_frame_reward_attempt_keys")
+	old_state.erase("last_npc_meme_frame_reward")
+	var legacy_loaded: RefCounted = _state_script.new()
+	_assert_true(legacy_loaded.load_save_data(old_save), "version-one save without new reward fields should remain loadable")
+	_assert_eq(legacy_loaded.npc_meme_frame_reward_pity, 0, "older save should default to empty pity progress")
+	_assert_true(legacy_loaded.npc_meme_frame_reward_attempt_keys.is_empty(), "older save should default to no reward deduplication keys")
+	_assert_true(legacy_loaded.last_npc_meme_frame_reward.is_empty(), "older save should default to no last reward result")
 
 
 func test_communication_item_purchase_costs_action_and_has_limited_charges() -> void:
@@ -761,6 +948,24 @@ func test_twelve_day_catchup_guarantees_tower_ending() -> void:
 	_assert_eq(game.tower_floor, 5, "narrative catchup should guarantee reaching the top by the end of day twelve")
 	_assert_true(game.ending_unlocked, "day twelve catchup should unlock the tower ending")
 	_assert_eq(game.legacy_rules.size(), 4, "guaranteed ascent should still create one permanent legacy rule for every departed floor")
+
+
+func _complete_typed_reality_arc(game: RefCounted) -> Dictionary:
+	var final_result: Dictionary = {}
+	while game.conversation_phase == "choosing":
+		var choices: Array = game.get_typed_reality_choices()
+		if choices.is_empty():
+			return final_result
+		if not game.select_typed_reality_choice(str(choices[0].get("id", ""))):
+			return final_result
+		while game.conversation_phase == "typing":
+			final_result = game.advance_typed_reality_character()
+		if game.conversation_can_continue:
+			if not game.continue_typed_reality_conversation():
+				return final_result
+		else:
+			break
+	return final_result
 
 
 func _assert_true(value: bool, message: String) -> void:

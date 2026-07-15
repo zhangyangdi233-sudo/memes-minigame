@@ -45,6 +45,7 @@ func _test_catalog_coverage_and_dynamic_templates() -> void:
 	locale.set_locale("en")
 	_assert_eq(locale.translate("继续游戏"), "Continue", "English should translate static menu text")
 	_assert_eq(locale.translate("污染 47%"), "CORRUPTION 47%", "English should translate formatted HUD values")
+	_assert_eq(locale.translate("访客 000014  ·  最后更新 1998-13-05"), "VISITOR 000014  ·  LAST UPDATE 1998-13-05", "English should translate the zero-padded archive counter")
 	_assert_eq(locale.translate("关系残留 23 / 100  ·  仍能认出你"), "RELATIONSHIP RESIDUE 23 / 100  ·  They can still recognize you", "dynamic templates should recursively translate nested state labels")
 	for value in ui_en.values():
 		_assert_true(not locale.has_untranslated_han(str(value)), "English UI catalog values should not retain Han characters: %s" % str(value))
@@ -52,6 +53,7 @@ func _test_catalog_coverage_and_dynamic_templates() -> void:
 		_assert_true(not locale.has_untranslated_han(str(value)), "English state catalog values should not retain Han characters: %s" % str(value))
 	locale.set_locale("ja")
 	_assert_eq(locale.translate("继续游戏"), "つづきから", "Japanese should translate static menu text naturally")
+	_assert_eq(locale.translate("访客 000014  ·  最后更新 1998-13-05"), "訪問者 000014  ·  最終更新 1998-13-05", "Japanese should translate the zero-padded archive counter")
 	locale.set_locale("zh")
 	_assert_eq(locale.translate("继续游戏"), "继续游戏", "Chinese should remain the source language")
 
@@ -87,8 +89,11 @@ func _test_language_specific_pickup_units() -> void:
 	var locale = LocaleScript.new()
 	locale.set_locale("en")
 	_assert_eq(locale.first_pickable_unit("不存在的十三层"), "The", "English pickup should select a word rather than one Latin letter")
+	_assert_eq(locale.pickable_units("Don't lose the signal"), ["Don't", "lose", "the", "signal"], "English pickup should keep contractions and whole words")
 	locale.set_locale("ja")
-	_assert_eq(locale.first_pickable_unit("不存在的十三层"), "存", "Japanese pickup should select a visible character")
+	_assert_eq(locale.first_pickable_unit("不存在的十三层"), "存在", "Japanese pickup should select a lexical unit rather than one character")
+	_assert_eq(locale.pickable_units("存在しない13階"), ["存在", "しない", "13階"], "Japanese pickup should preserve kanji, kana, and numbered noun units")
+	_assert_eq(locale.pickable_units("最終エレベーター"), ["最終", "エレベーター"], "Japanese pickup should keep a full katakana loanword")
 
 	var game = StateScript.new()
 	game.new_run()

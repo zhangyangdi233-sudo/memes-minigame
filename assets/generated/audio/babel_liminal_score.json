@@ -1,6 +1,7 @@
 {
+  "format_version": 2,
   "title": "Babel Liminal Score",
-  "authoring": "Original deterministic synthesis; no samples, recordings, or extracted melodies",
+  "authoring": "Project-original deterministic synthesis; no samples, recordings, or extracted melodies",
   "license": "Project-owned original asset",
   "seed": 80199611,
   "bpm": 80,
@@ -8,36 +9,193 @@
   "duration_seconds": 96.0,
   "loop_begin": 0,
   "loop_end": 2116800,
+  "creative_direction": {
+    "reference_scope": "High-level mood and production traits only",
+    "traits": [
+      "hazy",
+      "empty",
+      "dreamlike",
+      "lost",
+      "uncanny",
+      "cold"
+    ]
+  },
+  "originality": {
+    "motif_origin": "Composed for this project from the interval and rhythm values declared in the generator",
+    "melody_transcribed": false,
+    "samples_used": false,
+    "recordings_used": false,
+    "third_party_audio_used": false,
+    "synthesis": "Mathematical oscillators, deterministic envelopes, FM, and seeded periodic noise"
+  },
+  "composition": {
+    "motif": {
+      "name": "cold_window_five",
+      "root_midi": 64,
+      "intervals_semitones": [
+        0,
+        3,
+        7,
+        2,
+        5
+      ],
+      "onsets_beats": [
+        0.0,
+        1.5,
+        2.25,
+        4.0,
+        6.5
+      ],
+      "durations_beats": [
+        1.1,
+        0.5,
+        1.25,
+        1.8,
+        1.0
+      ],
+      "reality_phrase_bars": [
+        1,
+        9,
+        17,
+        25
+      ],
+      "reality_variants": [
+        [
+          0,
+          3,
+          7,
+          2,
+          5
+        ],
+        [
+          0,
+          3,
+          7,
+          2,
+          4
+        ],
+        [
+          0,
+          3,
+          8,
+          2,
+          5
+        ],
+        [
+          0,
+          3,
+          7,
+          2,
+          5
+        ]
+      ]
+    },
+    "harmony": {
+      "field_bars": 4,
+      "fields": [
+        "E5(add9)",
+        "Cmaj7/E",
+        "G6",
+        "Dsus2(b6)",
+        "Em7(no3)",
+        "Am(add9)",
+        "Cmaj7(#11)",
+        "B7sus4(b5)"
+      ],
+      "variation_plan": [
+        "single-line statement",
+        "lower-fifth shadow ending",
+        "raised-apex upper-third bloom",
+        "octave-memory return"
+      ]
+    },
+    "transformations": {
+      "reality": {
+        "intervals_semitones": [
+          0,
+          3,
+          7,
+          2,
+          5
+        ],
+        "method": "slow glass-tone statements with changing harmony voices",
+        "time_scale": 1.0
+      },
+      "phone": {
+        "intervals_semitones": [
+          0,
+          3,
+          -5,
+          2,
+          5
+        ],
+        "method": "octave-folded quarter-time FM packet fragmentation",
+        "time_scale": 0.25
+      },
+      "pollution": {
+        "intervals_semitones": [
+          0,
+          -3,
+          -7,
+          -2,
+          -5
+        ],
+        "method": "interval inversion, lower-register displacement, and half-bar offset",
+        "time_scale": 0.65
+      }
+    }
+  },
+  "adaptive_mix": {
+    "phase_aligned": true,
+    "independent_stems": true,
+    "shared_start_frame": 0,
+    "shared_end_frame": 2116800,
+    "master_peak_dbfs": -3.0,
+    "verified_scenario_peak_dbfs": {
+      "phone_default": -10.508,
+      "reality_default": -12.971,
+      "reality_intimate": -10.0,
+      "phone_max_pollution": -4.62,
+      "reality_max_pollution": -5.609,
+      "intimate_max_pollution": -4.974
+    }
+  },
   "stems": {
     "reality": {
       "file": "babel_reality_liminal.wav",
-      "sha256": "85bd9b9534382a6c7894815baf86f61361db1ba57ccdbaa32247ff33c28037d1",
+      "sha256": "39b5bc85c5c62c77af894ce471ff29d5602ab956e48b21064f364d55b6e8071a",
       "frames": 2116800,
       "sample_rate": 22050,
       "channels": 2,
-      "seam_delta_pcm": 954,
+      "seam_delta_pcm": 621,
+      "seam_reference_pcm": 1650,
+      "seam_delta_ratio": 0.376,
       "peak_dbfs": -3.0,
-      "rms_dbfs": -14.171
+      "rms_dbfs": -16.251
     },
     "phone": {
       "file": "babel_phone_signal.wav",
-      "sha256": "e361ea4b487e2ea0ef15a8d970a245429cdbf7fb9cb7fad69192cf6a7b04f698",
+      "sha256": "be1e497be9cc9131ae1e261c3494e2fcf310e01393c2dfdf3a81b07851c87de3",
       "frames": 2116800,
       "sample_rate": 22050,
       "channels": 2,
-      "seam_delta_pcm": 411,
+      "seam_delta_pcm": 433,
+      "seam_reference_pcm": 12949,
+      "seam_delta_ratio": 0.033,
       "peak_dbfs": -3.0,
-      "rms_dbfs": -21.184
+      "rms_dbfs": -22.515
     },
     "pollution": {
       "file": "babel_pollution_rot.wav",
-      "sha256": "783a08eff0b9991fcf359dd44729d8ea32b4a5f8c093c5e02ea86122cdc6764d",
+      "sha256": "fdbc86759e9173c7b16e595c9326a9e9bfef676fac6cbc4c63fc2556cccb6b42",
       "frames": 2116800,
       "sample_rate": 22050,
       "channels": 2,
-      "seam_delta_pcm": 306,
+      "seam_delta_pcm": 245,
+      "seam_reference_pcm": 3506,
+      "seam_delta_ratio": 0.07,
       "peak_dbfs": -3.0,
-      "rms_dbfs": -23.7
+      "rms_dbfs": -20.567
     }
   }
 }
