@@ -177,11 +177,11 @@ func _run() -> void:
 		var social_search_bar := _find_node_by_name(root, "SocialSearchBar") as PanelContainer
 		var social_refresh_button := _find_node_by_name(root, "SocialRefreshButton") as Button
 		var social_channel_tabs := _find_node_by_name(root, "SocialChannelTabs") as HBoxContainer
-		var social_channel_tab_discover := _find_node_by_name(root, "SocialChannelTab发现") as Button
-		var social_channel_tab_tower := _find_node_by_name(root, "SocialChannelTab塔下") as Button
-		var social_channel_tab_follow := _find_node_by_name(root, "SocialChannelTab关注") as Button
-		var social_channel_tab_nearby := _find_node_by_name(root, "SocialChannelTab附近") as Button
-		var social_channel_tab_underline_discover := _find_node_by_name(root, "SocialChannelTabUnderline发现") as ColorRect
+		var social_channel_tab_discover := _find_node_by_name(root, "SocialChannelTabdiscover") as Button
+		var social_channel_tab_tower := _find_node_by_name(root, "SocialChannelTabtower_base") as Button
+		var social_channel_tab_follow := _find_node_by_name(root, "SocialChannelTabfollowing") as Button
+		var social_channel_tab_nearby := _find_node_by_name(root, "SocialChannelTabnearby") as Button
+		var social_channel_tab_underline_discover := _find_node_by_name(root, "SocialChannelTabUnderlinediscover") as ColorRect
 		var social_home_page := _find_node_by_name(root, "SocialHomePage") as VBoxContainer
 		var social_feed_scroll := _find_node_by_name(root, "SocialFeedScroll") as ScrollContainer
 		var social_feed_masonry := _find_node_by_name(root, "SocialFeedMasonry") as HBoxContainer
@@ -393,11 +393,11 @@ func _run() -> void:
 					social_search_bar = _find_node_by_name(root, "SocialSearchBar") as PanelContainer
 					social_refresh_button = _find_node_by_name(root, "SocialRefreshButton") as Button
 					social_channel_tabs = _find_node_by_name(root, "SocialChannelTabs") as HBoxContainer
-					social_channel_tab_discover = _find_node_by_name(root, "SocialChannelTab发现") as Button
-					social_channel_tab_tower = _find_node_by_name(root, "SocialChannelTab塔下") as Button
-					social_channel_tab_follow = _find_node_by_name(root, "SocialChannelTab关注") as Button
-					social_channel_tab_nearby = _find_node_by_name(root, "SocialChannelTab附近") as Button
-					social_channel_tab_underline_discover = _find_node_by_name(root, "SocialChannelTabUnderline发现") as ColorRect
+					social_channel_tab_discover = _find_node_by_name(root, "SocialChannelTabdiscover") as Button
+					social_channel_tab_tower = _find_node_by_name(root, "SocialChannelTabtower_base") as Button
+					social_channel_tab_follow = _find_node_by_name(root, "SocialChannelTabfollowing") as Button
+					social_channel_tab_nearby = _find_node_by_name(root, "SocialChannelTabnearby") as Button
+					social_channel_tab_underline_discover = _find_node_by_name(root, "SocialChannelTabUnderlinediscover") as ColorRect
 					social_home_page = _find_node_by_name(root, "SocialHomePage") as VBoxContainer
 					social_feed_scroll = _find_node_by_name(root, "SocialFeedScroll") as ScrollContainer
 					social_feed_masonry = _find_node_by_name(root, "SocialFeedMasonry") as HBoxContainer
@@ -488,11 +488,11 @@ func _run() -> void:
 			social_search_bar = _find_node_by_name(root, "SocialSearchBar") as PanelContainer
 			social_refresh_button = _find_node_by_name(root, "SocialRefreshButton") as Button
 			social_channel_tabs = _find_node_by_name(root, "SocialChannelTabs") as HBoxContainer
-			social_channel_tab_discover = _find_node_by_name(root, "SocialChannelTab发现") as Button
-			social_channel_tab_tower = _find_node_by_name(root, "SocialChannelTab塔下") as Button
-			social_channel_tab_follow = _find_node_by_name(root, "SocialChannelTab关注") as Button
-			social_channel_tab_nearby = _find_node_by_name(root, "SocialChannelTab附近") as Button
-			social_channel_tab_underline_discover = _find_node_by_name(root, "SocialChannelTabUnderline发现") as ColorRect
+			social_channel_tab_discover = _find_node_by_name(root, "SocialChannelTabdiscover") as Button
+			social_channel_tab_tower = _find_node_by_name(root, "SocialChannelTabtower_base") as Button
+			social_channel_tab_follow = _find_node_by_name(root, "SocialChannelTabfollowing") as Button
+			social_channel_tab_nearby = _find_node_by_name(root, "SocialChannelTabnearby") as Button
+			social_channel_tab_underline_discover = _find_node_by_name(root, "SocialChannelTabUnderlinediscover") as ColorRect
 			social_home_page = _find_node_by_name(root, "SocialHomePage") as VBoxContainer
 			social_feed_scroll = _find_node_by_name(root, "SocialFeedScroll") as ScrollContainer
 			social_feed_masonry = _find_node_by_name(root, "SocialFeedMasonry") as HBoxContainer
@@ -612,7 +612,7 @@ func _run() -> void:
 				_assert_true(tower_detail_window != null and tower_detail_window.visible, "pressing Tower should open the reference-style companion window")
 				if tower_detail_page != null and tower_detail_window != null:
 					_assert_true(_is_descendant_of(tower_detail_page, tower_detail_window), "Tower page should live inside its independent companion window")
-				var discover_after_tower := _find_node_by_name(root, "SocialChannelTab发现") as Button
+				var discover_after_tower := _find_node_by_name(root, "SocialChannelTabdiscover") as Button
 				if discover_after_tower != null:
 					discover_after_tower.pressed.emit()
 			if social_post_card != null:
@@ -846,19 +846,19 @@ func _run() -> void:
 				_assert_true(false, "scene should expose a post open fallback after returning from profile")
 		if root.has_method("_social_post_for_index"):
 			var social_actions_before: int = root.game.actions_remaining
-			var follow_tab_initial := _find_node_by_name(root, "SocialChannelTab关注") as Button
+			var follow_tab_initial := _find_node_by_name(root, "SocialChannelTabfollowing") as Button
 			if follow_tab_initial != null:
 				follow_tab_initial.pressed.emit()
 			var following_empty := _find_node_by_name(root, "SocialFollowingEmptyState") as PanelContainer
 			var following_feed_empty := _find_node_by_name(root, "SocialFeedMasonry") as HBoxContainer
 			_assert_true(following_empty != null, "Follow should begin with an explicit empty state")
 			_assert_true(following_feed_empty == null, "Follow should not show discovery posts before the player follows anyone")
-			var discover_for_engagement := _find_node_by_name(root, "SocialChannelTab发现") as Button
+			var discover_for_engagement := _find_node_by_name(root, "SocialChannelTabdiscover") as Button
 			if discover_for_engagement != null:
 				discover_for_engagement.pressed.emit()
 			var post_zero: Dictionary = root._social_post_for_index(0)
 			var post_zero_id := str(post_zero.get("id", ""))
-			var post_zero_handle := str(post_zero.get("handle", ""))
+			var post_zero_author_id := str(post_zero.get("id", ""))
 			var like_button := _find_node_by_name(root, "SocialPostLikeButton0") as Button
 			var follow_button := _find_node_by_name(root, "SocialPostFollowButton0") as Button
 			_assert_true(like_button != null and like_button.custom_minimum_size.y >= 44.0, "feed cards should expose touch-sized like buttons")
@@ -871,15 +871,15 @@ func _run() -> void:
 			follow_button = _find_node_by_name(root, "SocialPostFollowButton0") as Button
 			if follow_button != null:
 				follow_button.pressed.emit()
-			_assert_true(root.game.is_social_following(post_zero_handle), "following from Discover should persist the account")
-			var follow_tab_after_follow := _find_node_by_name(root, "SocialChannelTab关注") as Button
+			_assert_true(root.game.is_social_following(post_zero_author_id), "following from Discover should persist the stable author ID")
+			var follow_tab_after_follow := _find_node_by_name(root, "SocialChannelTabfollowing") as Button
 			if follow_tab_after_follow != null:
 				follow_tab_after_follow.pressed.emit()
 			var following_feed := _find_node_by_name(root, "SocialFeedMasonry") as HBoxContainer
 			_assert_true(_find_node_by_name(root, "SocialFollowingEmptyState") == null, "Follow empty state should disappear after following an account")
 			_assert_true(following_feed != null, "Follow should render a masonry feed after an account is followed")
 			_assert_eq(_count_nodes_named_prefix(root, "SocialPostCard"), 1, "Follow should contain only posts from followed accounts")
-			var nearby_tab := _find_node_by_name(root, "SocialChannelTab附近") as Button
+			var nearby_tab := _find_node_by_name(root, "SocialChannelTabnearby") as Button
 			if nearby_tab != null:
 				nearby_tab.pressed.emit()
 			var nearby_unavailable := _find_node_by_name(root, "SocialNearbyUnavailable") as PanelContainer
@@ -887,7 +887,7 @@ func _run() -> void:
 			_assert_true(nearby_unavailable != null, "Nearby should show an unavailable-location state")
 			_assert_true(nearby_message != null and str(nearby_message.text).contains("无法"), "Nearby unavailable state should explain that location cannot be obtained")
 			_assert_true(_find_node_by_name(root, "SocialFeedMasonry") == null, "Nearby should not leak discovery posts behind the location error")
-			var discover_after_nearby := _find_node_by_name(root, "SocialChannelTab发现") as Button
+			var discover_after_nearby := _find_node_by_name(root, "SocialChannelTabdiscover") as Button
 			if discover_after_nearby != null:
 				discover_after_nearby.pressed.emit()
 			_assert_true(_find_node_by_name(root, "SocialFeedMasonry") != null, "Discover should restore the full masonry feed after leaving Nearby")

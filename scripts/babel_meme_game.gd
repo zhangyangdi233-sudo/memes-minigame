@@ -1,6 +1,7 @@
 extends Node3D
 
 const MemeGameStateScript = preload("res://scripts/meme_game_state.gd")
+const GameLocaleScript = preload("res://scripts/localization/game_locale.gd")
 const DraggableButtonScript = preload("res://scripts/ui/draggable_button.gd")
 const DropButtonScript = preload("res://scripts/ui/drop_button.gd")
 const RadialMemeRingScript = preload("res://scripts/ui/radial_meme_ring.gd")
@@ -70,6 +71,12 @@ const HUD_RAIL_MAX_HEIGHT := 700.0
 const HUD_RAIL_FRAME_MARGIN := 10.0
 const SAVE_PATH := "user://babel_meme_save.dat"
 const SAVE_FILE_VERSION := 1
+const SOCIAL_CHANNELS := [
+	{"id": "following", "label": "关注"},
+	{"id": "discover", "label": "发现"},
+	{"id": "tower_base", "label": "塔下"},
+	{"id": "nearby", "label": "附近"},
+]
 const SOCIAL_POST_CARDS := [
 	{
 		"id": "floor_13", "poster_cell": 0, "caption": "旧教学楼昨晚多出一层", "handle": "塔下施工档案",
@@ -281,6 +288,7 @@ const DAY_PLANS := [
 ]
 
 var game: MemeGameState = MemeGameStateScript.new()
+var _locale = GameLocaleScript.new()
 var selected_token_id := ""
 var selected_meme_id := ""
 var log_text := ""
@@ -335,6 +343,10 @@ var _settings_window: PanelContainer
 var _settings_content: VBoxContainer
 var _volume_slider: HSlider
 var _vhs_toggle: CheckButton
+var _settings_language_option: OptionButton
+var _settings_save_status: Label
+var _language_overlay: Control
+var _language_overlay_first_run := false
 var _view_toggle_button: Button
 var _vhs_overlay: Control
 var _vhs_scanlines: Array[ColorRect] = []
@@ -401,7 +413,7 @@ var _phone_launcher_open := true
 var _meme_bank_layout_mode := ""
 var _open_app_windows: Dictionary = {}
 var _social_screen := "home"
-var _social_channel := "发现"
+var _social_channel := "discover"
 var _social_detail_post_index := 0
 var _social_detail_open := false
 var _notebook_crafting_tab := "frame"
@@ -421,7 +433,13 @@ var _save_path := SAVE_PATH
 
 
 func _ready() -> void:
+	var preferences := _locale.load_preferences(_master_volume, _vhs_enabled)
+	_master_volume = float(preferences.get("master_volume", _master_volume))
+	_vhs_enabled = bool(preferences.get("vhs_enabled", _vhs_enabled))
+	_apply_master_volume()
 	show_main_menu()
+	if not _locale.language_selected:
+		_build_language_selection_overlay(true)
 
 
 func _process(delta: float) -> void:
@@ -575,6 +593,7 @@ func _begin_game_session(session_state: MemeGameState, world_data: Dictionary, s
 	_settings_open = false
 	_phone_art_alpha = 1.0
 	game = session_state
+	_migrate_social_author_ids()
 	selected_token_id = ""
 	selected_meme_id = ""
 	_meme_bank_open = false
@@ -585,7 +604,7 @@ func _begin_game_session(session_state: MemeGameState, world_data: Dictionary, s
 	if not game.active_app_window.is_empty():
 		_open_app_windows[game.active_app_window] = true
 	_social_screen = "home"
-	_social_channel = "发现"
+	_social_channel = "discover"
 	_social_detail_post_index = 0
 	_social_detail_open = false
 	_notebook_crafting_tab = "frame"
@@ -624,6 +643,7 @@ func show_main_menu() -> void:
 		if _reality_interaction_active:
 			_exit_reality_interaction(false)
 		_save_progress()
+	_locale.save_preferences(_master_volume, _vhs_enabled)
 	_game_started = false
 	_settings_open = false
 	_input_locked = false
@@ -693,8 +713,35 @@ func _restore_saved_world(world_data: Dictionary) -> void:
 	_reality_yaw = wrapf(float(world_data.get("yaw", 0.0)), -180.0, 180.0)
 	_reality_pitch = clampf(float(world_data.get("pitch", 0.0)), -68.0, 72.0)
 	_social_screen = str(world_data.get("social_screen", "home"))
-	_social_channel = str(world_data.get("social_channel", "发现"))
+	_social_channel = _normalize_social_channel(str(world_data.get("social_channel", "discover")))
 	_social_detail_post_index = clampi(int(world_data.get("social_detail_post_index", 0)), 0, maxi(0, SOCIAL_POST_CARDS.size() - 1))
+
+
+func _normalize_social_channel(channel: String) -> String:
+	var legacy_channels := {
+		"关注": "following",
+		"发现": "discover",
+		"塔下": "tower_base",
+		"附近": "nearby",
+	}
+	var normalized := str(legacy_channels.get(channel, channel))
+	for channel_data in SOCIAL_CHANNELS:
+		if str(channel_data.get("id", "")) == normalized:
+			return normalized
+	return "discover"
+
+
+func _migrate_social_author_ids() -> void:
+	var migrated: Array[String] = []
+	for stored_author in game.social_followed_handles:
+		var stable_id := str(stored_author)
+		for post in SOCIAL_POST_CARDS:
+			if str(post.get("handle", "")) == stable_id:
+				stable_id = str(post.get("id", stable_id))
+				break
+		if stable_id not in migrated:
+			migrated.append(stable_id)
+	game.social_followed_handles = migrated
 
 
 func set_view_state(value: String) -> void:
@@ -1017,10 +1064,11 @@ func _try_reality_interaction() -> bool:
 	_active_reality_actor = _nearby_reality_actor
 	var actor_id := str(_active_reality_actor.get_meta("actor_id", "actor"))
 	var actor_type := str(_active_reality_actor.get_meta("actor_type", "npc"))
-	var actor_label := str(_active_reality_actor.get_meta("display_name", "对方"))
+	var actor_label := _locale.translate(str(_active_reality_actor.get_meta("display_name", "对方")))
 	if not game.start_typed_reality_conversation(actor_id, actor_type, actor_label):
 		_active_reality_actor = null
 		return false
+	_localize_active_conversation()
 	var actor_direction: Vector3 = _active_reality_actor.position - _reality_player.position
 	if actor_direction.length_squared() > 0.001:
 		_reality_yaw = rad_to_deg(atan2(-actor_direction.x, -actor_direction.z))
@@ -1032,6 +1080,23 @@ func _try_reality_interaction() -> bool:
 	_render()
 	_sync_audio_state(false)
 	return true
+
+
+func _localize_active_conversation() -> void:
+	game.conversation_actor_label = _locale.translate(game.conversation_actor_label)
+	game.conversation_prompt = _locale.translate(game.conversation_prompt)
+	game.conversation_result_line = _locale.translate(game.conversation_result_line)
+	var localized_choices: Array = []
+	for choice in game.conversation_choices:
+		var localized_choice: Dictionary = (choice as Dictionary).duplicate(true)
+		localized_choice["summary"] = _locale.translate(str(localized_choice.get("summary", "")))
+		localized_choice["sentence"] = _locale.translate(str(localized_choice.get("sentence", "")))
+		localized_choices.append(localized_choice)
+	game.conversation_choices = localized_choices
+	var legacy_texts: Array[String] = []
+	for rule in game.legacy_rules:
+		legacy_texts.append(_locale.translate(str(rule.get("required_text", ""))))
+	game.configure_conversation_locale(_locale.current_locale, legacy_texts)
 
 
 func _collect_nearby_reality_item() -> bool:
@@ -1072,8 +1137,8 @@ func _exit_reality_interaction(should_render: bool = true) -> void:
 
 func _active_actor_display_name() -> String:
 	if _active_reality_actor == null:
-		return "对方"
-	return str(_active_reality_actor.get_meta("display_name", "对方"))
+		return _locale.translate("对方")
+	return _locale.translate(str(_active_reality_actor.get_meta("display_name", "对方")))
 
 
 func _build_audio_players() -> void:
@@ -1276,6 +1341,13 @@ func _build_main_menu() -> void:
 	exit_button.pressed.connect(_quit_game)
 	buttons.add_child(exit_button)
 
+	var language_button := Button.new()
+	language_button.name = "MainMenuLanguageButton"
+	language_button.text = "语言"
+	language_button.custom_minimum_size = Vector2(132, 54)
+	language_button.pressed.connect(_build_language_selection_overlay.bind(false))
+	buttons.add_child(language_button)
+
 	var mark := Control.new()
 	mark.name = "MainMenuCornerMark"
 	mark.set_anchors_preset(Control.PRESET_BOTTOM_RIGHT)
@@ -1311,6 +1383,96 @@ func _build_main_menu() -> void:
 		mark.add_child(base)
 
 	_apply_ui_theme()
+	_refresh_localized_ui()
+
+
+func _build_language_selection_overlay(first_run: bool = false) -> void:
+	if _ui_root == null:
+		return
+	if _language_overlay != null and is_instance_valid(_language_overlay):
+		_language_overlay.queue_free()
+	_language_overlay_first_run = first_run
+	_language_overlay = Control.new()
+	_language_overlay.name = "LanguageSelectionOverlay"
+	_language_overlay.set_anchors_preset(Control.PRESET_FULL_RECT)
+	_language_overlay.z_index = 190
+	_ui_root.add_child(_language_overlay)
+
+	var blackout := ColorRect.new()
+	blackout.name = "LanguageSelectionBackdrop"
+	blackout.color = Color(_theme_color("ink"), 0.92)
+	blackout.set_anchors_preset(Control.PRESET_FULL_RECT)
+	_language_overlay.add_child(blackout)
+
+	var center := CenterContainer.new()
+	center.set_anchors_preset(Control.PRESET_FULL_RECT)
+	_language_overlay.add_child(center)
+	var panel := PanelContainer.new()
+	panel.name = "LanguageSelectionPanel"
+	panel.custom_minimum_size = Vector2(620, 390)
+	panel.add_theme_stylebox_override("panel", _soft_style(_theme_color("surface"), _theme_color("accent")))
+	center.add_child(panel)
+	var box := VBoxContainer.new()
+	box.add_theme_constant_override("separation", 18)
+	panel.add_child(box)
+
+	var eyebrow := Label.new()
+	eyebrow.text = "BABEL PHONE  /  LANGUAGE"
+	eyebrow.add_theme_font_size_override("font_size", 15)
+	eyebrow.add_theme_color_override("font_color", _theme_color("accent"))
+	box.add_child(eyebrow)
+	var title := Label.new()
+	title.name = "LanguageSelectionTitle"
+	title.text = "选择语言  /  言語を選択  /  CHOOSE LANGUAGE"
+	title.add_theme_font_size_override("font_size", 27)
+	title.add_theme_color_override("font_color", _theme_color("ink"))
+	title.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
+	box.add_child(title)
+	var rule := HSeparator.new()
+	box.add_child(rule)
+
+	var choices := VBoxContainer.new()
+	choices.name = "LanguageSelectionChoices"
+	choices.add_theme_constant_override("separation", 10)
+	box.add_child(choices)
+	for locale_code in GameLocaleScript.SUPPORTED_LOCALES:
+		var choice := Button.new()
+		choice.name = "LanguageChoice%s" % str(locale_code).to_upper()
+		choice.text = _locale.native_language_name(str(locale_code))
+		choice.custom_minimum_size = Vector2(500, 58)
+		choice.set_meta("skip_localization", true)
+		choice.pressed.connect(_on_language_selected.bind(str(locale_code)))
+		choices.add_child(choice)
+
+	if not first_run:
+		var cancel := Button.new()
+		cancel.name = "LanguageSelectionCancel"
+		cancel.text = "返回"
+		cancel.custom_minimum_size.y = 50
+		cancel.pressed.connect(_close_language_selection_overlay)
+		box.add_child(cancel)
+	_refresh_localized_ui()
+
+
+func _on_language_selected(locale_code: String) -> void:
+	if not _locale.select_language(locale_code):
+		return
+	_locale.save_preferences(_master_volume, _vhs_enabled)
+	_close_language_selection_overlay()
+	if _game_started:
+		_render()
+	else:
+		_build_main_menu()
+	_refresh_localized_ui()
+
+
+func _close_language_selection_overlay() -> void:
+	if _language_overlay_first_run and not _locale.language_selected:
+		return
+	if _language_overlay != null and is_instance_valid(_language_overlay):
+		_language_overlay.queue_free()
+	_language_overlay = null
+	_language_overlay_first_run = false
 
 
 func _build_ui() -> void:
@@ -2036,9 +2198,9 @@ func _build_settings_window() -> void:
 	_settings_window.name = "SettingsWindow"
 	_settings_window.set_anchors_preset(Control.PRESET_TOP_LEFT)
 	_settings_window.offset_left = 180
-	_settings_window.offset_top = 410
-	_settings_window.offset_right = 500
-	_settings_window.offset_bottom = 664
+	_settings_window.offset_top = 330
+	_settings_window.offset_right = 550
+	_settings_window.offset_bottom = 770
 	_settings_window.z_index = 30
 	_settings_window.visible = false
 	_ui_root.add_child(_settings_window)
@@ -2087,6 +2249,30 @@ func _build_settings_window() -> void:
 	_vhs_toggle.toggled.connect(_on_vhs_toggled)
 	_settings_content.add_child(_vhs_toggle)
 
+	var language_label := _label("语言", 17, _theme_color("ink"))
+	_settings_content.add_child(language_label)
+	_settings_language_option = OptionButton.new()
+	_settings_language_option.name = "SettingsLanguageOption"
+	_settings_language_option.set_meta("skip_localization", true)
+	_settings_language_option.custom_minimum_size = Vector2(300, 50)
+	for locale_code in GameLocaleScript.SUPPORTED_LOCALES:
+		_settings_language_option.add_item(_locale.native_language_name(str(locale_code)))
+		_settings_language_option.set_item_metadata(_settings_language_option.item_count - 1, locale_code)
+		if str(locale_code) == _locale.current_locale:
+			_settings_language_option.select(_settings_language_option.item_count - 1)
+	_settings_language_option.item_selected.connect(_on_settings_language_selected)
+	_settings_content.add_child(_settings_language_option)
+
+	var manual_save_button := Button.new()
+	manual_save_button.name = "SettingsManualSaveButton"
+	manual_save_button.text = "手动保存"
+	manual_save_button.custom_minimum_size.y = 50
+	manual_save_button.pressed.connect(_on_manual_save_pressed)
+	_settings_content.add_child(manual_save_button)
+	_settings_save_status = _label("", 14, _theme_color("accent"))
+	_settings_save_status.name = "SettingsSaveStatus"
+	_settings_content.add_child(_settings_save_status)
+
 	var main_menu_button := Button.new()
 	main_menu_button.name = "SettingsReturnMainButton"
 	main_menu_button.text = "退回主画面"
@@ -2113,9 +2299,34 @@ func _close_settings_window() -> void:
 
 func _on_volume_changed(value: float) -> void:
 	_master_volume = value
+	_apply_master_volume()
+
+
+func _apply_master_volume() -> void:
 	var bus := AudioServer.get_bus_index("Master")
 	if bus >= 0:
-		AudioServer.set_bus_volume_db(bus, linear_to_db(maxf(0.001, value / 100.0)))
+		AudioServer.set_bus_volume_db(bus, linear_to_db(maxf(0.001, _master_volume / 100.0)))
+
+
+func _on_settings_language_selected(index: int) -> void:
+	if _settings_language_option == null or index < 0 or index >= _settings_language_option.item_count:
+		return
+	var locale_code := str(_settings_language_option.get_item_metadata(index))
+	if _reality_interaction_active:
+		_exit_reality_interaction(false)
+	if not _locale.select_language(locale_code):
+		return
+	_locale.save_preferences(_master_volume, _vhs_enabled)
+	_render()
+	_refresh_localized_ui()
+
+
+func _on_manual_save_pressed() -> void:
+	var progress_saved := _save_progress()
+	var preferences_saved := _locale.save_preferences(_master_volume, _vhs_enabled)
+	if _settings_save_status != null:
+		_settings_save_status.text = "已保存当前进度与设置。" if progress_saved and preferences_saved else "保存失败，请检查本地写入权限。"
+	_refresh_localized_ui()
 
 
 func _on_return_main_menu_pressed() -> void:
@@ -2131,6 +2342,7 @@ func _on_vhs_toggled(value: bool) -> void:
 func _quit_game() -> void:
 	if _game_started:
 		_save_progress()
+	_locale.save_preferences(_master_volume, _vhs_enabled)
 	get_tree().quit()
 
 
@@ -2435,6 +2647,7 @@ func _apply_responsive_layouts_if_needed(force: bool = false) -> void:
 func _render() -> void:
 	if game.ending_unlocked:
 		_render_ending()
+		_refresh_localized_ui()
 		return
 	_ensure_reality_floor_current()
 	_render_status()
@@ -2446,6 +2659,7 @@ func _render() -> void:
 	_update_visibility()
 	_apply_world_theme()
 	_apply_ui_theme()
+	_refresh_localized_ui()
 
 
 func _render_status() -> void:
@@ -2627,25 +2841,27 @@ func _render_social_app() -> void:
 	channel_tabs.custom_minimum_size.y = 48
 	channel_tabs.add_theme_constant_override("separation", 2)
 	phone_box.add_child(channel_tabs)
-	for tab_text in ["关注", "发现", "塔下", "附近"]:
+	for channel_data in SOCIAL_CHANNELS:
+		var channel_id := str(channel_data.get("id", "discover"))
+		var tab_text := str(channel_data.get("label", ""))
 		var tab_item := VBoxContainer.new()
-		tab_item.name = "SocialChannelTabItem%s" % tab_text
+		tab_item.name = "SocialChannelTabItem%s" % channel_id
 		tab_item.size_flags_horizontal = Control.SIZE_EXPAND_FILL
 		tab_item.add_theme_constant_override("separation", 0)
 		channel_tabs.add_child(tab_item)
 		var tab := Button.new()
-		tab.name = "SocialChannelTab%s" % tab_text
+		tab.name = "SocialChannelTab%s" % channel_id
 		tab.text = tab_text
 		tab.set_meta("flat_phone_button", true)
 		tab.custom_minimum_size = Vector2(88, 48)
 		tab.size_flags_horizontal = Control.SIZE_EXPAND_FILL
-		tab.pressed.connect(_on_social_channel_pressed.bind(tab_text))
+		tab.pressed.connect(_on_social_channel_pressed.bind(channel_id))
 		tab_item.add_child(tab)
 		var underline := ColorRect.new()
-		underline.name = "SocialChannelTabUnderline%s" % tab_text
+		underline.name = "SocialChannelTabUnderline%s" % channel_id
 		underline.color = _theme_color("muted")
 		underline.custom_minimum_size.y = 3
-		underline.visible = tab_text == _social_channel
+		underline.visible = channel_id == _social_channel
 		tab_item.add_child(underline)
 
 	var page_host := VBoxContainer.new()
@@ -2674,7 +2890,7 @@ func _render_social_home_page(parent: VBoxContainer) -> void:
 	home_page.size_flags_vertical = Control.SIZE_EXPAND_FILL
 	home_page.add_theme_constant_override("separation", 0)
 	parent.add_child(home_page)
-	if _social_channel == "附近":
+	if _social_channel == "nearby":
 		_render_social_channel_empty_state(
 			home_page,
 			"SocialNearbyUnavailable",
@@ -2684,7 +2900,7 @@ func _render_social_home_page(parent: VBoxContainer) -> void:
 		return
 
 	var visible_post_indices := _social_visible_post_indices()
-	if _social_channel == "关注" and visible_post_indices.is_empty():
+	if _social_channel == "following" and visible_post_indices.is_empty():
 		_render_social_channel_empty_state(
 			home_page,
 			"SocialFollowingEmptyState",
@@ -2754,10 +2970,10 @@ func _render_social_home_page(parent: VBoxContainer) -> void:
 		meta_row.add_child(likes)
 		var follow := Button.new()
 		follow.name = "SocialPostFollowButton%d" % post_index
-		follow.text = "已关注" if game.is_social_following(str(post.get("handle", ""))) else "关注"
+		follow.text = "已关注" if game.is_social_following(_social_author_id(post)) else "关注"
 		follow.set_meta("flat_phone_button", true)
 		follow.custom_minimum_size = Vector2(74, 44)
-		follow.pressed.connect(_on_social_follow_pressed.bind(str(post.get("handle", ""))))
+		follow.pressed.connect(_on_social_follow_pressed.bind(_social_author_id(post)))
 		meta_row.add_child(follow)
 	var scroll_hint := _label("继续下滑浏览更多信号", 13, _theme_color("accent"))
 	scroll_hint.name = "SocialScrollHint"
@@ -2798,9 +3014,9 @@ func _render_social_channel_empty_state(parent: VBoxContainer, node_name: String
 func _social_visible_post_indices() -> Array[int]:
 	var result: Array[int] = []
 	for post_index in SOCIAL_POST_CARDS.size():
-		if _social_channel == "关注":
+		if _social_channel == "following":
 			var post := _social_post_for_index(post_index)
-			if not game.is_social_following(str(post.get("handle", ""))):
+			if not game.is_social_following(_social_author_id(post)):
 				continue
 		result.append(post_index)
 	return result
@@ -2854,12 +3070,11 @@ func _social_poster_headline(post_index: int) -> String:
 
 
 func _social_fragment(post: Dictionary) -> String:
-	var text := str(post.get("text", ""))
-	return text.substr(0, mini(12, text.length()))
+	return _locale.translate(str(post.get("text", "")))
 
 
 func _social_caption(post: Dictionary, _post_index: int) -> String:
-	return str(post.get("caption", "未命名信号")).substr(0, 12)
+	return _locale.translate(str(post.get("caption", "未命名信号")))
 
 
 func _render_social_detail_companion() -> void:
@@ -2886,7 +3101,7 @@ func _render_social_detail_page(parent: VBoxContainer, companion: bool = false) 
 		var companion_meta := HBoxContainer.new()
 		companion_meta.add_theme_constant_override("separation", 8)
 		detail_page.add_child(companion_meta)
-		var companion_handle := _label("@%s" % post["handle"], 15, _theme_color("surface"))
+		var companion_handle := _label("@%s" % _locale.translate(str(post["handle"])), 15, _theme_color("surface"))
 		companion_handle.set_meta("on_dark", true)
 		companion_handle.size_flags_horizontal = Control.SIZE_EXPAND_FILL
 		companion_meta.add_child(companion_handle)
@@ -2904,7 +3119,7 @@ func _render_social_detail_page(parent: VBoxContainer, companion: bool = false) 
 		back.custom_minimum_size = Vector2(76, 56)
 		back.pressed.connect(_close_social_detail_window)
 		top_row.add_child(back)
-		var title := _label("@%s" % post["handle"], 18, _theme_color("accent"))
+		var title := _label("@%s" % _locale.translate(str(post["handle"])), 18, _theme_color("accent"))
 		title.size_flags_horizontal = Control.SIZE_EXPAND_FILL
 		top_row.add_child(title)
 		var floor_label := _label("塔层 %d/%d" % [game.tower_floor, MemeGameStateScript.MAX_TOWER_FLOOR], 16, _theme_color("ink"))
@@ -2952,10 +3167,10 @@ func _render_social_detail_page(parent: VBoxContainer, companion: bool = false) 
 	engagement.add_child(detail_like)
 	var detail_follow := Button.new()
 	detail_follow.name = "SocialDetailFollowButton"
-	detail_follow.text = "已关注" if game.is_social_following(str(post.get("handle", ""))) else "关注"
+	detail_follow.text = "已关注" if game.is_social_following(_social_author_id(post)) else "关注"
 	detail_follow.custom_minimum_size = Vector2(120, 44)
 	detail_follow.size_flags_horizontal = Control.SIZE_EXPAND_FILL
-	detail_follow.pressed.connect(_on_social_follow_pressed.bind(str(post.get("handle", ""))))
+	detail_follow.pressed.connect(_on_social_follow_pressed.bind(_social_author_id(post)))
 	engagement.add_child(detail_follow)
 	var passive: Dictionary = post.get("passive", {})
 	var signal_profile := _label("信号偏向 / %s · %s   稀有度 %d" % [str(passive.get("label", "无")), str(passive.get("description", "")), int(post.get("rarity", 1))], 13, _theme_color("muted"))
@@ -3176,7 +3391,7 @@ func _set_social_screen(screen: String) -> void:
 		return
 	_social_screen = screen
 	_social_detail_open = false
-	_social_channel = "发现"
+	_social_channel = "discover"
 	if screen == "publish":
 		_meme_bank_open = true
 	_render()
@@ -3186,7 +3401,7 @@ func _on_social_channel_pressed(channel: String) -> void:
 	if _input_locked:
 		return
 	_social_channel = channel
-	if channel == "塔下":
+	if channel == "tower_base":
 		_social_screen = "home"
 		_social_detail_post_index = 0
 		_social_detail_open = true
@@ -3196,11 +3411,12 @@ func _on_social_channel_pressed(channel: String) -> void:
 	_render()
 
 
-func _on_social_follow_pressed(handle: String) -> void:
+func _on_social_follow_pressed(author_id: String) -> void:
 	if _input_locked:
 		return
-	var followed := game.toggle_social_follow(handle)
-	log_text = "已关注 @%s。" % handle if followed else "已取消关注 @%s。" % handle
+	var followed := game.toggle_social_follow(author_id)
+	var display_handle := _social_author_display(author_id)
+	log_text = "已关注 @%s。" % display_handle if followed else "已取消关注 @%s。" % display_handle
 	_render()
 
 
@@ -3642,7 +3858,7 @@ func _render_reality() -> void:
 
 	if typing:
 		_set_richer_bbcode(_reality_typing_line, _typed_reality_bbcode())
-		_reality_typing_progress.text = "任意键  %d / %d" % [game.conversation_reveal_index, game.conversation_clean_sentence.length()]
+		_reality_typing_progress.text = "任意键  %d / %d" % [game.conversation_reveal_index, game.get_typed_reality_unit_count()]
 	else:
 		_set_richer_bbcode(_reality_typing_line, "")
 		_reality_typing_progress.text = ""
@@ -3670,7 +3886,7 @@ func _set_dialogue_text(label: RichTextLabel, value: String) -> void:
 	if value.is_empty():
 		_set_richer_bbcode(label, "")
 		return
-	_set_richer_bbcode(label, "[curspull pull=0.12]%s[]" % _escape_bbcode(value))
+	_set_richer_bbcode(label, "[curspull pull=0.12]%s[]" % _escape_bbcode(_locale.translate(value)))
 
 
 func _set_richer_bbcode(label: RichTextLabel, value: String) -> void:
@@ -3962,13 +4178,15 @@ func _social_post_for_index(post_index: int) -> Dictionary:
 	for token_data in post.get("tokens", []):
 		var source_token: Dictionary = (token_data as Dictionary).duplicate(true)
 		var source_text := str(source_token.get("text", ""))
-		for character_index in source_text.length():
-			var character := source_text.substr(character_index, 1)
-			if not _is_pickable_social_character(character):
-				continue
+		var localized_text := _locale.translate(source_text)
+		var localized_units := _social_pickable_units(localized_text)
+		for character_index in localized_units.size():
+			var character := localized_units[character_index]
 			var token := source_token.duplicate(true)
 			token["id"] = "%s-c%d" % [str(source_token.get("id", "token")), character_index]
 			token["text"] = character
+			token["source_text"] = source_text
+			token["content_locale"] = _locale.current_locale
 			token["source_card_id"] = str(post.get("id", ""))
 			token["source_passive"] = source_passive.duplicate(true)
 			candidate_tokens.append(token)
@@ -4002,6 +4220,32 @@ func _social_post_for_index(post_index: int) -> Dictionary:
 	post["tokens"] = prepared_tokens
 	post["pickup_available"] = not prepared_tokens.is_empty()
 	return post
+
+
+func _social_author_id(post: Dictionary) -> String:
+	return str(post.get("id", post.get("handle", "unknown-author")))
+
+
+func _social_author_display(author_id: String) -> String:
+	for post in SOCIAL_POST_CARDS:
+		if str(post.get("id", "")) == author_id:
+			return _locale.translate(str(post.get("handle", author_id)))
+	return author_id
+
+
+func _social_pickable_units(text: String) -> Array[String]:
+	var result: Array[String] = []
+	if _locale.current_locale == "en":
+		var word_regex := RegEx.new()
+		word_regex.compile("[A-Za-z0-9']+")
+		for match_result in word_regex.search_all(text):
+			result.append(match_result.get_string())
+		return result
+	for character_index in text.length():
+		var character := text.substr(character_index, 1)
+		if _is_pickable_social_character(character):
+			result.append(character)
+	return result
 
 
 func _social_pickup_post_indices(day_number: int) -> Array[int]:
@@ -4071,8 +4315,8 @@ func _close_social_detail_window() -> void:
 	if _input_locked:
 		return
 	_social_detail_open = false
-	if _social_channel == "塔下":
-		_social_channel = "发现"
+	if _social_channel == "tower_base":
+		_social_channel = "discover"
 	log_text = "关闭社交详情。"
 	_render()
 
@@ -4902,9 +5146,13 @@ func _on_token_pressed(post_id: String, token: Dictionary) -> void:
 	if _input_locked:
 		return
 	var actions_before: int = int(game.actions_remaining)
-	if game.pick_token(post_id, token):
+	var localized_token := token.duplicate(true)
+	localized_token["source_text"] = str(token.get("source_text", token.get("text", "")))
+	localized_token["text"] = _locale.translate(str(token.get("text", "")))
+	localized_token["content_locale"] = _locale.current_locale
+	if game.pick_token(post_id, localized_token):
 		selected_token_id = "%s-%s-%d" % [post_id, token.get("id", "token"), game.day]
-		log_text = "拾取：%s" % token["text"]
+		log_text = "拾取：%s" % localized_token["text"]
 		_after_effective_action(actions_before)
 	else:
 		log_text = "这个词没有进入笔记本。"
@@ -5133,16 +5381,37 @@ func _placed_meme() -> Dictionary:
 
 
 func _corrupt(text: String) -> String:
+	text = _locale.translate(text)
 	if game.pollution < 35:
 		return text
+	var replacements := [_locale.translate("哈吉米"), "□", _locale.translate("沉默"), "……"]
+	if _locale.current_locale == "en":
+		return _corrupt_english_words(text, replacements)
 	var result := ""
-	var replacements := ["哈吉米", "□", "沉默", "……"]
 	for index in text.length():
 		var ch := text.substr(index, 1)
 		if index % maxi(2, 8 - int(game.pollution / 14)) == 0 and ch != " ":
 			result += replacements[(index + game.day) % replacements.size()]
 		else:
 			result += ch
+	return result
+
+
+func _corrupt_english_words(text: String, replacements: Array) -> String:
+	var word_regex := RegEx.new()
+	word_regex.compile("(\\S+)(\\s*)")
+	var units := word_regex.search_all(text)
+	if units.is_empty():
+		return text
+	var result := ""
+	var interval := maxi(2, 8 - int(game.pollution / 14))
+	for index in units.size():
+		var unit := units[index] as RegExMatch
+		var word := unit.get_string(1)
+		var spacing := unit.get_string(2)
+		if index % interval == 0:
+			word = str(replacements[(index + game.day) % replacements.size()])
+		result += word + spacing
 	return result
 
 
@@ -5161,9 +5430,46 @@ func _wrap(node: Control) -> PanelContainer:
 func _label(text: String, size: int, color: Color) -> Label:
 	var label := Label.new()
 	label.text = text
+	_set_localized_property(label, "text")
 	label.add_theme_font_size_override("font_size", size)
 	label.add_theme_color_override("font_color", color)
 	return label
+
+
+func _refresh_localized_ui() -> void:
+	if _ui_root == null or not is_instance_valid(_ui_root):
+		return
+	_localize_control_tree(_ui_root)
+
+
+func _localize_control_tree(node: Node) -> void:
+	if node is Control and not bool(node.get_meta("skip_localization", false)):
+		var control := node as Control
+		if control is Label or control is Button:
+			_set_localized_property(control, "text")
+		if control is LineEdit:
+			_set_localized_property(control, "placeholder_text")
+		_set_localized_property(control, "tooltip_text")
+	for child in node.get_children():
+		_localize_control_tree(child)
+
+
+func _set_localized_property(control: Control, property_name: String) -> void:
+	if control == null:
+		return
+	var current_text := str(control.get(property_name))
+	if current_text.is_empty():
+		return
+	var source_meta := "locale_source_%s" % property_name
+	var last_meta := "locale_last_%s" % property_name
+	var source_text := str(control.get_meta(source_meta, ""))
+	var last_text := str(control.get_meta(last_meta, ""))
+	if source_text.is_empty() or current_text != last_text:
+		source_text = current_text
+		control.set_meta(source_meta, source_text)
+	var localized_text := _locale.translate(source_text)
+	control.set(property_name, localized_text)
+	control.set_meta(last_meta, localized_text)
 
 
 func _style(bg: Color, border: Color) -> StyleBoxFlat:

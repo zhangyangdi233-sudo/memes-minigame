@@ -524,7 +524,7 @@ func test_communication_item_only_consumes_to_rescue_failed_understanding() -> v
 		var choice_id := str(finder.get_typed_reality_choices()[0].get("id", ""))
 		finder.select_typed_reality_choice(choice_id)
 		finder.conversation_attempts = 1
-		var roll: int = finder._conversation_roll("understanding", finder.conversation_clean_sentence.length(), 0)
+		var roll: int = finder._conversation_roll("understanding", 0, 0)
 		if clear_actor_id.is_empty() and roll < base_chance:
 			clear_actor_id = candidate
 		if rescued_actor_id.is_empty() and roll >= base_chance and roll < boosted_chance:

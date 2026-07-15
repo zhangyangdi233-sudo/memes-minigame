@@ -369,6 +369,9 @@ var conversation_attempts: int = 0
 var conversation_understood: bool = false
 var conversation_understanding_rolls: Array[int] = []
 var conversation_feedback: String = ""
+var conversation_locale: String = "zh"
+var conversation_clean_units: Array[String] = []
+var conversation_legacy_texts: Array[String] = []
 var owned_communication_items: Array = []
 var daily_communication_item_bought: bool = false
 var last_communication_item_used: String = ""
@@ -650,6 +653,9 @@ func start_typed_reality_conversation(actor_id: String, actor_type: String, acto
 	conversation_understood = false
 	conversation_understanding_rolls = []
 	conversation_feedback = ""
+	conversation_locale = "zh"
+	conversation_clean_units = []
+	conversation_legacy_texts = []
 	last_communication_item_used = ""
 	last_communication_item_remaining = 0
 	conversation_phase = "choosing"
@@ -674,12 +680,22 @@ func reset_typed_reality_conversation() -> void:
 	conversation_understood = false
 	conversation_understanding_rolls = []
 	conversation_feedback = ""
+	conversation_locale = "zh"
+	conversation_clean_units = []
+	conversation_legacy_texts = []
 	last_communication_item_used = ""
 	last_communication_item_remaining = 0
 
 
 func get_typed_reality_choices() -> Array:
 	return conversation_choices.duplicate(true)
+
+
+func configure_conversation_locale(locale_code: String, localized_legacy_texts: Array[String]) -> void:
+	conversation_locale = locale_code if locale_code in ["zh", "ja", "en"] else "zh"
+	conversation_legacy_texts = localized_legacy_texts.duplicate()
+	if not conversation_clean_sentence.is_empty():
+		conversation_clean_units = _conversation_units(conversation_clean_sentence)
 
 
 func _reality_dialogue_for_actor(actor_id: String, actor_type: String) -> Dictionary:
@@ -768,6 +784,7 @@ func select_typed_reality_choice(choice_id: String) -> bool:
 		return false
 	conversation_selected_choice_id = choice_id
 	conversation_clean_sentence = sentence
+	conversation_clean_units = _conversation_units(sentence)
 	conversation_revealed_units = []
 	conversation_reveal_index = 0
 	conversation_understood = false
@@ -786,9 +803,9 @@ func advance_typed_reality_character() -> Dictionary:
 	}
 	if conversation_phase != "typing":
 		return result
-	if conversation_reveal_index >= conversation_clean_sentence.length():
+	if conversation_reveal_index >= conversation_clean_units.size():
 		return result
-	var clean_character := conversation_clean_sentence.substr(conversation_reveal_index, 1)
+	var clean_character := conversation_clean_units[conversation_reveal_index]
 	var roll := _conversation_roll("character", conversation_reveal_index, 0)
 	var corrupted := roll < pollution
 	var display_character := clean_character
@@ -802,7 +819,7 @@ func advance_typed_reality_character() -> Dictionary:
 	})
 	conversation_reveal_index += 1
 	result["advanced"] = true
-	if conversation_reveal_index < conversation_clean_sentence.length():
+	if conversation_reveal_index < conversation_clean_units.size():
 		return result
 
 	result["completed"] = true
@@ -837,21 +854,47 @@ func get_typed_reality_spoken_sentence() -> String:
 
 
 func get_typed_reality_unrevealed_suffix() -> String:
-	if conversation_clean_sentence.is_empty() or conversation_reveal_index >= conversation_clean_sentence.length():
+	if conversation_clean_units.is_empty() or conversation_reveal_index >= conversation_clean_units.size():
 		return ""
-	return conversation_clean_sentence.substr(conversation_reveal_index)
+	var suffix := ""
+	for index in range(conversation_reveal_index, conversation_clean_units.size()):
+		suffix += conversation_clean_units[index]
+	return suffix
+
+
+func get_typed_reality_unit_count() -> int:
+	return conversation_clean_units.size()
 
 
 func _sentence_with_legacy(base_sentence: String) -> String:
 	var sentence := base_sentence.strip_edges()
-	while sentence.ends_with("。") or sentence.ends_with("！") or sentence.ends_with("？"):
+	while sentence.ends_with("。") or sentence.ends_with("！") or sentence.ends_with("？") or sentence.ends_with(".") or sentence.ends_with("!") or sentence.ends_with("?"):
 		sentence = sentence.substr(0, sentence.length() - 1)
-	for rule in legacy_rules:
+	for rule_index in legacy_rules.size():
+		var rule: Dictionary = legacy_rules[rule_index]
 		var required_text := str(rule.get("required_text", "")).strip_edges()
+		if rule_index < conversation_legacy_texts.size():
+			required_text = conversation_legacy_texts[rule_index].strip_edges()
 		if required_text.is_empty() or sentence.contains(required_text):
 			continue
-		sentence += "，" + required_text
-	return sentence + "。"
+		if conversation_locale == "en":
+			sentence += "; " + required_text
+		else:
+			sentence += "，" + required_text
+	return sentence + ("." if conversation_locale == "en" else "。")
+
+
+func _conversation_units(sentence: String) -> Array[String]:
+	var units: Array[String] = []
+	if conversation_locale != "en":
+		for index in sentence.length():
+			units.append(sentence.substr(index, 1))
+		return units
+	var word_regex := RegEx.new()
+	word_regex.compile("\\S+\\s*")
+	for match_result in word_regex.search_all(sentence):
+		units.append(match_result.get_string())
+	return units
 
 
 func _conversation_corruption_text(roll: int, character_index: int) -> String:
@@ -873,7 +916,7 @@ func _resolve_typed_reality_understanding() -> bool:
 	var check_count := 3 if conversation_actor_type == "merchant" else 1
 	var understood := false
 	for check_index in check_count:
-		var roll := _conversation_roll("understanding", conversation_reveal_index, check_index)
+		var roll := _conversation_roll("understanding", 0, check_index)
 		conversation_understanding_rolls.append(roll)
 		if roll < base_clear_chance:
 			understood = true
@@ -946,12 +989,15 @@ func settle_day_if_needed() -> bool:
 
 
 func pick_token(post_id: String, token: Dictionary) -> bool:
-	var picked_character := _first_pickable_character(str(token.get("text", "")))
+	var content_locale := str(token.get("content_locale", "zh"))
+	var picked_character := _first_pickable_character(str(token.get("text", "")), content_locale)
 	if picked_character.is_empty():
 		return false
 	var note := {
 		"id": "%s-%s-%d" % [post_id, token.get("id", "token"), day],
 		"text": picked_character,
+		"source_text": str(token.get("source_text", token.get("text", ""))),
+		"content_locale": content_locale,
 		"source_post_id": post_id,
 		"tags": token.get("tags", []),
 		"rarity": int(token.get("rarity", 1)),
@@ -1721,7 +1767,12 @@ func _unique(values: Array) -> Array:
 	return result
 
 
-func _first_pickable_character(value: String) -> String:
+func _first_pickable_character(value: String, locale_code: String = "zh") -> String:
+	if locale_code == "en":
+		var word_regex := RegEx.new()
+		word_regex.compile("[A-Za-z0-9']+")
+		var match_result := word_regex.search(value)
+		return match_result.get_string() if match_result != null else ""
 	var ignored := " \t\r\n，。！？；：、,.!?;:（）()【】[]《》<>“”\"'—-…"
 	for index in value.length():
 		var character := value.substr(index, 1)

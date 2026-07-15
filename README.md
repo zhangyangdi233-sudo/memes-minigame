@@ -44,11 +44,17 @@ python3 tools/generate_music_stems.py --verify
 
 Glowing street relics can be collected with `F` without spending an action. `信号筹码` adds eight base points to the next publication, `回声镜片` adds one point to the shared integer multiplier, and `清晰线` immediately restores seven clarity. Publish modifiers are consumed after one successful post, while collected relic IDs remain gone if the floor is rebuilt.
 
-Reality conversations use a cursor-driven three-choice surface. Each NPC has unique copy for its current floor. Hovering previews the full clean intention; after selecting, any physical key reveals exactly one character. Pollution replaces positions with red signal glyphs, while legacy phrases are inserted automatically. Completing the whole sentence costs one action; partial typing is free. Listener rolls still shape hidden relationship residue, but the UI never reports whether anyone understood.
+Reality conversations use a cursor-driven three-choice surface. Each NPC has unique copy for its current floor. Hovering previews the full clean intention; after selecting, any physical key reveals one language-aware unit: a character in Chinese and Japanese, or a complete word in English. Pollution replaces units with red signal glyphs, while legacy phrases are inserted automatically. Completing the whole sentence costs one action; partial typing is free. Listener rolls still shape hidden relationship residue, but the UI never reports whether anyone understood.
 
 Choosing the merchant's authored trade response reveals one rotating communication aid. `静音贴`, `语义锚`, and `旧词典页` have different prices, bonuses, and limited charges. The strongest owned item is consumed only when pollution would otherwise overwhelm the sentence.
 
 At the empty tower top there is no sage and no ordinary sentence. The final interaction compresses the remaining language to exactly four irreversible choices: blank, blocks, `哈吉米`, or silence. After one choice, the tower gives no reply and only a restart remains.
+
+## Localization and Saves
+
+The first launch opens a native-name language choice for Chinese, Japanese, and English before the main menu. Language can be changed again in Settings without restarting the run. Settings also provides a manual save button; language, master volume, and VHS preference are stored separately from run progress.
+
+Chinese remains the authored source language. English and Japanese use audited catalogs covering UI, feed posts, NPC dialogue, floor events, legacy phrases, ending copy, and formatted runtime messages. English collection and corruption operate on complete words, while Chinese and Japanese retain character-level rhythm. `res://tests/test_localization.gd` scans the three gameplay scripts for untranslated Chinese literals in addition to exercising the first-run selector and settings controls.
 
 ## Run
 
@@ -74,6 +80,8 @@ HOME=/Users/zhang/Documents/游戏/.godot_home /Users/zhang/Documents/游戏/God
 
 The rendered publish-layout capture tool is `res://tools/capture_publish_scene.gd`.
 Set `BABEL_CAPTURE_FLOOR=1`, `2`, or `3` and run `res://tools/capture_reality_district.gd` from a rendered Godot session to capture each district. The generated-floor regression test is `res://tests/test_reality_world.gd`, and the transition/context test is `res://tests/test_day_transition.gd`. Capture tools cover walking, dialogue, merchant inventory, and the next-day frame under `res://tools/`.
+
+Run the localization audit with `res://tests/test_localization.gd`. It verifies catalog parity, dynamic format strings, language-specific text units, first-run language selection, settings language switching, and source-literal coverage.
 
 ## Third-party Addon
 
