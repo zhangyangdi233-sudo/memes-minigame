@@ -29,12 +29,13 @@ func _capture() -> void:
 	main._ensure_reality_floor_current()
 	main.set_view_state("npc_up")
 	main._phone_art_alpha = 0.0
-	main._reality_yaw = 0.0
+	var capture_crossroad := OS.get_environment("BABEL_CAPTURE_CROSSROAD") == "1" and floor_number == 1
+	main._reality_yaw = -90.0 if capture_crossroad else 0.0
 	main._reality_pitch = -3.0
 	if main._phone_down_backdrop_image != null:
 		main._phone_down_backdrop_image.visible = false
 	if main._reality_player != null:
-		main._reality_player.position = main._reality_floor.start_position()
+		main._reality_player.position = Vector3(0.0, 0.08, 0.0) if capture_crossroad else main._reality_floor.start_position()
 	for frame in 72:
 		await process_frame
 	var image := root.get_texture().get_image()
@@ -42,7 +43,7 @@ func _capture() -> void:
 		push_error("Unable to read root viewport image")
 		quit(1)
 		return
-	var output_path := "%s/tools/current_reality_floor_%d.png" % [PROJECT_DIR, floor_number]
+	var output_path := "%s/tools/current_reality_crossroad.png" % PROJECT_DIR if capture_crossroad else "%s/tools/current_reality_floor_%d.png" % [PROJECT_DIR, floor_number]
 	var error := image.save_png(output_path)
 	if error != OK:
 		push_error("Unable to save screenshot: %s" % error)

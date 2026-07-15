@@ -59,7 +59,7 @@ func _run() -> void:
 
 	game_root.new_game()
 	await process_frame
-	var meme_bank := _find_node_by_name(game_root, "MemeBankPopup") as PanelContainer
+	var meme_bank := _find_node_by_name(game_root, "MemeBankPopup") as Control
 	var meme_bank_content := _find_node_by_name(game_root, "MemeBankContent") as Control
 	_assert_true(meme_bank != null and not meme_bank.visible, "meme bank should be hidden on the normal social feed")
 	_assert_true(not game_root._should_peek_meme_bank(), "meme bank should no longer expose a global corner peek")
@@ -72,8 +72,8 @@ func _run() -> void:
 	game_root.game.set_active_app("notebook")
 	game_root._open_app_windows["social"] = false
 	game_root._render()
-	_assert_true(meme_bank != null and not meme_bank.visible, "switching to notebook should hide the meme bank completely")
-	_assert_true(meme_bank_content != null and not meme_bank_content.visible, "hidden meme bank should collapse its content")
+	_assert_true(meme_bank != null and meme_bank.visible, "switching to notebook should keep the contextual radial meme bank available")
+	_assert_true(meme_bank_content != null and meme_bank_content.visible, "notebook should open the radial meme bank for frame and fusion work")
 	game_root.set_view_state("npc_up")
 	_assert_true(meme_bank != null and not meme_bank.visible, "reality walking should never show the meme bank")
 

@@ -78,8 +78,13 @@ func _run() -> void:
 	_assert_eq(float(floor_root.get_meta("world_length_scale", 0.0)), 5.0, "generated floors should expose the requested five-times world scale")
 	var street_ground := _find_node_by_name(floor_root, "StreetGround") as StaticBody3D
 	_assert_true(street_ground != null, "shared street should use one continuous collision ground")
+	var crossroad_ground := _find_node_by_name(floor_root, "CrossroadGround") as StaticBody3D
+	_assert_true(crossroad_ground != null and bool(crossroad_ground.get_meta("crossroad_extension", false)), "the horizontal branch should have its own continuous collision ground")
 	var crossroad := _find_node_by_name(floor_root, "CrossRoad") as Node3D
 	_assert_true(crossroad != null and bool(crossroad.get_meta("crossroad_surface", false)), "first corridor district should add a real horizontal road across its center")
+	var crossroad_span := float(floor_root.get_meta("crossroad_total_span", 0.0))
+	_assert_true(crossroad_span >= map_width + 80.0, "the first crossroad should extend into substantial left and right branches")
+	_assert_eq(str(floor_root.get_meta("crossroad_layout", "")), "continuous_four_way", "the crossroad should be a continuous four-way layout")
 	var edge_walls: Array[Node3D] = []
 	_collect_nodes_with_meta(floor_root, "terrain_edge_wall", edge_walls)
 	_assert_eq(edge_walls.size(), 4, "the two long terrain edges should each use two wall segments around the central intersection")
@@ -91,9 +96,19 @@ func _run() -> void:
 		wall_lengths[edge_side] = float(wall_lengths.get(edge_side, 0.0)) + wall_length
 		_assert_true(absf(edge_wall.position.z) - wall_length * 0.5 >= crossroad_opening * 0.5 - 0.01, "terrain edge walls should stop before the open center of the crossroad")
 	_assert_true(is_equal_approx(float(wall_lengths["west"]), map_length - crossroad_opening) and is_equal_approx(float(wall_lengths["east"]), map_length - crossroad_opening), "each side wall should cover the full map edge except the road opening")
-	_assert_eq(int(floor_root.get_meta("air_wall_count", 0)), 4, "the map perimeter should expose four air walls")
+	var boundary_walls: Array[Node3D] = []
+	_collect_nodes_with_meta(floor_root, "terrain_boundary_wall", boundary_walls)
+	_assert_eq(boundary_walls.size(), 12, "trunk, branch sides, and all four ends should form one continuous visible boundary")
+	_assert_eq(int(floor_root.get_meta("crossroad_branch_wall_count", 0)), 6, "left and right branches should each have two side walls and one end wall")
+	_assert_true(_find_node_by_name(floor_root, "CrossroadEndWallWest") != null and _find_node_by_name(floor_root, "CrossroadEndWallEast") != null, "both horizontal branches should terminate in real walls")
+	_assert_true(_find_node_by_name(floor_root, "StreetEndWallNorth") != null and _find_node_by_name(floor_root, "StreetEndWallSouth") != null, "the long street should close its north and south ends")
+	_assert_eq(str(floor_root.get_meta("dreamcore_overlay", "")), "regular_grid_with_controlled_anomalies", "first-floor additions should use controlled dreamcore repetition")
+	_assert_eq(int(floor_root.get_meta("dreamcore_light_slot_count", 0)), 18, "both branches should repeat nine threshold light bays")
+	_assert_true(int(floor_root.get_meta("dreamcore_false_door_count", 0)) >= 6, "repeated false doors should introduce sparse architectural wrongness")
+	_assert_true(_find_node_by_name(floor_root, "DreamcoreThresholdRhythm") != null, "dreamcore atmosphere should be represented by original procedural geometry")
+	_assert_eq(int(floor_root.get_meta("air_wall_count", 0)), 12, "the cross-shaped map perimeter should expose twelve joined air-wall segments")
 	var air_walls := _find_node_by_name(floor_root, "AirWalls") as Node3D
-	_assert_true(air_walls != null and air_walls.get_child_count() == 4, "air-wall container should surround every map edge")
+	_assert_true(air_walls != null and air_walls.get_child_count() == 12, "air-wall container should follow every edge of the cross-shaped floor")
 	if air_walls != null:
 		for wall in air_walls.get_children():
 			_assert_true(wall is StaticBody3D and bool(wall.get_meta("air_wall", false)), "each perimeter edge should be an invisible static air wall")
@@ -102,6 +117,12 @@ func _run() -> void:
 		var half_length := map_length * 0.5
 		_assert_true(absf(player.position.x) <= half_width - 5.0, "player spawn should have generous horizontal clearance")
 		_assert_true(absf(player.position.z) <= half_length - 5.0, "player spawn should have generous longitudinal clearance")
+	var branch_position := Vector3(crossroad_span * 0.5 - 2.0, 0.08, 0.0)
+	_assert_true(bool(floor_root.call("contains_playable_position", branch_position)), "the player should be allowed to walk down the new right branch")
+	var outside_corner := Vector3(crossroad_span * 0.5 - 2.0, 0.08, 24.0)
+	_assert_true(not bool(floor_root.call("contains_playable_position", outside_corner)), "the empty diagonal beyond the cross shape should remain outside the map")
+	var clamped_corner: Vector3 = floor_root.call("clamp_to_playable_position", outside_corner)
+	_assert_true(bool(floor_root.call("contains_playable_position", clamped_corner)), "clamping should choose the nearest valid arm or trunk instead of a bounding rectangle")
 
 	var merchant := _find_actor(floor_root, "merchant")
 	var ordinary_npcs := _count_actors(floor_root, "npc")
@@ -178,22 +199,24 @@ func _run() -> void:
 	_assert_eq(int(game_root._reality_touch_look_index), -1, "lifting the active finger should finish the camera gesture")
 	game_root._reality_yaw = 0.0
 	var trackpad_left := InputEventPanGesture.new()
-	trackpad_left.delta = Vector2(-2.0, 0.0)
+	# macOS pan deltas report content movement, opposite to finger movement.
+	trackpad_left.delta = Vector2(2.0, 0.0)
 	game_root._input(trackpad_left)
 	_assert_true(float(game_root._reality_yaw) > 0.0, "two-finger trackpad movement to the left should turn the camera left")
+	_assert_true(absf(float(game_root._reality_yaw)) <= 4.0, "trackpad look should use the reduced sensitivity")
 	game_root._reality_yaw = 0.0
 	var trackpad_right := InputEventPanGesture.new()
-	trackpad_right.delta = Vector2(2.0, 0.0)
+	trackpad_right.delta = Vector2(-2.0, 0.0)
 	game_root._input(trackpad_right)
 	_assert_true(float(game_root._reality_yaw) < 0.0, "two-finger trackpad movement to the right should turn the camera right")
 	game_root._reality_pitch = 0.0
 	var trackpad_up := InputEventPanGesture.new()
-	trackpad_up.delta = Vector2(0.0, -2.0)
+	trackpad_up.delta = Vector2(0.0, 2.0)
 	game_root._input(trackpad_up)
 	_assert_true(float(game_root._reality_pitch) > 0.0, "two-finger trackpad movement upward should tilt the camera upward")
 	game_root._reality_pitch = 0.0
 	var trackpad_down := InputEventPanGesture.new()
-	trackpad_down.delta = Vector2(0.0, 2.0)
+	trackpad_down.delta = Vector2(0.0, -2.0)
 	game_root._input(trackpad_down)
 	_assert_true(float(game_root._reality_pitch) < 0.0, "two-finger trackpad movement downward should tilt the camera downward")
 	_assert_eq(game_root.game.actions_remaining, actions_before_touch, "trackpad free look should not spend an action")

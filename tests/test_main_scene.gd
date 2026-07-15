@@ -223,7 +223,7 @@ func _run() -> void:
 		var reality_aid_status := _find_node_by_name(root, "RealityAidStatus") as Label
 		var reality_merchant_offer := _find_node_by_name(root, "RealityMerchantOffer") as PanelContainer
 		var reality_merchant_buy := _find_node_by_name(root, "RealityMerchantBuyButton") as Button
-		var meme_bank_popup := _find_node_by_name(root, "MemeBankPopup") as PanelContainer
+		var meme_bank_popup := _find_node_by_name(root, "MemeBankPopup") as Control
 		var meme_bank_tab := _find_node_by_name(root, "MemeBankTab") as Button
 		var meme_bank_drag_handle := _find_node_by_name(root, "MemeBankDragHandle") as Label
 		var meme_bank_content := _find_node_by_name(root, "MemeBankContent") as Control
@@ -438,7 +438,7 @@ func _run() -> void:
 					reality_aid_status = _find_node_by_name(root, "RealityAidStatus") as Label
 					reality_merchant_offer = _find_node_by_name(root, "RealityMerchantOffer") as PanelContainer
 					reality_merchant_buy = _find_node_by_name(root, "RealityMerchantBuyButton") as Button
-					meme_bank_popup = _find_node_by_name(root, "MemeBankPopup") as PanelContainer
+					meme_bank_popup = _find_node_by_name(root, "MemeBankPopup") as Control
 					meme_bank_tab = _find_node_by_name(root, "MemeBankTab") as Button
 					meme_bank_drag_handle = _find_node_by_name(root, "MemeBankDragHandle") as Label
 					meme_bank_content = _find_node_by_name(root, "MemeBankContent") as Control
@@ -516,12 +516,12 @@ func _run() -> void:
 			social_detail_close = _find_node_by_name(root, "SocialDetailWindowCloseButton") as Button
 			social_scroll_hint = _find_node_by_name(root, "SocialScrollHint") as Label
 			external_publish_panel = _find_node_by_name(root, "PublishPanel") as PanelContainer
-			meme_bank_popup = _find_node_by_name(root, "MemeBankPopup") as PanelContainer
+			meme_bank_popup = _find_node_by_name(root, "MemeBankPopup") as Control
 			meme_bank_tab = _find_node_by_name(root, "MemeBankTab") as Button
 			meme_bank_content = _find_node_by_name(root, "MemeBankContent") as Control
 			view_toggle_button = _find_node_by_name(root, "PhoneViewToggleButton") as Button
 		_assert_true(phone_popup != null, "scene should expose an integrated phone popup")
-		_assert_true(phone_tab != null, "phone tab should live inside the integrated phone popup")
+		_assert_true(phone_tab == null, "the duplicate PHONE tab should stay removed")
 		_assert_true(phone_content != null, "phone popup should expose expandable phone content")
 		_assert_true(babel_app_window != null, "scene should expose a separate Babel app window")
 		_assert_true(social_app_window != null, "scene should expose a separate social app window")
@@ -649,11 +649,9 @@ func _run() -> void:
 		_assert_true(meme_bank_content != null, "meme bank popup should expose collapsible content")
 		if meme_bank_drag_handle != null:
 			_assert_true(meme_bank_drag_handle.has_meta("drag_handle"), "meme bank drag handle should move the whole drawer")
-		if phone_popup != null and phone_tab != null and phone_content != null:
-			_assert_true(_is_descendant_of(phone_tab, phone_popup), "phone tab and phone content should be one popup object")
+		if phone_popup != null and phone_content != null:
 			_assert_true(_is_descendant_of(phone_content, phone_popup), "phone content should expand from the integrated phone popup")
-			_assert_true(phone_popup.visible, "phone launcher should remain as an attached side dock while an app is open")
-			_assert_true(phone_tab.visible, "collapsed phone dock should remain reachable while app windows are open")
+			_assert_true(not phone_popup.visible, "the phone launcher should hide while an app window is open")
 			_assert_true(not phone_content.visible, "phone launcher content should not overlap the main social phone")
 			root._open_phone_launcher()
 			var phone_width := phone_popup.offset_right - phone_popup.offset_left
@@ -925,7 +923,7 @@ func _run() -> void:
 		]
 		root.game.set_active_app("social")
 		root._render()
-		meme_bank_popup = _find_node_by_name(root, "MemeBankPopup") as PanelContainer
+		meme_bank_popup = _find_node_by_name(root, "MemeBankPopup") as Control
 		meme_bank_tab = _find_node_by_name(root, "MemeBankTab") as Button
 		meme_bank_content = _find_node_by_name(root, "MemeBankContent") as Control
 		if meme_bank_popup != null and meme_bank_tab != null and meme_bank_content != null:
@@ -937,7 +935,7 @@ func _run() -> void:
 		var create_for_bank := _find_node_by_name(root, "SocialNavCreate") as Button
 		if create_for_bank != null:
 			create_for_bank.pressed.emit()
-		meme_bank_popup = _find_node_by_name(root, "MemeBankPopup") as PanelContainer
+		meme_bank_popup = _find_node_by_name(root, "MemeBankPopup") as Control
 		meme_bank_tab = _find_node_by_name(root, "MemeBankTab") as Button
 		meme_bank_content = _find_node_by_name(root, "MemeBankContent") as Control
 		if meme_bank_popup != null:
@@ -963,20 +961,21 @@ func _run() -> void:
 		var notebook_craft_button := _find_node_by_name(root, "NotebookCraftButton") as Button
 		var notebook_token_flow := _find_node_by_name(root, "NotebookTokenFlow") as HFlowContainer
 		var sourced_notebook_token := _find_node_by_name(root, "NotebookToken_n1") as Button
-		var fusion_slots := _find_node_by_name(root, "NotebookFusionSlots") as HBoxContainer
-		var fusion_left := _find_node_by_name(root, "FusionSlotLeft") as Button
-		var fusion_right := _find_node_by_name(root, "FusionSlotRight") as Button
-		var fusion_button := _find_node_by_name(root, "NotebookFusionButton") as Button
+		var frame_tab := _find_node_by_name(root, "NotebookCraftTabFrame") as Button
+		var fusion_tab := _find_node_by_name(root, "NotebookCraftTabFusion") as Button
+		var meme_ring := _find_node_by_name(root, "MemeBankRadialRing") as Control
 		if notebook_app_window != null:
 			_assert_eq(notebook_app_window.size, notebook_size_before_render, "opening notebook crafting should not stretch the notebook app window")
+			_assert_true(notebook_app_window.global_position.x <= 320.0, "notebook should open as the square work window at the upper left")
 		_assert_true(notebook_scroll != null, "notebook crafting should put expandable content inside an internal scroll area")
 		_assert_true(notebook_content != null, "notebook crafting should expose a scroll content container")
 		_assert_true(notebook_token_flow != null, "notebook tokens should wrap instead of forcing horizontal overflow")
 		_assert_true(sourced_notebook_token != null and str(sourced_notebook_token.text).contains("回拨共鸣"), "notebook token should retain and display its source card passive")
 		_assert_true(notebook_action_bar != null, "notebook crafting should expose a fixed action bar")
+		_assert_true(frame_tab != null and fusion_tab != null, "notebook should expose two browser-style crafting tabs")
+		_assert_true(bool(frame_tab.get_meta("active_tab", false)), "frame crafting should be the initial notebook tab")
 		_assert_true(not _has_text(root, "情绪构筑"), "notebook should remove the old emotion loadout")
-		_assert_true(fusion_slots != null and fusion_left != null and fusion_right != null, "notebook should expose two meme fusion drop slots")
-		_assert_true(fusion_button != null and fusion_button.custom_minimum_size.y >= 52.0, "notebook should expose a touchable fusion confirmation")
+		_assert_true(_find_node_by_name(root, "NotebookFusionSlots") == null, "the frame tab should not mix in fusion controls")
 		if notebook_content != null and notebook_scroll != null:
 			_assert_true(_is_descendant_of(notebook_content, notebook_scroll), "notebook dynamic content should scroll inside the notebook window")
 		if notebook_craft_button != null and notebook_action_bar != null and notebook_scroll != null:
@@ -985,10 +984,29 @@ func _run() -> void:
 			_assert_true(notebook_craft_button.custom_minimum_size.y >= 56.0, "confirm craft button should use a comfortable touch target")
 		if meme_bank_tab != null and meme_bank_popup != null and meme_bank_content != null:
 			_assert_true(_is_descendant_of(meme_bank_tab, meme_bank_popup), "meme bank tab and drawer should be one popup object")
-			_assert_true(not meme_bank_popup.visible, "notebook crafting should keep the meme bank hidden")
-			_assert_true(not meme_bank_content.visible, "hidden notebook meme bank should keep content closed")
-			root._toggle_meme_bank()
-			_assert_true(not meme_bank_popup.visible and not meme_bank_content.visible, "notebook should not be able to open the publish-only meme bank")
+			_assert_true(meme_bank_popup.visible and meme_bank_content.visible, "notebook crafting should open the attached radial meme bank")
+			_assert_true(meme_ring != null and meme_ring.has_method("handle_navigation_event"), "meme bank should expose wheel and trackpad ring navigation")
+			if notebook_app_window != null:
+				_assert_true(meme_bank_popup.anchor_left >= 0.99 and notebook_app_window.anchor_left <= 0.01, "the radial bank should anchor right while the notebook anchors upper left")
+		if fusion_tab != null:
+			fusion_tab.pressed.emit()
+			var fusion_slots := _find_node_by_name(root, "NotebookFusionSlots") as HBoxContainer
+			var fusion_left := _find_node_by_name(root, "FusionSlotLeft") as Button
+			var fusion_right := _find_node_by_name(root, "FusionSlotRight") as Button
+			var fusion_button := _find_node_by_name(root, "NotebookFusionButton") as Button
+			_assert_true(fusion_slots != null and fusion_left != null and fusion_right != null, "fusion tab should expose two meme drop slots")
+			_assert_true(fusion_button != null and fusion_button.custom_minimum_size.y >= 52.0, "fusion tab should expose a touchable confirmation")
+			_assert_true(_find_node_by_name(root, "NotebookTokenFlow") == null, "fusion tab should not mix in picked-glyph controls")
+			meme_ring = _find_node_by_name(root, "MemeBankRadialRing") as Control
+			if meme_ring != null:
+				var actions_before_ring: int = int(root.game.actions_remaining)
+				var selected_before_ring: String = str(root.selected_meme_id)
+				var wheel_event := InputEventMouseButton.new()
+				wheel_event.button_index = MOUSE_BUTTON_WHEEL_DOWN
+				wheel_event.pressed = true
+				_assert_true(bool(meme_ring.call("handle_navigation_event", wheel_event)), "mouse wheel should rotate the meme ring")
+				_assert_true(root.selected_meme_id != selected_before_ring, "ring rotation should select the next completed meme")
+				_assert_eq(root.game.actions_remaining, actions_before_ring, "browsing the meme ring should not spend an action")
 		root.game._queue_ascent_reward(1)
 		root.game.set_active_app("babel")
 		root._render()
@@ -1028,9 +1046,7 @@ func _run() -> void:
 				_assert_eq(root._window_position_for_test(window_id), window_pos_after, "registered window should keep its dragged position after render: %s" % window_id)
 				drag_index += 1
 			if meme_bank_popup != null:
-				root._move_window_for_test("app:social", Vector2(-190, 0))
-				root._render()
-				_assert_true(not _controls_overlap(meme_bank_popup, social_app_window), "meme bank corner should avoid a dragged social phone")
+				_assert_true(bool(meme_bank_popup.get_meta("radial_meme_bank", false)), "meme bank should retain the right-edge radial layout after other windows move")
 		if social_app_window != null and social_status_bar != null and root.has_method("_on_window_handle_gui_input"):
 			_assert_true(not root._input_locked, "window dragging should begin with gameplay input unlocked")
 			_assert_true(prologue == null or not prologue.visible, "completed prologue should not intercept later window dragging")
@@ -1056,6 +1072,9 @@ func _run() -> void:
 			_assert_eq(social_app_window.position, direct_drag_end, "real mouse-event dragged social phone position should survive render")
 		_assert_true(_has_node_with_method(root, "set_drag_payload"), "notebook and bank items should expose drag payloads")
 		_assert_true(_has_node_with_method(root, "configure_drop_target"), "slots and dialogue blank should expose drop targets")
+		var frame_tab_again := _find_node_by_name(root, "NotebookCraftTabFrame") as Button
+		if frame_tab_again != null:
+			frame_tab_again.pressed.emit()
 		root._on_slot_token_dropped({"kind": "token", "id": "n1"}, "glyph")
 		_assert_eq(root.game.draft_slots.get("glyph", ""), "n1", "dropping one character should place it in the only craft slot")
 		_assert_eq(root.game.actions_remaining, 5, "dropping token should not spend an action")
@@ -1081,11 +1100,10 @@ func _run() -> void:
 		view_toggle_button = _find_node_by_name(root, "PhoneViewToggleButton") as Button
 		if view_toggle_button != null:
 			_assert_true(str(view_toggle_button.text).contains("拿起手机"), "NPC view should expose a take-phone button")
-		if phone_popup != null and phone_tab != null and phone_content != null:
-			_assert_true(phone_popup.visible, "phone popup should remain as a side tab after putting the phone away")
-			_assert_true(phone_tab.visible, "phone tab should be visible after putting the phone away")
+		if phone_popup != null and phone_content != null:
+			_assert_true(not phone_popup.visible, "phone launcher should hide after putting the phone away")
 			_assert_true(not phone_content.visible, "phone content should collapse after putting the phone away")
-		meme_bank_popup = _find_node_by_name(root, "MemeBankPopup") as PanelContainer
+		meme_bank_popup = _find_node_by_name(root, "MemeBankPopup") as Control
 		meme_bank_tab = _find_node_by_name(root, "MemeBankTab") as Button
 		meme_bank_content = _find_node_by_name(root, "MemeBankContent") as Control
 		if meme_bank_popup != null and meme_bank_tab != null and meme_bank_content != null:

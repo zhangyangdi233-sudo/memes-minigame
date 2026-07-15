@@ -8,6 +8,8 @@ const LOT_WIDTH := 7.4
 const LOT_DEPTH := 6.8
 const STREET_WIDTH := 14.0
 const SUNLIT_CROSSROAD_OPENING := STREET_WIDTH + 2.0
+const SUNLIT_CROSSROAD_ARM_LENGTH := 43.2
+const SUNLIT_DREAMCORE_BAY := 4.8
 const SUNLIT_EDGE_WALL_HEIGHT := 5.9
 const SUNLIT_EDGE_WALL_THICKNESS := 0.68
 const MIN_MAP_WIDTH := 34.0
@@ -75,7 +77,7 @@ func rebuild(floor_number: int, palette: Dictionary, actor_textures: Dictionary)
 	set_meta("map_width", map_width)
 	set_meta("map_length", map_length)
 	set_meta("world_length_scale", WORLD_LENGTH_SCALE)
-	set_meta("air_wall_count", 4)
+	set_meta("air_wall_count", 12 if district_style == "sunlit_brick_street" else 4)
 	set_meta("district_style", district_style)
 
 	_build_environment(palette)
@@ -118,17 +120,38 @@ func start_position() -> Vector3:
 func contains_playable_position(position: Vector3, inset: float = 0.0) -> bool:
 	var half_width := maxf(0.5, map_width * 0.5 - inset)
 	var half_length := maxf(0.5, map_length * 0.5 - inset)
-	return absf(position.x) <= half_width and absf(position.z) <= half_length
+	var inside_trunk := absf(position.x) <= half_width and absf(position.z) <= half_length
+	if district_style != "sunlit_brick_street":
+		return inside_trunk
+	var branch_half_span := maxf(0.5, _sunlit_crossroad_span() * 0.5 - inset)
+	var branch_half_width := maxf(0.5, SUNLIT_CROSSROAD_OPENING * 0.5 - inset)
+	return inside_trunk or (absf(position.x) <= branch_half_span and absf(position.z) <= branch_half_width)
 
 
 func clamp_to_playable_position(position: Vector3, inset: float = 1.2) -> Vector3:
 	var half_width := maxf(0.5, map_width * 0.5 - inset)
 	var half_length := maxf(0.5, map_length * 0.5 - inset)
-	return Vector3(
+	var trunk_candidate := Vector3(
 		clampf(position.x, -half_width, half_width),
 		maxf(0.08, position.y),
 		clampf(position.z, -half_length, half_length)
 	)
+	if district_style != "sunlit_brick_street":
+		return trunk_candidate
+	var branch_half_span := maxf(0.5, _sunlit_crossroad_span() * 0.5 - inset)
+	var branch_half_width := maxf(0.5, SUNLIT_CROSSROAD_OPENING * 0.5 - inset)
+	var branch_candidate := Vector3(
+		clampf(position.x, -branch_half_span, branch_half_span),
+		maxf(0.08, position.y),
+		clampf(position.z, -branch_half_width, branch_half_width)
+	)
+	var trunk_distance := Vector2(position.x - trunk_candidate.x, position.z - trunk_candidate.z).length_squared()
+	var branch_distance := Vector2(position.x - branch_candidate.x, position.z - branch_candidate.z).length_squared()
+	return branch_candidate if branch_distance < trunk_distance else trunk_candidate
+
+
+func _sunlit_crossroad_span() -> float:
+	return map_width + SUNLIT_CROSSROAD_ARM_LENGTH * 2.0
 
 
 func apply_palette(palette: Dictionary) -> void:
@@ -207,6 +230,18 @@ func _build_architecture(palette: Dictionary) -> void:
 		true
 	)
 	street_ground.set_meta("continuous_ground", true)
+	if district_style == "sunlit_brick_street":
+		var branch_ground := _add_box(
+			architecture,
+			"CrossroadGround",
+			Vector3(_sunlit_crossroad_span(), 0.20, SUNLIT_CROSSROAD_OPENING),
+			Vector3(0.0, -0.10, 0.0),
+			"sunlit_paving",
+			palette,
+			true
+		)
+		branch_ground.set_meta("continuous_ground", true)
+		branch_ground.set_meta("crossroad_extension", true)
 	match district_style:
 		"night_white_blocks":
 			_build_night_white_blocks(architecture, palette)
@@ -220,11 +255,16 @@ func _build_architecture(palette: Dictionary) -> void:
 
 func _build_sunlit_brick_street(parent: Node3D, palette: Dictionary) -> void:
 	_add_box(parent, "MainRoad", Vector3(STREET_WIDTH, 0.025, map_length - 1.0), Vector3(0.0, 0.008, 0.0), "road", palette, false)
-	var crossroad := _add_box(parent, "CrossRoad", Vector3(map_width - 1.0, 0.032, STREET_WIDTH), Vector3(0.0, 0.064, 0.0), "road", palette, false)
+	var crossroad_span := _sunlit_crossroad_span()
+	var crossroad := _add_box(parent, "CrossRoad", Vector3(crossroad_span - 1.0, 0.032, STREET_WIDTH), Vector3(0.0, 0.064, 0.0), "road", palette, false)
 	crossroad.set_meta("crossroad_surface", true)
 	crossroad.set_meta("crossroad_width", STREET_WIDTH)
+	crossroad.set_meta("crossroad_span", crossroad_span)
 	set_meta("crossroad_opening_span", SUNLIT_CROSSROAD_OPENING)
-	set_meta("crossroad_layout", "open_center")
+	set_meta("crossroad_arm_length", SUNLIT_CROSSROAD_ARM_LENGTH)
+	set_meta("crossroad_total_span", crossroad_span)
+	set_meta("crossroad_layout", "continuous_four_way")
+	set_meta("dreamcore_overlay", "regular_grid_with_controlled_anomalies")
 	var sidewalk_width := 3.15
 	var edge_segment_length := (map_length - SUNLIT_CROSSROAD_OPENING) * 0.5
 	for side in [-1.0, 1.0]:
@@ -233,7 +273,19 @@ func _build_sunlit_brick_street(parent: Node3D, palette: Dictionary) -> void:
 			var curb_suffix := "%s%s" % ["West" if side < 0.0 else "East", "North" if direction < 0.0 else "South"]
 			var center_z: float = direction * (SUNLIT_CROSSROAD_OPENING * 0.5 + edge_segment_length * 0.5)
 			_add_box(parent, "Curb%s" % curb_suffix, Vector3(0.16, 0.10, edge_segment_length), Vector3(side * (STREET_WIDTH * 0.5 + 0.08), 0.048, center_z), "accent", palette, false)
+	for side in [-1.0, 1.0]:
+		_add_box(
+			parent,
+			"CrossroadSidewalk%s" % ("North" if side < 0.0 else "South"),
+			Vector3(crossroad_span - 1.0, 0.055, 1.0),
+			Vector3(0.0, 0.018, side * (STREET_WIDTH * 0.5 + 0.5)),
+			"sunlit_paving",
+			palette,
+			false
+		)
 	_build_sunlit_edge_walls(parent, palette)
+	_build_sunlit_branch_boundaries(parent, palette)
+	_build_sunlit_dreamcore_rhythm(parent, palette)
 	_build_road_markings(parent, palette)
 	_build_crossroad_markings(parent, palette)
 	for stripe_index in 5:
@@ -279,6 +331,7 @@ func _build_sunlit_edge_walls(parent: Node3D, palette: Dictionary) -> void:
 				true
 			)
 			wall.set_meta("terrain_edge_wall", true)
+			wall.set_meta("terrain_boundary_wall", true)
 			wall.set_meta("edge_side", side_name)
 			wall.set_meta("edge_section", section_name.to_lower())
 			wall.set_meta("edge_length", segment_length)
@@ -294,10 +347,138 @@ func _build_sunlit_edge_walls(parent: Node3D, palette: Dictionary) -> void:
 			)
 
 
+func _build_sunlit_branch_boundaries(parent: Node3D, palette: Dictionary) -> void:
+	var arm_center_offset := map_width * 0.5 + SUNLIT_CROSSROAD_ARM_LENGTH * 0.5
+	var branch_edge_z := SUNLIT_CROSSROAD_OPENING * 0.5 - SUNLIT_EDGE_WALL_THICKNESS * 0.5
+	var crossroad_half_span := _sunlit_crossroad_span() * 0.5
+	var boundary_count := 4
+	var branch_wall_count := 0
+	for direction in [-1.0, 1.0]:
+		var direction_name := "West" if direction < 0.0 else "East"
+		for side in [-1.0, 1.0]:
+			var side_name := "North" if side < 0.0 else "South"
+			var wall := _add_box(
+				parent,
+				"CrossroadBoundary%s%s" % [direction_name, side_name],
+				Vector3(SUNLIT_CROSSROAD_ARM_LENGTH, SUNLIT_EDGE_WALL_HEIGHT, SUNLIT_EDGE_WALL_THICKNESS),
+				Vector3(direction * arm_center_offset, SUNLIT_EDGE_WALL_HEIGHT * 0.5, side * branch_edge_z),
+				"brick",
+				palette,
+				true
+			)
+			wall.set_meta("terrain_boundary_wall", true)
+			wall.set_meta("crossroad_branch_wall", true)
+			wall.set_meta("branch_direction", direction_name.to_lower())
+			wall.set_meta("branch_side", side_name.to_lower())
+			wall.set_meta("edge_length", SUNLIT_CROSSROAD_ARM_LENGTH)
+			branch_wall_count += 1
+			boundary_count += 1
+			_add_box(
+				parent,
+				"CrossroadBoundaryCap%s%s" % [direction_name, side_name],
+				Vector3(SUNLIT_CROSSROAD_ARM_LENGTH, 0.14, SUNLIT_EDGE_WALL_THICKNESS + 0.14),
+				Vector3(direction * arm_center_offset, SUNLIT_EDGE_WALL_HEIGHT + 0.07, side * branch_edge_z),
+				"brick_light",
+				palette,
+				false
+			)
+		var branch_end := _add_box(
+			parent,
+			"CrossroadEndWall%s" % direction_name,
+			Vector3(SUNLIT_EDGE_WALL_THICKNESS, SUNLIT_EDGE_WALL_HEIGHT, SUNLIT_CROSSROAD_OPENING),
+			Vector3(direction * crossroad_half_span, SUNLIT_EDGE_WALL_HEIGHT * 0.5, 0.0),
+			"brick_dark",
+			palette,
+			true
+		)
+		branch_end.set_meta("terrain_boundary_wall", true)
+		branch_end.set_meta("crossroad_branch_wall", true)
+		branch_end.set_meta("branch_end", direction_name.to_lower())
+		branch_wall_count += 1
+		boundary_count += 1
+	for direction in [-1.0, 1.0]:
+		var end_name := "North" if direction < 0.0 else "South"
+		var trunk_end := _add_box(
+			parent,
+			"StreetEndWall%s" % end_name,
+			Vector3(map_width, SUNLIT_EDGE_WALL_HEIGHT, SUNLIT_EDGE_WALL_THICKNESS),
+			Vector3(0.0, SUNLIT_EDGE_WALL_HEIGHT * 0.5, direction * map_length * 0.5),
+			"brick_dark",
+			palette,
+			true
+		)
+		trunk_end.set_meta("terrain_boundary_wall", true)
+		trunk_end.set_meta("street_end", end_name.to_lower())
+		boundary_count += 1
+	set_meta("terrain_boundary_wall_count", boundary_count)
+	set_meta("crossroad_branch_wall_count", branch_wall_count)
+
+
+func _build_sunlit_dreamcore_rhythm(parent: Node3D, palette: Dictionary) -> void:
+	var rhythm := Node3D.new()
+	rhythm.name = "DreamcoreThresholdRhythm"
+	rhythm.set_meta("dreamcore_overlay", true)
+	rhythm.set_meta("design_rule", "eighty_percent_grid_twenty_percent_anomaly")
+	parent.add_child(rhythm)
+	var light_slot_count := 0
+	var false_door_count := 0
+	for direction in [-1.0, 1.0]:
+		var direction_name := "West" if direction < 0.0 else "East"
+		for bay_index in 9:
+			var x: float = direction * (map_width * 0.5 + SUNLIT_DREAMCORE_BAY * (float(bay_index) + 0.5))
+			var anomaly_offset := 0.42 if direction > 0.0 and bay_index == 5 else 0.0
+			_add_box(
+				rhythm,
+				"ThresholdBeam%s%02d" % [direction_name, bay_index],
+				Vector3(0.16, 0.18, SUNLIT_CROSSROAD_OPENING - 1.0),
+				Vector3(x + anomaly_offset, 4.72, 0.0),
+				"brick_light",
+				palette,
+				false
+			)
+			_add_box(
+				rhythm,
+				"CeilingLightSlot%s%02d" % [direction_name, bay_index],
+				Vector3(1.72, 0.08, 0.34),
+				Vector3(x + anomaly_offset, 4.58, 0.0),
+				"crosswalk",
+				palette,
+				false
+			)
+			light_slot_count += 1
+			if bay_index % 2 == 0:
+				var light := OmniLight3D.new()
+				light.name = "ThresholdLight%s%02d" % [direction_name, bay_index]
+				light.position = Vector3(x + anomaly_offset, 4.22, 0.0)
+				light.light_color = Color("FFF1C9")
+				light.light_energy = 0.36
+				light.omni_range = 7.4
+				light.shadow_enabled = false
+				rhythm.add_child(light)
+			if bay_index % 3 == 1:
+				var door_side := -1.0 if posmod(bay_index + int(direction > 0.0), 2) == 0 else 1.0
+				var door_height := 1.42 if direction > 0.0 and bay_index == 7 else 2.62
+				var false_door := _add_box(
+					rhythm,
+					"FalseDoor%s%02d" % [direction_name, bay_index],
+					Vector3(1.55, door_height, 0.09),
+					Vector3(x, door_height * 0.5, door_side * (SUNLIT_CROSSROAD_OPENING * 0.5 - SUNLIT_EDGE_WALL_THICKNESS - 0.06)),
+					"wall_dark",
+					palette,
+					false
+				)
+				false_door.set_meta("false_door", true)
+				false_door.set_meta("controlled_anomaly", door_height < 2.0)
+				false_door_count += 1
+	set_meta("dreamcore_light_slot_count", light_slot_count)
+	set_meta("dreamcore_false_door_count", false_door_count)
+
+
 func _build_crossroad_markings(parent: Node3D, palette: Dictionary) -> void:
-	var dash_count := int(floor((map_width - 4.0) / 4.8))
+	var crossroad_span := _sunlit_crossroad_span()
+	var dash_count := int(floor((crossroad_span - 4.0) / SUNLIT_DREAMCORE_BAY))
 	for dash_index in dash_count:
-		var x := -map_width * 0.5 + 3.0 + float(dash_index) * 4.8
+		var x := -crossroad_span * 0.5 + 3.0 + float(dash_index) * SUNLIT_DREAMCORE_BAY
 		if absf(x) < 2.0:
 			continue
 		_add_box(parent, "CrossroadStripe%02d" % dash_index, Vector3(2.1, 0.018, 0.14), Vector3(x, 0.088, 0.0), "accent", palette, false)
@@ -569,10 +750,53 @@ func _build_air_walls(parent: Node3D) -> void:
 	var walls := Node3D.new()
 	walls.name = "AirWalls"
 	parent.add_child(walls)
+	if district_style == "sunlit_brick_street":
+		_build_sunlit_air_walls(walls)
+		return
 	_add_air_wall(walls, "WestAirWall", Vector3(AIR_WALL_THICKNESS, AIR_WALL_HEIGHT, map_length + AIR_WALL_THICKNESS * 2.0), Vector3(-map_width * 0.5, AIR_WALL_HEIGHT * 0.5, 0.0))
 	_add_air_wall(walls, "EastAirWall", Vector3(AIR_WALL_THICKNESS, AIR_WALL_HEIGHT, map_length + AIR_WALL_THICKNESS * 2.0), Vector3(map_width * 0.5, AIR_WALL_HEIGHT * 0.5, 0.0))
 	_add_air_wall(walls, "NorthAirWall", Vector3(map_width, AIR_WALL_HEIGHT, AIR_WALL_THICKNESS), Vector3(0.0, AIR_WALL_HEIGHT * 0.5, -map_length * 0.5))
 	_add_air_wall(walls, "SouthAirWall", Vector3(map_width, AIR_WALL_HEIGHT, AIR_WALL_THICKNESS), Vector3(0.0, AIR_WALL_HEIGHT * 0.5, map_length * 0.5))
+
+
+func _build_sunlit_air_walls(walls: Node3D) -> void:
+	var trunk_segment_length := (map_length - SUNLIT_CROSSROAD_OPENING) * 0.5
+	for side in [-1.0, 1.0]:
+		var side_name := "West" if side < 0.0 else "East"
+		for direction in [-1.0, 1.0]:
+			var section_name := "North" if direction < 0.0 else "South"
+			var center_z: float = direction * (SUNLIT_CROSSROAD_OPENING * 0.5 + trunk_segment_length * 0.5)
+			_add_air_wall(
+				walls,
+				"%s%sAirWall" % [side_name, section_name],
+				Vector3(AIR_WALL_THICKNESS, AIR_WALL_HEIGHT, trunk_segment_length),
+				Vector3(side * map_width * 0.5, AIR_WALL_HEIGHT * 0.5, center_z)
+			)
+	for direction in [-1.0, 1.0]:
+		var end_name := "North" if direction < 0.0 else "South"
+		_add_air_wall(
+			walls,
+			"%sAirWall" % end_name,
+			Vector3(map_width, AIR_WALL_HEIGHT, AIR_WALL_THICKNESS),
+			Vector3(0.0, AIR_WALL_HEIGHT * 0.5, direction * map_length * 0.5)
+		)
+	var arm_center_offset := map_width * 0.5 + SUNLIT_CROSSROAD_ARM_LENGTH * 0.5
+	for direction in [-1.0, 1.0]:
+		var direction_name := "West" if direction < 0.0 else "East"
+		for side in [-1.0, 1.0]:
+			var side_name := "North" if side < 0.0 else "South"
+			_add_air_wall(
+				walls,
+				"%sBranch%sAirWall" % [direction_name, side_name],
+				Vector3(SUNLIT_CROSSROAD_ARM_LENGTH, AIR_WALL_HEIGHT, AIR_WALL_THICKNESS),
+				Vector3(direction * arm_center_offset, AIR_WALL_HEIGHT * 0.5, side * SUNLIT_CROSSROAD_OPENING * 0.5)
+			)
+		_add_air_wall(
+			walls,
+			"%sBranchEndAirWall" % direction_name,
+			Vector3(AIR_WALL_THICKNESS, AIR_WALL_HEIGHT, SUNLIT_CROSSROAD_OPENING),
+			Vector3(direction * _sunlit_crossroad_span() * 0.5, AIR_WALL_HEIGHT * 0.5, 0.0)
+		)
 
 
 func _add_air_wall(parent: Node3D, node_name: String, size: Vector3, position: Vector3) -> void:

@@ -3,6 +3,7 @@ extends Node3D
 const MemeGameStateScript = preload("res://scripts/meme_game_state.gd")
 const DraggableButtonScript = preload("res://scripts/ui/draggable_button.gd")
 const DropButtonScript = preload("res://scripts/ui/drop_button.gd")
+const RadialMemeRingScript = preload("res://scripts/ui/radial_meme_ring.gd")
 const RealityFloorGeneratorScript = preload("res://scripts/reality_floor_generator.gd")
 const RicherTextLabelScript = preload("res://addons/richtext2/richer_text_label.gd")
 
@@ -55,9 +56,9 @@ const SOCIAL_FEED_WHEEL_STEP := 2
 const REALITY_MOVE_SPEED := 3.3
 const REALITY_SPRINT_MULTIPLIER := 1.85
 const REALITY_ACCELERATION := 14.0
-const REALITY_MOUSE_SENSITIVITY := 0.085
-const REALITY_TOUCH_SENSITIVITY := 0.11
-const REALITY_TRACKPAD_SENSITIVITY := 3.2
+const REALITY_MOUSE_SENSITIVITY := 0.064
+const REALITY_TOUCH_SENSITIVITY := 0.082
+const REALITY_TRACKPAD_SENSITIVITY := 1.8
 const REALITY_INTERACTION_DISTANCE := 2.25
 const REALITY_FALL_RECOVERY_Y := -3.0
 const REALITY_SAFE_INSET := 1.2
@@ -352,9 +353,12 @@ var _publish_blank: DropButton
 var _confirm_publish_button: Button
 var _meme_bank_tab: Button
 var _meme_bank_drag_handle: Label
-var _meme_bank_window: PanelContainer
+var _meme_bank_window: Control
 var _meme_bank_content: Control
-var _bank_list: HBoxContainer
+var _bank_list: Control
+var _meme_bank_ring: Control
+var _meme_bank_focus_label: Label
+var _meme_bank_selected_index := 0
 var _reality_subtitle_panel: PanelContainer
 var _reality_subtitle_label: RichTextLabel
 var _reality_choice_row: HBoxContainer
@@ -398,6 +402,7 @@ var _social_screen := "home"
 var _social_channel := "发现"
 var _social_detail_post_index := 0
 var _social_detail_open := false
+var _notebook_crafting_tab := "frame"
 var _social_detail_window: PanelContainer
 var _social_detail_body: VBoxContainer
 var _social_detail_title: Label
@@ -501,7 +506,8 @@ func _handle_reality_trackpad_pan(event: InputEvent) -> bool:
 	var pan := event as InputEventPanGesture
 	if pan.delta.is_zero_approx():
 		return false
-	_apply_reality_look_delta(pan.delta, REALITY_TRACKPAD_SENSITIVITY)
+	# macOS reports pan as content-scroll direction, opposite to the fingers.
+	_apply_reality_look_delta(-pan.delta, REALITY_TRACKPAD_SENSITIVITY)
 	get_viewport().set_input_as_handled()
 	return true
 
@@ -580,6 +586,7 @@ func _begin_game_session(session_state: MemeGameState, world_data: Dictionary, s
 	_social_channel = "发现"
 	_social_detail_post_index = 0
 	_social_detail_open = false
+	_notebook_crafting_tab = "frame"
 	_app_windows = {}
 	_app_titles = {}
 	_app_bodies = {}
@@ -1354,12 +1361,7 @@ func _build_ui() -> void:
 	phone_shell.add_theme_constant_override("separation", 0)
 	_phone_panel.add_child(phone_shell)
 
-	_phone_tab = Button.new()
-	_phone_tab.name = "PhoneTab"
-	_phone_tab.text = "PHONE\n打开"
-	_phone_tab.custom_minimum_size = Vector2(78, 168)
-	_phone_tab.pressed.connect(_open_phone_launcher)
-	phone_shell.add_child(_phone_tab)
+	_phone_tab = null
 
 	_phone_content = VBoxContainer.new()
 	_phone_content.name = "PhoneContent"
@@ -1629,48 +1631,65 @@ func _build_ui() -> void:
 	_reality_continue_button.pressed.connect(_exit_reality_interaction)
 	subtitle_box.add_child(_reality_continue_button)
 
-	_meme_bank_window = _panel()
+	_meme_bank_window = Control.new()
 	_meme_bank_window.name = "MemeBankPopup"
 	_meme_bank_window.set_meta("meme_bank_popup", true)
+	_meme_bank_window.set_meta("radial_meme_bank", true)
+	_meme_bank_window.mouse_filter = Control.MOUSE_FILTER_PASS
 	_meme_bank_window.z_index = 18
 	_ui_root.add_child(_meme_bank_window)
 	_apply_meme_bank_popup_layout("peek")
-	var bank_box := VBoxContainer.new()
-	bank_box.name = "MemeBankShell"
-	bank_box.add_theme_constant_override("separation", 8)
-	_meme_bank_window.add_child(bank_box)
 
-	var bank_header := HBoxContainer.new()
-	bank_header.name = "MemeBankHeader"
-	bank_header.add_theme_constant_override("separation", 6)
-	bank_box.add_child(bank_header)
+	_meme_bank_ring = RadialMemeRingScript.new()
+	_meme_bank_ring.name = "MemeBankRadialRing"
+	_meme_bank_ring.set_anchors_preset(Control.PRESET_FULL_RECT)
+	_meme_bank_ring.set_palette(_theme_color("surface"), Color(_theme_color("muted"), 0.88), _theme_color("accent"))
+	_meme_bank_ring.selection_changed.connect(_on_meme_ring_selection_changed)
+	_meme_bank_window.add_child(_meme_bank_ring)
+	_bank_list = _meme_bank_ring
 
 	_meme_bank_tab = Button.new()
 	_meme_bank_tab.name = "MemeBankTab"
-	_meme_bank_tab.text = "›"
+	_meme_bank_tab.text = "梗库"
 	_meme_bank_tab.set_meta("meme_bank_tab", true)
-	_meme_bank_tab.custom_minimum_size = Vector2(52, 52)
+	_meme_bank_tab.set_meta("radial_center_button", true)
+	_meme_bank_tab.set_anchors_preset(Control.PRESET_CENTER_RIGHT)
+	_meme_bank_tab.offset_left = -142.0
+	_meme_bank_tab.offset_top = -58.0
+	_meme_bank_tab.offset_right = -22.0
+	_meme_bank_tab.offset_bottom = 58.0
+	_meme_bank_tab.custom_minimum_size = Vector2(120, 116)
 	_meme_bank_tab.pressed.connect(_toggle_meme_bank)
-	bank_header.add_child(_meme_bank_tab)
+	_meme_bank_window.add_child(_meme_bank_tab)
 
-	_meme_bank_drag_handle = _label("拖拽", 14, _theme_color("accent"))
+	_meme_bank_drag_handle = _label("MEME RING  /  拖拽移动", 13, _theme_color("accent"))
 	_meme_bank_drag_handle.name = "MemeBankDragHandle"
 	_meme_bank_drag_handle.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
 	_meme_bank_drag_handle.vertical_alignment = VERTICAL_ALIGNMENT_CENTER
-	_meme_bank_drag_handle.custom_minimum_size = Vector2(54, 52)
-	_meme_bank_drag_handle.size_flags_horizontal = Control.SIZE_EXPAND_FILL
-	bank_header.add_child(_meme_bank_drag_handle)
+	_meme_bank_drag_handle.set_anchors_preset(Control.PRESET_TOP_RIGHT)
+	_meme_bank_drag_handle.offset_left = -282.0
+	_meme_bank_drag_handle.offset_top = 14.0
+	_meme_bank_drag_handle.offset_right = -26.0
+	_meme_bank_drag_handle.offset_bottom = 58.0
+	_meme_bank_drag_handle.custom_minimum_size = Vector2(256, 44)
+	_meme_bank_window.add_child(_meme_bank_drag_handle)
 	_make_draggable_window(_meme_bank_window, "bank", _meme_bank_drag_handle)
 
-	_meme_bank_content = VBoxContainer.new()
+	_meme_bank_content = Control.new()
 	_meme_bank_content.name = "MemeBankContent"
-	(_meme_bank_content as VBoxContainer).add_theme_constant_override("separation", 8)
-	bank_box.add_child(_meme_bank_content)
-	var bank_title := _label("完整梗文件", 18, _theme_color("accent"))
-	_meme_bank_content.add_child(bank_title)
-	_bank_list = HBoxContainer.new()
-	_bank_list.add_theme_constant_override("separation", 8)
-	_meme_bank_content.add_child(_bank_list)
+	_meme_bank_content.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	_meme_bank_content.set_anchors_preset(Control.PRESET_FULL_RECT)
+	_meme_bank_window.add_child(_meme_bank_content)
+	_meme_bank_focus_label = _label("还没有完整梗", 16, _theme_color("accent"))
+	_meme_bank_focus_label.name = "MemeBankFocusLabel"
+	_meme_bank_focus_label.set_anchors_preset(Control.PRESET_BOTTOM_LEFT)
+	_meme_bank_focus_label.offset_left = 24.0
+	_meme_bank_focus_label.offset_top = -92.0
+	_meme_bank_focus_label.offset_right = 286.0
+	_meme_bank_focus_label.offset_bottom = -26.0
+	_meme_bank_focus_label.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
+	_meme_bank_focus_label.vertical_alignment = VERTICAL_ALIGNMENT_CENTER
+	_meme_bank_content.add_child(_meme_bank_focus_label)
 
 	_desk_log = _label("", 16, _theme_color("accent"))
 	_desk_log.name = "DeskLog"
@@ -2240,11 +2259,21 @@ func _apply_social_detail_window_layout() -> void:
 func _apply_app_window_layout(window: Control, app_id: String, left: float, top: float, right: float, bottom: float) -> void:
 	var viewport_size := _viewport_size()
 	if viewport_size.x >= 900.0:
+		if app_id == "notebook":
+			window.set_anchors_preset(Control.PRESET_TOP_LEFT)
+			var notebook_left := 188.0 if _hud_panel != null else 44.0
+			window.offset_left = notebook_left
+			window.offset_top = 46.0
+			window.offset_right = notebook_left + minf(610.0, viewport_size.x * 0.42)
+			window.offset_bottom = minf(782.0, viewport_size.y - 34.0)
+			return
+		window.set_anchors_preset(Control.PRESET_TOP_RIGHT)
 		window.offset_left = left
 		window.offset_top = top
 		window.offset_right = right
 		window.offset_bottom = bottom
 		return
+	window.set_anchors_preset(Control.PRESET_TOP_RIGHT)
 	var safe_left := 12.0
 	if _hud_panel != null:
 		safe_left = maxf(safe_left, _hud_panel.offset_right + 10.0)
@@ -2293,39 +2322,24 @@ func _apply_meme_bank_popup_layout(mode: String) -> void:
 		return
 	var viewport_size := _viewport_size()
 	if mode == "open":
-		_meme_bank_window.set_anchors_preset(Control.PRESET_BOTTOM_LEFT)
-		var safe_left := viewport_size.x * 0.30
-		if _hud_panel != null:
-			safe_left = maxf(safe_left, _hud_panel.offset_right + 22.0)
-		var min_bank_width := 180.0 if viewport_size.x < 560.0 else 296.0
-		var bank_width := minf(408.0, maxf(min_bank_width, viewport_size.x - safe_left - 28.0))
-		safe_left = clampf(safe_left, 12.0, maxf(12.0, viewport_size.x - bank_width - 12.0))
-		_meme_bank_window.offset_left = safe_left
-		_meme_bank_window.offset_top = -324
-		_meme_bank_window.offset_right = safe_left + bank_width
-		_meme_bank_window.offset_bottom = -120
+		_meme_bank_window.set_anchors_preset(Control.PRESET_CENTER_RIGHT)
+		var ring_size := minf(680.0, maxf(430.0, minf(viewport_size.x * 0.48, viewport_size.y - 54.0)))
+		_meme_bank_window.offset_left = -ring_size
+		_meme_bank_window.offset_top = -ring_size * 0.5
+		_meme_bank_window.offset_right = 18.0
+		_meme_bank_window.offset_bottom = ring_size * 0.5
 	elif mode == "collapsed":
-		_meme_bank_window.set_anchors_preset(Control.PRESET_BOTTOM_LEFT)
-		var collapsed_left := viewport_size.x * 0.30
-		if _hud_panel != null:
-			collapsed_left = maxf(collapsed_left, _hud_panel.offset_right + 22.0)
-		var collapsed_width := 112.0
-		collapsed_left = clampf(collapsed_left, 12.0, maxf(12.0, viewport_size.x - collapsed_width - 12.0))
-		_meme_bank_window.offset_left = collapsed_left
-		_meme_bank_window.offset_top = -82
-		_meme_bank_window.offset_right = collapsed_left + collapsed_width
-		_meme_bank_window.offset_bottom = -22
+		_meme_bank_window.set_anchors_preset(Control.PRESET_CENTER_RIGHT)
+		_meme_bank_window.offset_left = -144.0
+		_meme_bank_window.offset_top = -66.0
+		_meme_bank_window.offset_right = -12.0
+		_meme_bank_window.offset_bottom = 66.0
 	else:
-		_meme_bank_window.set_anchors_preset(Control.PRESET_BOTTOM_LEFT)
-		var peek_left := viewport_size.x * 0.30
-		if _hud_panel != null:
-			peek_left = maxf(peek_left, _hud_panel.offset_right + 22.0)
-		var peek_size := 44.0
-		peek_left = clampf(peek_left, 12.0, maxf(12.0, viewport_size.x - peek_size - 12.0))
-		_meme_bank_window.offset_left = peek_left
-		_meme_bank_window.offset_top = -66
-		_meme_bank_window.offset_right = peek_left + peek_size
-		_meme_bank_window.offset_bottom = -22
+		_meme_bank_window.set_anchors_preset(Control.PRESET_CENTER_RIGHT)
+		_meme_bank_window.offset_left = -1.0
+		_meme_bank_window.offset_top = -1.0
+		_meme_bank_window.offset_right = 0.0
+		_meme_bank_window.offset_bottom = 0.0
 
 
 func _apply_reality_layout() -> void:
@@ -3146,6 +3160,8 @@ func _set_social_screen(screen: String) -> void:
 	_social_screen = screen
 	_social_detail_open = false
 	_social_channel = "发现"
+	if screen == "publish":
+		_meme_bank_open = true
 	_render()
 
 
@@ -3266,8 +3282,35 @@ func _render_notebook_app() -> void:
 	var notebook_page := VBoxContainer.new()
 	notebook_page.name = "NotebookCraftPage"
 	notebook_page.size_flags_vertical = Control.SIZE_EXPAND_FILL
-	notebook_page.add_theme_constant_override("separation", 8)
+	notebook_page.add_theme_constant_override("separation", 0)
 	_app_body.add_child(notebook_page)
+
+	var tab_strip := HBoxContainer.new()
+	tab_strip.name = "NotebookCraftTabStrip"
+	tab_strip.custom_minimum_size.y = 58.0
+	tab_strip.add_theme_constant_override("separation", 4)
+	notebook_page.add_child(tab_strip)
+	for tab_data in [
+		{"id": "frame", "label": "梗框造梗"},
+		{"id": "fusion", "label": "双梗融合"},
+	]:
+		var tab_id := str(tab_data["id"])
+		var tab_button := Button.new()
+		tab_button.name = "NotebookCraftTab%s" % tab_id.capitalize()
+		tab_button.text = str(tab_data["label"])
+		tab_button.custom_minimum_size = Vector2(154.0, 54.0)
+		tab_button.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+		tab_button.set_meta("notebook_browser_tab", true)
+		tab_button.set_meta("active_tab", tab_id == _notebook_crafting_tab)
+		tab_button.button_pressed = tab_id == _notebook_crafting_tab
+		tab_button.pressed.connect(_set_notebook_crafting_tab.bind(tab_id))
+		tab_strip.add_child(tab_button)
+
+	var tab_rule := ColorRect.new()
+	tab_rule.name = "NotebookTabRule"
+	tab_rule.color = _theme_color("accent")
+	tab_rule.custom_minimum_size.y = 3.0
+	notebook_page.add_child(tab_rule)
 
 	var notebook_scroll := ScrollContainer.new()
 	notebook_scroll.name = "NotebookCraftScroll"
@@ -3278,9 +3321,40 @@ func _render_notebook_app() -> void:
 
 	var notebook_content := VBoxContainer.new()
 	notebook_content.name = "NotebookCraftContent"
-	notebook_content.add_theme_constant_override("separation", 8)
+	notebook_content.add_theme_constant_override("separation", 10)
 	notebook_scroll.add_child(notebook_content)
 
+	if _notebook_crafting_tab == "fusion":
+		_render_notebook_fusion_tab(notebook_content)
+	else:
+		_render_notebook_frame_tab(notebook_content)
+
+	var action_bar := _panel()
+	action_bar.name = "NotebookCraftActionBar"
+	action_bar.set_meta("fixed_action_bar", true)
+	notebook_page.add_child(action_bar)
+	var action_box := VBoxContainer.new()
+	action_box.add_theme_constant_override("separation", 6)
+	action_bar.add_child(action_box)
+	if _notebook_crafting_tab == "fusion":
+		var fuse := Button.new()
+		fuse.name = "NotebookFusionButton"
+		fuse.text = "确认融合"
+		fuse.custom_minimum_size.y = 56
+		fuse.disabled = not game.can_spend_action() or game.fusion_slots.size() < 2
+		fuse.pressed.connect(_on_confirm_fusion_pressed)
+		action_box.add_child(fuse)
+	else:
+		var craft := Button.new()
+		craft.name = "NotebookCraftButton"
+		craft.text = "装入梗框"
+		craft.custom_minimum_size.y = 56
+		craft.disabled = not game.can_spend_action() or game.owned_meme_frames <= 0 or not game.draft_slots.has("glyph")
+		craft.pressed.connect(_on_confirm_craft_pressed)
+		action_box.add_child(craft)
+
+
+func _render_notebook_frame_tab(notebook_content: VBoxContainer) -> void:
 	notebook_content.add_child(_label("拾取字", 18, _theme_color("accent")))
 	var token_row := HFlowContainer.new()
 	token_row.name = "NotebookTokenFlow"
@@ -3324,25 +3398,13 @@ func _render_notebook_app() -> void:
 	preview.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
 	notebook_content.add_child(preview)
 
-	var fusion_rule := HSeparator.new()
-	notebook_content.add_child(fusion_rule)
+
+func _render_notebook_fusion_tab(notebook_content: VBoxContainer) -> void:
 	notebook_content.add_child(_label("旧梗融合", 18, _theme_color("accent")))
-	var fusion_hint := _label("把两个不同的完整梗叠在一起。确认后污染上升，但传播基础和倍率都会增强。", 14, _theme_color("accent"))
+	var fusion_hint := _label("用滚轮或双指滑动右侧梗环挑选完整梗，再拖入两个槽位；也可以点击梗后再点槽位。", 14, _theme_color("accent"))
+	fusion_hint.name = "NotebookFusionRingHint"
 	fusion_hint.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
 	notebook_content.add_child(fusion_hint)
-	var meme_flow := HFlowContainer.new()
-	meme_flow.name = "NotebookFusionMemeFlow"
-	meme_flow.add_theme_constant_override("h_separation", 6)
-	meme_flow.add_theme_constant_override("v_separation", 6)
-	notebook_content.add_child(meme_flow)
-	for meme in game.completed_memes:
-		var meme_button = DraggableButtonScript.new()
-		meme_button.name = "NotebookFusionMeme_%s" % str(meme.get("id", "meme"))
-		meme_button.text = str(meme.get("title", meme.get("text", "梗")))
-		meme_button.custom_minimum_size = Vector2(132, 48)
-		meme_button.set_drag_payload("meme", str(meme.get("id", "")), str(meme.get("title", "完整梗")))
-		meme_button.pressed.connect(_on_meme_pressed.bind(str(meme.get("id", ""))))
-		meme_flow.add_child(meme_button)
 	var fusion_row := HBoxContainer.new()
 	fusion_row.name = "NotebookFusionSlots"
 	fusion_row.add_theme_constant_override("separation", 8)
@@ -3357,29 +3419,18 @@ func _render_notebook_app() -> void:
 		fusion_slot.dropped.connect(_on_fusion_meme_dropped)
 		fusion_slot.pressed.connect(_on_fusion_slot_pressed.bind(fusion_slot_id))
 		fusion_row.add_child(fusion_slot)
-	var fuse := Button.new()
-	fuse.name = "NotebookFusionButton"
-	fuse.text = "确认融合"
-	fuse.custom_minimum_size.y = 52
-	fuse.disabled = not game.can_spend_action() or game.fusion_slots.size() < 2
-	fuse.pressed.connect(_on_confirm_fusion_pressed)
-	notebook_content.add_child(fuse)
+	var warning := _label("融合会保留两侧隐藏标签，并提高污染与传播倍率。", 14, _theme_color("accent"))
+	warning.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
+	notebook_content.add_child(warning)
 
-	var action_bar := _panel()
-	action_bar.name = "NotebookCraftActionBar"
-	action_bar.set_meta("fixed_action_bar", true)
-	notebook_page.add_child(action_bar)
-	var action_box := VBoxContainer.new()
-	action_box.add_theme_constant_override("separation", 6)
-	action_bar.add_child(action_box)
 
-	var craft := Button.new()
-	craft.name = "NotebookCraftButton"
-	craft.text = "装入梗框"
-	craft.custom_minimum_size.y = 56
-	craft.disabled = not game.can_spend_action() or game.owned_meme_frames <= 0 or not game.draft_slots.has("glyph")
-	craft.pressed.connect(_on_confirm_craft_pressed)
-	action_box.add_child(craft)
+func _set_notebook_crafting_tab(tab_id: String) -> void:
+	if _input_locked or tab_id not in ["frame", "fusion"]:
+		return
+	_notebook_crafting_tab = tab_id
+	if tab_id == "fusion":
+		_meme_bank_open = true
+	_render()
 
 
 func _render_publish() -> void:
@@ -3465,28 +3516,60 @@ func _signal_contract_text(contract: Dictionary, breakdown: Dictionary) -> Strin
 func _render_bank() -> void:
 	if _meme_bank_tab != null:
 		if _meme_bank_open:
-			_meme_bank_tab.text = "梗仓库 ▾"
+			_meme_bank_tab.text = "收起\n梗环"
 			_meme_bank_tab.set_meta("meme_bank_peek", false)
-			_meme_bank_tab.custom_minimum_size = Vector2(142, 48)
+			_meme_bank_tab.custom_minimum_size = Vector2(120, 116)
 		elif _should_show_meme_bank():
-			_meme_bank_tab.text = "梗库"
+			_meme_bank_tab.text = "梗库\n%d" % game.completed_memes.size()
 			_meme_bank_tab.set_meta("meme_bank_peek", false)
-			_meme_bank_tab.custom_minimum_size = Vector2(94, 52)
+			_meme_bank_tab.custom_minimum_size = Vector2(120, 116)
 		else:
-			_meme_bank_tab.text = "◢"
+			_meme_bank_tab.text = ""
 			_meme_bank_tab.set_meta("meme_bank_peek", true)
-			_meme_bank_tab.custom_minimum_size = Vector2(44, 44)
+			_meme_bank_tab.custom_minimum_size = Vector2.ZERO
+	if _meme_bank_ring != null:
+		_meme_bank_ring.set_palette(_theme_color("surface"), Color(_theme_color("muted"), 0.88), _theme_color("accent"))
 	_clear(_bank_list)
 	if game.completed_memes.is_empty():
-		_bank_list.add_child(_label("还没有完整梗。", 15, _theme_color("accent")))
+		if _meme_bank_focus_label != null:
+			_meme_bank_focus_label.text = "还没有完整梗。"
 		return
-	for meme in game.completed_memes:
+	_meme_bank_selected_index = clampi(_meme_bank_selected_index, 0, game.completed_memes.size() - 1)
+	if not selected_meme_id.is_empty():
+		for index in game.completed_memes.size():
+			if str(game.completed_memes[index].get("id", "")) == selected_meme_id:
+				_meme_bank_selected_index = index
+				break
+	for index in game.completed_memes.size():
+		var meme: Dictionary = game.completed_memes[index]
 		var btn = DraggableButtonScript.new()
-		btn.custom_minimum_size = Vector2(240, 60)
+		btn.name = "MemeRingItem_%s" % str(meme.get("id", index))
+		btn.set_meta("radial_meme_item", true)
+		btn.set_meta("meme_index", index)
+		btn.custom_minimum_size = Vector2(134, 54)
 		btn.text = "%s\n%s" % [meme["title"], _corrupt(str(meme["text"]))]
 		btn.set_drag_payload("meme", str(meme["id"]), str(meme["title"]))
 		btn.pressed.connect(_on_meme_pressed.bind(str(meme["id"])))
+		btn.gui_input.connect(_on_meme_ring_item_gui_input.bind(btn))
 		_bank_list.add_child(btn)
+	_meme_bank_ring.set_selected_index(_meme_bank_selected_index)
+	_on_meme_ring_selection_changed(_meme_bank_selected_index)
+
+
+func _on_meme_ring_selection_changed(index: int) -> void:
+	if game == null or game.completed_memes.is_empty():
+		return
+	_meme_bank_selected_index = clampi(index, 0, game.completed_memes.size() - 1)
+	var meme: Dictionary = game.completed_memes[_meme_bank_selected_index]
+	selected_meme_id = str(meme.get("id", ""))
+	if _meme_bank_focus_label != null:
+		_meme_bank_focus_label.text = "%02d / %02d\n%s" % [_meme_bank_selected_index + 1, game.completed_memes.size(), str(meme.get("title", meme.get("text", "完整梗")))]
+	_render_publish()
+
+
+func _on_meme_ring_item_gui_input(event: InputEvent, source_button: Control) -> void:
+	if _meme_bank_ring != null and _meme_bank_ring.handle_navigation_event(event):
+		source_button.accept_event()
 
 
 func _render_reality() -> void:
@@ -3650,8 +3733,9 @@ func _update_visibility() -> void:
 	if _phone_popup_expanded != show_phone_home:
 		_phone_popup_expanded = show_phone_home
 		_apply_phone_popup_layout(show_phone_home)
-	_phone_panel.visible = _game_started
-	_phone_tab.visible = not show_phone_home
+	_phone_panel.visible = _game_started and show_phone_home
+	if _phone_tab != null:
+		_phone_tab.visible = false
 	_phone_content.visible = show_phone_home
 	if in_phone and not game.active_app_window.is_empty():
 		_open_app_windows[game.active_app_window] = true
@@ -3674,6 +3758,10 @@ func _update_visibility() -> void:
 		_apply_meme_bank_popup_layout(desired_bank_layout)
 	if _meme_bank_content != null:
 		_meme_bank_content.visible = show_meme_bank and _meme_bank_open
+	if _meme_bank_ring != null:
+		_meme_bank_ring.visible = show_meme_bank and _meme_bank_open
+	if _meme_bank_drag_handle != null:
+		_meme_bank_drag_handle.visible = show_meme_bank and _meme_bank_open
 	_avoid_meme_bank_overlaps()
 	if _phone_down_backdrop_image != null:
 		_phone_down_backdrop_image.visible = in_phone or _phone_art_alpha > 0.03
@@ -4015,7 +4103,8 @@ func _should_show_meme_bank() -> bool:
 	if _phone_launcher_open:
 		return false
 	var social_publish_open := bool(_open_app_windows.get("social", false)) and _social_screen == "publish"
-	return social_publish_open
+	var notebook_open := bool(_open_app_windows.get("notebook", false)) and game.active_app_window == "notebook"
+	return social_publish_open or notebook_open
 
 
 func _should_peek_meme_bank() -> bool:
@@ -4024,6 +4113,10 @@ func _should_peek_meme_bank() -> bool:
 
 func _avoid_meme_bank_overlaps() -> void:
 	if _meme_bank_window == null or not _meme_bank_window.visible:
+		return
+	# The ring deliberately owns the right edge; preserving that anchor makes
+	# scroll navigation spatially predictable even when the notebook moves.
+	if _meme_bank_ring != null:
 		return
 	var targets := _meme_bank_overlap_targets()
 	if not _meme_bank_conflicts_at(_meme_bank_window.global_position, targets):
@@ -4227,6 +4320,19 @@ func _apply_ui_theme(node: Node = null) -> void:
 			button.add_theme_stylebox_override("normal", _window_close_style(Color(_theme_color("surface"), 0.0), _theme_color("accent")))
 			button.add_theme_stylebox_override("hover", _window_close_style(_theme_color("ink"), _theme_color("ink")))
 			button.add_theme_stylebox_override("pressed", _window_close_style(_theme_color("accent"), _theme_color("ink")))
+		elif button.has_meta("notebook_browser_tab"):
+			var tab_active := bool(button.get_meta("active_tab", false))
+			button.add_theme_color_override("font_color", _theme_color("surface") if tab_active else _theme_color("ink"))
+			button.add_theme_color_override("font_hover_color", _theme_color("ink"))
+			button.add_theme_stylebox_override("normal", _style(_theme_color("ink") if tab_active else Color(_theme_color("surface"), 0.72), _theme_color("accent")))
+			button.add_theme_stylebox_override("hover", _style(_theme_color("muted"), _theme_color("ink")))
+			button.add_theme_stylebox_override("pressed", _style(_theme_color("accent"), _theme_color("ink")))
+		elif button.has_meta("radial_center_button"):
+			button.add_theme_color_override("font_color", _theme_color("surface"))
+			button.add_theme_color_override("font_hover_color", _theme_color("ink"))
+			button.add_theme_stylebox_override("normal", _circle_style(Color(_theme_color("ink"), 0.92), _theme_color("muted")))
+			button.add_theme_stylebox_override("hover", _circle_style(_theme_color("muted"), _theme_color("ink")))
+			button.add_theme_stylebox_override("pressed", _circle_style(_theme_color("accent"), _theme_color("surface")))
 		elif button.has_meta("ascent_reward_card"):
 			button.add_theme_color_override("font_color", _theme_color("surface"))
 			button.add_theme_color_override("font_hover_color", _theme_color("ink"))
@@ -4764,6 +4870,8 @@ func _on_app_pressed(app_id: String) -> void:
 	game.set_active_app(app_id)
 	_open_app_windows[app_id] = true
 	_phone_launcher_open = false
+	if app_id == "notebook":
+		_meme_bank_open = true
 	if _app_windows.has(app_id):
 		var window := _app_windows[app_id] as Control
 		if window != null:
@@ -5057,6 +5165,16 @@ func _soft_style(bg: Color, border: Color) -> StyleBoxFlat:
 	style.set_border_width_all(1)
 	style.set_corner_radius_all(16)
 	style.set_content_margin_all(16)
+	return style
+
+
+func _circle_style(bg: Color, border: Color) -> StyleBoxFlat:
+	var style := StyleBoxFlat.new()
+	style.bg_color = bg
+	style.border_color = border
+	style.set_border_width_all(3)
+	style.set_corner_radius_all(60)
+	style.set_content_margin_all(12)
 	return style
 
 

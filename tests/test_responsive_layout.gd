@@ -41,7 +41,7 @@ func _run() -> void:
 	var social_bottom_nav := _find_node_by_name(game_root, "SocialBottomNav") as HBoxContainer
 	var social_inline_close := _find_node_by_name(game_root, "SocialAppInlineCloseButton") as Button
 	var view_toggle := _find_node_by_name(game_root, "PhoneViewToggleButton") as Button
-	var meme_bank := _find_node_by_name(game_root, "MemeBankPopup") as PanelContainer
+	var meme_bank := _find_node_by_name(game_root, "MemeBankPopup") as Control
 	var actions_label := _find_node_by_name(game_root, "HUDActionsLabel") as Label
 	_assert_true(hud != null, "small view should keep the left HUD rail")
 	_assert_true(social_window != null and social_window.visible, "small view should open the social phone")
@@ -90,6 +90,7 @@ func _run() -> void:
 	var reality_subtitle := _find_node_by_name(game_root, "RealitySubtitlePanel") as PanelContainer
 	var reality_choices := _find_node_by_name(game_root, "RealityResponseChoices") as HBoxContainer
 	var phone_tab := _find_node_by_name(game_root, "PhoneTab") as Button
+	_assert_true(phone_tab == null, "responsive layout should not restore the duplicate PHONE tab")
 	_assert_true(reality_subtitle != null and not reality_subtitle.visible, "small-view walking mode should wait for an F interaction before showing subtitles")
 	var reality_player := _find_node_by_name(game_root, "RealityPlayer") as CharacterBody3D
 	var reality_merchant := _find_node_by_name(game_root, "Merchant") as Area3D
@@ -119,7 +120,7 @@ func _run() -> void:
 	_assert_true(typing_line != null and typing_line.visible, "small-view selected response should become the per-key typing line")
 	_assert_true(typing_progress != null and typing_progress.visible, "small-view typing should expose concise progress")
 	_assert_true(_find_node_by_name(game_root, "LanguagePuzzleFrame") == null, "small-view dialogue should not restore the retired Florence puzzle")
-	for control in [typing_line, typing_progress, reality_subtitle, phone_tab]:
+	for control in [typing_line, typing_progress, reality_subtitle]:
 		if control != null and control.visible:
 			_assert_true(_inside_rect(control, viewport_rect), "small-view reality control should stay inside the viewport: %s" % control.name)
 	if hud != null and typing_line != null:
