@@ -315,6 +315,7 @@ var _npc: Node3D
 var _reality_player: CharacterBody3D
 var _reality_floor
 var _reality_built_floor := 0
+var _reality_built_day := 0
 var _reality_yaw := 0.0
 var _reality_pitch := 0.0
 var _reality_last_safe_position := Vector3.ZERO
@@ -640,6 +641,7 @@ func _begin_game_session(session_state: MemeGameState, world_data: Dictionary, s
 	_drag_offset = Vector2.ZERO
 	_last_responsive_layout_size = Vector2.ZERO
 	_reality_built_floor = 0
+	_reality_built_day = 0
 	_reality_yaw = _reality_floor.start_yaw_degrees()
 	_reality_pitch = 0.0
 	_set_reality_mouse_look(false)
@@ -970,9 +972,10 @@ func _rebuild_reality_floor() -> void:
 		"merchant": _load_runtime_texture(MERCHANT_CHARACTER_PATH),
 		"npcs": npc_textures,
 	}
-	_reality_floor.rebuild(game.tower_floor, _active_palette(), actor_textures)
+	_reality_floor.rebuild(game.tower_floor, _active_palette(), actor_textures, game.day)
 	_reality_floor.sync_collected_items(game.collected_world_item_ids)
 	_reality_built_floor = game.tower_floor
+	_reality_built_day = game.day
 	_reality_interaction_active = false
 	_active_reality_actor = null
 	_nearby_reality_actor = null
@@ -990,6 +993,9 @@ func _ensure_reality_floor_current() -> void:
 		return
 	if _reality_built_floor != game.tower_floor:
 		_rebuild_reality_floor()
+	elif _reality_built_day != game.day:
+		_reality_floor.configure_authored_events(game.day, _active_palette())
+		_reality_built_day = game.day
 
 
 func _room_count_for_floor(floor_number: int) -> int:
@@ -4386,6 +4392,8 @@ func _animate_world(delta: float) -> void:
 		for index in _road.get_child_count():
 			var tile := _road.get_child(index) as Node3D
 			tile.position.z = -2.0 - index * 3.8 + fmod(_road_scroll, 3.8)
+	if game.view_state == "npc_up" and _reality_floor != null and _reality_player != null:
+		_reality_floor.update_authored_events(delta, _reality_player.global_position, -_camera.global_basis.z)
 	_animate_vhs(delta)
 
 

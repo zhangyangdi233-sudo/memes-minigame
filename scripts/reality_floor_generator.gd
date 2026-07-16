@@ -3,6 +3,7 @@ extends Node3D
 class_name RealityFloorGenerator
 
 const NPC_FACE_VEIL_SHADER := preload("res://shaders/npc_face_veil.gdshader")
+const DISTANT_MIRAGE_TEXTURE_PATH := "res://assets/generated/world/events/distant_mirage.png"
 
 const BASE_ROOM_COUNT := 4
 const WORLD_LENGTH_SCALE := 5.0
@@ -42,6 +43,29 @@ const FULL_MAP_GRASS_SPACING := 0.44
 const FULL_MAP_GRASS_BLADE_HEIGHT := 0.32
 const FULL_MAP_GRASS_BLADE_WIDTH := 0.24
 const SUSPENSE_CLEAR_PATH_WIDTH := 5.6
+const DISTANT_MIRAGE_DAYS := [4, 9]
+const AUTHORED_EVENT_TABLE := {
+	2: [
+		["light_memory", "dead_sign"],
+		["light_memory"],
+		["dead_sign"],
+	],
+	3: [
+		["dead_sign"],
+		["light_memory", "dead_sign"],
+		["light_memory"],
+	],
+	4: [
+		["light_memory"],
+		["dead_sign"],
+		["light_memory", "dead_sign"],
+	],
+	5: [
+		["dead_sign", "light_memory"],
+		["light_memory", "dead_sign"],
+		["dead_sign", "light_memory"],
+	],
+}
 const DISTRICT_STYLES := ["sunlit_brick_street", "night_white_blocks", "overgrown_gallery"]
 const DISTRICT_REFERENCE_TEXTURES := {
 	"sunlit_brick_street": "res://assets/generated/world/reference_districts/sunlit_brick_street.png",
@@ -69,6 +93,11 @@ var district_style := DISTRICT_STYLES[0]
 var _actors: Array[Area3D] = []
 var _items: Array[Area3D] = []
 var _environment: WorldEnvironment
+var _authored_event_root: Node3D
+var _authored_event_nodes: Dictionary = {}
+var _authored_event_states: Dictionary = {}
+var _authored_event_origin := Vector3.ZERO
+var _authored_event_day := 1
 
 
 static func room_count_for_floor(floor_number: int) -> int:
@@ -85,7 +114,19 @@ static func district_style_for_floor(floor_number: int) -> String:
 	return DISTRICT_STYLES[posmod(maxi(1, floor_number) - 1, DISTRICT_STYLES.size())]
 
 
-func rebuild(floor_number: int, palette: Dictionary, actor_textures: Dictionary) -> void:
+static func authored_event_kinds_for_floor_day(floor_number: int, day_number: int) -> PackedStringArray:
+	var floor_schedules: Array = AUTHORED_EVENT_TABLE.get(clampi(floor_number, 1, 5), [])
+	if floor_schedules.is_empty():
+		return PackedStringArray()
+	var normalized_day := maxi(1, day_number)
+	var selected_schedule: Array = floor_schedules[posmod(normalized_day - 1, floor_schedules.size())]
+	var event_kinds := PackedStringArray(selected_schedule)
+	if floor_number >= 2 and normalized_day in DISTANT_MIRAGE_DAYS:
+		event_kinds.append("distant_mirage")
+	return event_kinds
+
+
+func rebuild(floor_number: int, palette: Dictionary, actor_textures: Dictionary, day_number: int = 1) -> void:
 	_clear_floor()
 	built_floor = clampi(floor_number, 1, 5)
 	district_style = district_style_for_floor(built_floor)
@@ -146,11 +187,17 @@ func rebuild(floor_number: int, palette: Dictionary, actor_textures: Dictionary)
 	set_meta("dreamcore_object_count", 0)
 	set_meta("dreamcore_object_types", PackedStringArray())
 	set_meta("dreamcore_non_pickup_count", 0)
+	set_meta("authored_event_count", 0)
+	set_meta("authored_event_kinds", PackedStringArray())
+	set_meta("authored_event_day", maxi(1, day_number))
+	set_meta("authored_event_trigger_mode", "movement_then_observation_then_look_away")
+	set_meta("authored_event_randomized", false)
 	set_meta("lighting_profile", "open_daylight" if built_floor == 1 else "slow_burn_suspense")
 
 	_build_environment(palette)
 	_build_architecture(palette)
 	_build_actors(palette, actor_textures)
+	configure_authored_events(day_number, palette)
 	set_meta("useful_item_count", useful_item_count)
 
 
@@ -179,6 +226,284 @@ func sync_collected_items(collected_ids: Array[String]) -> void:
 		item.visible = not collected
 		item.monitoring = not collected
 		item.monitorable = not collected
+
+
+func configure_authored_events(day_number: int, palette: Dictionary) -> void:
+	if _authored_event_root != null and is_instance_valid(_authored_event_root):
+		remove_child(_authored_event_root)
+		_authored_event_root.free()
+	_authored_event_nodes.clear()
+	_authored_event_states.clear()
+	_authored_event_day = maxi(1, day_number)
+	_authored_event_origin = start_position()
+	_authored_event_root = Node3D.new()
+	_authored_event_root.name = "AuthoredHorrorEvents"
+	_authored_event_root.set_meta("authored_event_collection", true)
+	_authored_event_root.set_meta("non_jumpscare", true)
+	add_child(_authored_event_root)
+	var event_kinds := authored_event_kinds_for_floor_day(built_floor, _authored_event_day)
+	for event_kind in event_kinds:
+		match str(event_kind):
+			"light_memory":
+				_build_light_memory_event(palette)
+			"dead_sign":
+				_build_dead_sign_event(palette)
+			"distant_mirage":
+				_build_distant_mirage_event()
+	set_meta("authored_event_count", event_kinds.size())
+	set_meta("authored_event_kinds", event_kinds)
+	set_meta("authored_event_day", _authored_event_day)
+	set_meta("authored_event_day_slot", posmod(_authored_event_day - 1, 3))
+	set_meta("authored_event_trigger_mode", "movement_then_observation_then_look_away")
+	set_meta("authored_event_randomized", false)
+
+
+func update_authored_events(delta: float, player_position: Vector3, camera_forward: Vector3) -> void:
+	if _authored_event_nodes.is_empty():
+		return
+	var horizontal_travel := Vector2(player_position.x - _authored_event_origin.x, player_position.z - _authored_event_origin.z).length()
+	var safe_forward := camera_forward.normalized() if camera_forward.length_squared() > 0.0001 else Vector3(0.0, 0.0, -1.0)
+	for event_kind in _authored_event_nodes.keys():
+		match str(event_kind):
+			"light_memory":
+				_update_light_memory_event(delta, horizontal_travel)
+			"dead_sign":
+				_update_dead_sign_event(horizontal_travel, player_position, safe_forward)
+			"distant_mirage":
+				_update_distant_mirage_event(delta, horizontal_travel, player_position)
+
+
+func get_authored_event_state(event_kind: String) -> Dictionary:
+	return (_authored_event_states.get(event_kind, {}) as Dictionary).duplicate(true)
+
+
+func _authored_event_position(event_kind: String) -> Vector3:
+	var event_index := ["light_memory", "dead_sign", "distant_mirage"].find(event_kind)
+	if built_floor == 2:
+		var angles := [PI * 0.5 - 0.11, PI * 0.5 + 0.18, PI * 0.5 - 0.28]
+		var radii := [0.65, 0.55, 0.39]
+		var disc_position := _floor_two_disc_point(float(angles[event_index]), float(radii[event_index]))
+		disc_position.y += 0.08
+		return disc_position
+	var lateral_positions := [0.0, 4.2, -2.8]
+	var forward_distances := [18.0, 29.0, 43.0]
+	return Vector3(float(lateral_positions[event_index]), 0.08, _authored_event_origin.z - float(forward_distances[event_index]))
+
+
+func _orient_event_toward_origin(event_root: Node3D) -> void:
+	if built_floor != 2:
+		return
+	var target := Vector3(_authored_event_origin.x, event_root.global_position.y, _authored_event_origin.z)
+	if event_root.global_position.distance_squared_to(target) < 0.01:
+		return
+	event_root.look_at(target, Vector3.UP)
+	event_root.rotate_y(PI)
+
+
+func _register_authored_event(event_kind: String, event_root: Node3D, state: Dictionary) -> void:
+	event_root.set_meta("authored_horror_event", true)
+	event_root.set_meta("event_kind", event_kind)
+	event_root.set_meta("event_day", _authored_event_day)
+	event_root.set_meta("non_jumpscare", true)
+	event_root.set_meta("deterministic", true)
+	_authored_event_nodes[event_kind] = event_root
+	_authored_event_states[event_kind] = state
+
+
+func _build_light_memory_event(palette: Dictionary) -> void:
+	var event_root := Node3D.new()
+	event_root.name = "LightMemoryEvent"
+	event_root.position = _authored_event_position("light_memory")
+	_authored_event_root.add_child(event_root)
+	_orient_event_toward_origin(event_root)
+	_add_box(event_root, "MemoryLightHousing", Vector3(1.68, 0.14, 0.72), Vector3(0.0, 3.02, 0.0), "fixture_metal", palette, false)
+	for tube_index in 4:
+		_add_box(event_root, "MemoryLightTube%02d" % tube_index, Vector3(1.42, 0.07, 0.09), Vector3(0.0, 2.94, -0.25 + float(tube_index) * 0.17), "fluorescent", palette, false)
+	for wire_side in [-1.0, 1.0]:
+		var wire := _add_box(event_root, "MemoryLightWire%s" % ("L" if wire_side < 0.0 else "R"), Vector3(0.035, 1.04, 0.035), Vector3(wire_side * 0.56, 3.58, 0.0), "rubber_black", palette, false)
+		wire.rotation.z = wire_side * 0.10
+	var light := OmniLight3D.new()
+	light.name = "MemoryLightSource"
+	light.position = Vector3(0.0, 2.72, 0.0)
+	light.light_color = Color("D9FFB5") if built_floor >= 3 else Color("91B99A")
+	light.light_energy = 1.35 if built_floor == 3 else 0.72
+	light.omni_range = 12.0
+	light.shadow_enabled = false
+	event_root.add_child(light)
+	_register_authored_event("light_memory", event_root, {
+		"triggered": false,
+		"settled": false,
+		"elapsed": 0.0,
+		"base_energy": light.light_energy,
+	})
+
+
+func _build_dead_sign_event(palette: Dictionary) -> void:
+	var event_root := Node3D.new()
+	event_root.name = "DeadSignEvent"
+	event_root.position = _authored_event_position("dead_sign")
+	_authored_event_root.add_child(event_root)
+	_orient_event_toward_origin(event_root)
+	_add_box(event_root, "DeadSignPostL", Vector3(0.09, 2.12, 0.09), Vector3(-0.72, 1.06, 0.0), "fixture_metal", palette, false)
+	_add_box(event_root, "DeadSignPostR", Vector3(0.09, 2.12, 0.09), Vector3(0.72, 1.06, 0.0), "fixture_metal", palette, false)
+	_add_box(event_root, "DeadSignHousing", Vector3(1.72, 0.72, 0.16), Vector3(0.0, 2.26, 0.0), "rubber_black", palette, false)
+	var label := Label3D.new()
+	label.name = "DeadSignLabel"
+	label.text = "EXIT"
+	label.position = Vector3(0.0, 2.26, 0.10)
+	label.font_size = 96
+	label.pixel_size = 0.0046
+	label.modulate = _role_color("fluorescent", palette)
+	label.outline_modulate = Color("071009")
+	label.outline_size = 12
+	label.no_depth_test = true
+	event_root.add_child(label)
+	var light := OmniLight3D.new()
+	light.name = "DeadSignGlow"
+	light.position = Vector3(0.0, 2.18, 0.28)
+	light.light_color = _role_color("fluorescent", palette)
+	light.light_energy = 0.42
+	light.omni_range = 4.0
+	light.shadow_enabled = false
+	event_root.add_child(light)
+	_register_authored_event("dead_sign", event_root, {
+		"triggered": false,
+		"observed": false,
+		"failed": false,
+	})
+
+
+func _build_distant_mirage_event() -> void:
+	var event_root := Node3D.new()
+	event_root.name = "DistantMirageEvent"
+	event_root.position = _authored_event_position("distant_mirage")
+	_authored_event_root.add_child(event_root)
+	_orient_event_toward_origin(event_root)
+	var layer_names := ["MirageEchoLeft", "MiragePrimary", "MirageEchoRight"]
+	var layer_offsets := [-0.055, 0.0, 0.055]
+	var layer_alphas := [0.10, 0.40, 0.08]
+	var mirage_texture := load(DISTANT_MIRAGE_TEXTURE_PATH) as Texture2D
+	for layer_index in layer_names.size():
+		var sprite := Sprite3D.new()
+		sprite.name = str(layer_names[layer_index])
+		sprite.texture = mirage_texture
+		sprite.position = Vector3(float(layer_offsets[layer_index]), 1.18, float(layer_index - 1) * 0.004)
+		sprite.pixel_size = 0.00155
+		sprite.billboard = BaseMaterial3D.BILLBOARD_ENABLED
+		sprite.double_sided = true
+		sprite.shaded = false
+		sprite.transparent = true
+		sprite.texture_filter = BaseMaterial3D.TEXTURE_FILTER_LINEAR_WITH_MIPMAPS
+		sprite.modulate = Color(0.82, 0.92, 0.64, float(layer_alphas[layer_index]))
+		sprite.render_priority = layer_index
+		sprite.set_meta("mirage_base_position", sprite.position)
+		sprite.set_meta("mirage_base_alpha", float(layer_alphas[layer_index]))
+		sprite.set_meta("mirage_phase", float(layer_index) * 1.9)
+		event_root.add_child(sprite)
+	event_root.visible = false
+	_register_authored_event("distant_mirage", event_root, {
+		"triggered": false,
+		"dissolved": false,
+		"elapsed": 0.0,
+	})
+
+
+func _update_light_memory_event(delta: float, horizontal_travel: float) -> void:
+	var event_root := _authored_event_nodes.get("light_memory") as Node3D
+	if event_root == null:
+		return
+	var light := event_root.get_node_or_null("MemoryLightSource") as OmniLight3D
+	if light == null:
+		return
+	var state := _authored_event_states.get("light_memory", {}) as Dictionary
+	if not bool(state.get("triggered", false)) and horizontal_travel >= 4.5:
+		state["triggered"] = true
+		event_root.set_meta("event_phase", "flickering")
+	if not bool(state.get("triggered", false)) or bool(state.get("settled", false)):
+		_authored_event_states["light_memory"] = state
+		return
+	var elapsed := float(state.get("elapsed", 0.0)) + delta
+	state["elapsed"] = elapsed
+	var multiplier := 1.0
+	if elapsed < 0.14:
+		multiplier = 0.08
+	elif elapsed < 0.28:
+		multiplier = 0.92
+	elif elapsed < 0.43:
+		multiplier = 0.04
+	elif elapsed < 0.62:
+		multiplier = 0.68
+	elif elapsed < 0.82:
+		multiplier = 0.12
+	else:
+		multiplier = 0.24
+		state["settled"] = true
+		event_root.set_meta("event_phase", "afterimage")
+	light.light_energy = float(state.get("base_energy", 0.72)) * multiplier
+	_authored_event_states["light_memory"] = state
+
+
+func _update_dead_sign_event(horizontal_travel: float, player_position: Vector3, camera_forward: Vector3) -> void:
+	var event_root := _authored_event_nodes.get("dead_sign") as Node3D
+	if event_root == null:
+		return
+	var state := _authored_event_states.get("dead_sign", {}) as Dictionary
+	if not bool(state.get("triggered", false)) and horizontal_travel >= 7.0:
+		state["triggered"] = true
+		event_root.set_meta("event_phase", "waiting_for_notice")
+	if not bool(state.get("triggered", false)) or bool(state.get("failed", false)):
+		_authored_event_states["dead_sign"] = state
+		return
+	var to_sign := event_root.global_position + Vector3.UP * 2.1 - player_position
+	var view_dot := camera_forward.dot(to_sign.normalized()) if to_sign.length_squared() > 0.0001 else -1.0
+	if view_dot >= 0.68:
+		state["observed"] = true
+		event_root.set_meta("event_phase", "noticed")
+	elif bool(state.get("observed", false)) and view_dot <= 0.08:
+		var label := event_root.get_node_or_null("DeadSignLabel") as Label3D
+		if label != null:
+			label.text = "EX_T"
+		var glow := event_root.get_node_or_null("DeadSignGlow") as OmniLight3D
+		if glow != null:
+			glow.light_energy = 0.05
+		state["failed"] = true
+		event_root.set_meta("event_phase", "letter_missing")
+	_authored_event_states["dead_sign"] = state
+
+
+func _update_distant_mirage_event(delta: float, horizontal_travel: float, player_position: Vector3) -> void:
+	var event_root := _authored_event_nodes.get("distant_mirage") as Node3D
+	if event_root == null:
+		return
+	var state := _authored_event_states.get("distant_mirage", {}) as Dictionary
+	if not bool(state.get("triggered", false)) and horizontal_travel >= 8.0:
+		state["triggered"] = true
+		event_root.visible = true
+		event_root.set_meta("event_phase", "mirage_visible")
+	if not bool(state.get("triggered", false)) or bool(state.get("dissolved", false)):
+		_authored_event_states["distant_mirage"] = state
+		return
+	var elapsed := float(state.get("elapsed", 0.0)) + delta
+	state["elapsed"] = elapsed
+	var distance := player_position.distance_to(event_root.global_position)
+	var approach_alpha := clampf((distance - 7.0) / 18.0, 0.0, 1.0)
+	var time_alpha := 1.0 - smoothstep(9.5, 13.0, elapsed)
+	var shimmer := 0.90 + sin(elapsed * 5.7) * 0.10
+	for child in event_root.get_children():
+		if not child is Sprite3D:
+			continue
+		var sprite := child as Sprite3D
+		var base_position: Vector3 = sprite.get_meta("mirage_base_position", sprite.position)
+		var phase := float(sprite.get_meta("mirage_phase", 0.0))
+		sprite.position = base_position + Vector3(sin(elapsed * 7.3 + phase) * 0.018, sin(elapsed * 2.1 + phase) * 0.009, 0.0)
+		var tint := sprite.modulate
+		tint.a = float(sprite.get_meta("mirage_base_alpha", 0.2)) * approach_alpha * time_alpha * shimmer
+		sprite.modulate = tint
+	if distance <= 7.0 or elapsed >= 13.0:
+		event_root.visible = false
+		state["dissolved"] = true
+		event_root.set_meta("event_phase", "dissolved")
+	_authored_event_states["distant_mirage"] = state
 
 
 func start_position() -> Vector3:
@@ -316,6 +641,11 @@ func _clear_floor() -> void:
 	_actors.clear()
 	_items.clear()
 	_environment = null
+	_authored_event_root = null
+	_authored_event_nodes.clear()
+	_authored_event_states.clear()
+	_authored_event_origin = Vector3.ZERO
+	_authored_event_day = 1
 	for child in get_children():
 		remove_child(child)
 		child.free()

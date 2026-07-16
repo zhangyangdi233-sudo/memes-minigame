@@ -2,6 +2,7 @@ extends SceneTree
 
 const VIEW_SIZE := Vector2i(1280, 900)
 const PROJECT_DIR := "/Users/zhang/Documents/游戏/babel-meme-game"
+const HEADLESS_CAPTURE_ERROR := "Dreamcore screenshots require a rendered display. Run this tool without --headless."
 const ARTIFACT_TYPES := [
 	"false_window",
 	"water_cooler",
@@ -43,9 +44,7 @@ func _init() -> void:
 
 func _capture() -> void:
 	root.size = VIEW_SIZE
-	if DisplayServer.get_name().to_lower() == "headless":
-		push_error("Dreamcore screenshots require a rendered display")
-		quit(2)
+	if not _ensure_capture_supported():
 		return
 	var floor_number := clampi(int(OS.get_environment("BABEL_CAPTURE_FLOOR")), 2, 3)
 	var scene := load("res://scenes/babel_meme_game.tscn") as PackedScene
@@ -158,3 +157,11 @@ func _add_review_light(camera: Camera3D, floor_number: int) -> void:
 	light.omni_range = 18.0
 	light.shadow_enabled = false
 	camera.add_child(light)
+
+
+func _ensure_capture_supported() -> bool:
+	if DisplayServer.get_name().to_lower() == "headless":
+		push_error(HEADLESS_CAPTURE_ERROR)
+		quit(2)
+		return false
+	return true

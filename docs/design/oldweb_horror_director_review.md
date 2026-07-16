@@ -16,6 +16,7 @@ Three pillars govern new work:
 - Ordinary NPCs now carry three-turn conversations. Each turn reveals one concrete fragment of the district, while misunderstanding can interrupt the exchange before the explanation is complete.
 - Completing an NPC conversation can award a Meme Frame. The deterministic 45% roll and third-attempt guarantee make conversation mechanically valuable without turning NPCs into vending machines.
 - Floor two onward removes people, extends connected architecture, darkens the environmental hierarchy, and reserves stronger suspense cues for deeper floors.
+- Floors two through five now rotate a deterministic authored event table: a light remembers the wrong brightness, an EXIT sign loses one letter after the player looks away, and a transparent distant mirage appears on only two authored days. These events never use collision-triggered jump scares.
 - The profile now contains an in-world `BABEL-LINK 98` cache. Its guestbook, mirrors, broken link, and source-code cache puzzle are optional, cost no action, and reveal original lore through investigation.
 - The adaptive score now shares a recognizable five-note motif across reality, phone, and pollution stems. Each layer transforms the motif instead of replacing it with unrelated ambience.
 
@@ -48,7 +49,7 @@ Three pillars govern new work:
 
 1. Add one clue to the street and one clue to an NPC for each future cache code.
 2. Record conversation callbacks so a later NPC can quote the player's earlier clean intention incorrectly.
-3. Build a small authored event table for lights, distant silhouettes, and dead signage, triggered by floor and day rather than random timers.
+3. Expand the authored event table only after playtesting whether players notice the current light, dead-sign, and rare image-mirage events without explicit prompts.
 4. Add reduced-motion and reduced-noise options before expanding the VHS and pollution effects.
 5. Profile frame acquisition and floor generation on the lowest target hardware before increasing image or shader resolution.
 

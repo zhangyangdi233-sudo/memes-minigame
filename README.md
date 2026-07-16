@@ -87,6 +87,8 @@ Run the localization audit with `res://tests/test_localization.gd`. It verifies 
 
 Run `res://tests/test_oldweb_archive.gd` for the optional archive puzzle and `res://tests/test_reality_world.gd` for continuous architecture, descending NPC population, suspense lighting, walkable clearance, and zero jump-scare trigger volumes.
 
+Reality floors two through five also use a deterministic, floor/day-authored horror table. Movement and camera observation drive a finite light failure, a one-letter EXIT-sign absence, and a transparent distant mirage scheduled only on days four and nine. `res://tests/test_authored_horror_events.gd` verifies the state sequences and confirms that no event is an `Area3D` jump-scare trigger.
+
 ## Third-party Addon
 
 `addons/richtext2/` contains RichTextLabel2 v1.14 by chairfull under the MIT license. Its license is preserved at `addons/richtext2/LICENSE`.
