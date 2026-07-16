@@ -69,6 +69,7 @@ func _run() -> void:
 	_assert_true(meme_bank != null and meme_bank.visible, "meme bank should appear as a small attached window only on social publish")
 	game_root._toggle_meme_bank()
 	_assert_true(meme_bank_content != null and meme_bank_content.visible, "publish-only meme bank should still expand on demand")
+	_assert_eq(str(meme_bank.get_meta("motion_easing", "")), "easeOutQuint", "meme bank open and close motion should use easeOutQuint")
 	game_root.game.set_active_app("notebook")
 	game_root._open_app_windows["social"] = false
 	game_root._render()

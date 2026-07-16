@@ -57,6 +57,19 @@ func _run() -> void:
 			_assert_true(phone_stream.loop_end == 2_116_800, "the original score should render an exact 96-second loop")
 		_assert_true(absf(phone.get_playback_position() - reality.get_playback_position()) < 0.05, "phone and reality score stems should begin in sync")
 		_assert_true(absf(reality.get_playback_position() - pollution_music.get_playback_position()) < 0.05, "pollution score stem should begin in sync with reality")
+		var floor_paths: Dictionary = {}
+		for floor_number in range(1, 6):
+			game_root.game.tower_floor = floor_number
+			game_root._sync_audio_state(true)
+			var floor_path := str(phone.get_meta("generated_audio_path", ""))
+			floor_paths[floor_path] = true
+			_assert_eq(floor_path, game_root._phone_music_path_for_floor(floor_number), "each tower floor should select its authored phone score")
+			_assert_eq(int(phone.get_meta("phone_music_floor", 0)), floor_number, "phone score metadata should follow the current floor")
+			var floor_stream := phone.stream as AudioStreamWAV
+			_assert_true(floor_stream != null and floor_stream.loop_end == 2_116_800, "every floor score should preserve the 96-second seamless loop contract")
+		_assert_eq(floor_paths.size(), 5, "all five tower floors should use distinct phone music")
+		game_root.game.tower_floor = 1
+		game_root._sync_audio_state(true)
 	_validate_score_metadata()
 
 	game_root.game.pollution = 50

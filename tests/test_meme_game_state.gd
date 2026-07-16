@@ -590,7 +590,7 @@ func test_npc_meme_frame_reward_chance_pity_and_daily_dedup() -> void:
 	var game: RefCounted = _state_script.new()
 	game.new_run()
 	var rules: Dictionary = game.get_npc_meme_frame_reward_rules()
-	_assert_eq(int(rules.get("chance_percent", 0)), 35, "NPC Meme Frame base chance should be explicit and stable")
+	_assert_eq(int(rules.get("chance_percent", 0)), 45, "NPC Meme Frame base chance should stay within the requested 40-50 percent range")
 	_assert_eq(int(rules.get("pity_limit", 0)), 3, "the third eligible successful NPC conversation should be guaranteed")
 	_assert_eq(str(rules.get("dedup_scope", "")), "actor_per_day", "reward API should expose same-actor same-day deduplication")
 
@@ -599,9 +599,9 @@ func test_npc_meme_frame_reward_chance_pity_and_daily_dedup() -> void:
 	for candidate_index in 500:
 		var candidate := "reward-roll-%d" % candidate_index
 		var roll: int = game._npc_meme_frame_reward_roll(candidate)
-		if roll >= 35 and miss_actor_ids.size() < 3:
+		if roll >= 45 and miss_actor_ids.size() < 3:
 			miss_actor_ids.append(candidate)
-		elif roll < 35 and chance_actor_id.is_empty():
+		elif roll < 45 and chance_actor_id.is_empty():
 			chance_actor_id = candidate
 		if miss_actor_ids.size() == 3 and not chance_actor_id.is_empty():
 			break
@@ -630,7 +630,7 @@ func test_npc_meme_frame_reward_chance_pity_and_daily_dedup() -> void:
 	var chance_game: RefCounted = _state_script.new()
 	chance_game.new_run()
 	var chance_reward: Dictionary = chance_game._resolve_npc_meme_frame_reward(chance_actor_id)
-	_assert_true(bool(chance_reward.get("awarded", false)) and not bool(chance_reward.get("guaranteed", false)), "a roll below 35 should award through base probability")
+	_assert_true(bool(chance_reward.get("awarded", false)) and not bool(chance_reward.get("guaranteed", false)), "a roll below 45 should award through base probability")
 	_assert_eq(str(chance_reward.get("reason", "")), "chance", "probability award should identify its reason")
 
 

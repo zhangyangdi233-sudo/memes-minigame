@@ -34,7 +34,7 @@ func _capture() -> void:
 	main.set_view_state("npc_up")
 	main._phone_art_alpha = 0.0
 	var capture_crossroad := OS.get_environment("BABEL_CAPTURE_CROSSROAD") == "1" and floor_number == 1
-	main._reality_yaw = -90.0 if capture_crossroad else 0.0
+	main._reality_yaw = -90.0 if capture_crossroad else main._reality_floor.start_yaw_degrees()
 	main._reality_pitch = -3.0
 	if main._phone_down_backdrop_image != null:
 		main._phone_down_backdrop_image.visible = false

@@ -1,5 +1,8 @@
 extends Node3D
+
 class_name RealityFloorGenerator
+
+const NPC_FACE_VEIL_SHADER := preload("res://shaders/npc_face_veil.gdshader")
 
 const BASE_ROOM_COUNT := 4
 const WORLD_LENGTH_SCALE := 5.0
@@ -22,9 +25,22 @@ const ORDINARY_NPC_COUNTS := [4, 3, 2, 1, 0]
 const NIGHT_TERRACE_END_MARGIN := 8.0
 const NIGHT_TERRACE_GAP := 1.2
 const NIGHT_FACADE_BAY := 7.6
+const FLOOR_TWO_DISC_SEGMENTS := 96
+const FLOOR_TWO_DISC_RADIAL_SEGMENTS := 16
+const FLOOR_TWO_DISC_RADIUS_X := 112.0
+const FLOOR_TWO_DISC_RADIUS_Z := 118.0
+const FLOOR_TWO_DISC_IRREGULARITY := 10.0
+const FLOOR_TWO_DISC_MAP_MARGIN := 4.0
+const FLOOR_TWO_DISC_AIR_WALL_SEGMENTS := 32
+const FLOOR_TWO_PHYSICAL_HOUSE_COUNT := 6
 const GALLERY_END_MARGIN := 7.0
 const GALLERY_COLUMN_TARGET_SPACING := 7.2
 const GALLERY_COLUMN_X := 3.2
+const GALLERY_SKYLIGHT_COUNT := 4
+const GALLERY_SKYLIGHT_LENGTH := 12.0
+const FULL_MAP_GRASS_SPACING := 0.44
+const FULL_MAP_GRASS_BLADE_HEIGHT := 0.32
+const FULL_MAP_GRASS_BLADE_WIDTH := 0.24
 const SUSPENSE_CLEAR_PATH_WIDTH := 5.6
 const DISTRICT_STYLES := ["sunlit_brick_street", "night_white_blocks", "overgrown_gallery"]
 const DISTRICT_REFERENCE_TEXTURES := {
@@ -77,16 +93,21 @@ func rebuild(floor_number: int, palette: Dictionary, actor_textures: Dictionary)
 	ordinary_npc_count = npc_count_for_floor(built_floor)
 	useful_item_count = 0
 	var lot_rows := int(ceil(float(room_count) / 2.0))
-	map_width = MIN_MAP_WIDTH + float(built_floor - 1) * 1.5
-	map_length = maxf(MIN_MAP_LENGTH, float(lot_rows) * LOT_SPACING + MAP_END_MARGIN * 2.0)
+	if built_floor == 2:
+		map_width = (FLOOR_TWO_DISC_RADIUS_X + FLOOR_TWO_DISC_IRREGULARITY + FLOOR_TWO_DISC_MAP_MARGIN) * 2.0
+		map_length = (FLOOR_TWO_DISC_RADIUS_Z + FLOOR_TWO_DISC_IRREGULARITY + FLOOR_TWO_DISC_MAP_MARGIN) * 2.0
+	else:
+		map_width = MIN_MAP_WIDTH + float(built_floor - 1) * 1.5
+		map_length = maxf(MIN_MAP_LENGTH, float(lot_rows) * LOT_SPACING + MAP_END_MARGIN * 2.0)
 	set_meta("built_floor", built_floor)
 	set_meta("room_count", room_count)
+	set_meta("logical_room_count", room_count)
 	set_meta("ordinary_npc_count", ordinary_npc_count)
-	set_meta("layout_mode", "shared_street")
+	set_meta("layout_mode", "irregular_disc" if built_floor == 2 else ("skylit_overgrown_gallery" if built_floor == 3 else "shared_street"))
 	set_meta("map_width", map_width)
 	set_meta("map_length", map_length)
 	set_meta("world_length_scale", WORLD_LENGTH_SCALE)
-	set_meta("air_wall_count", 12 if district_style == "sunlit_brick_street" else 4)
+	set_meta("air_wall_count", 12 if district_style == "sunlit_brick_street" else (FLOOR_TWO_DISC_AIR_WALL_SEGMENTS if built_floor == 2 else 4))
 	set_meta("district_style", district_style)
 	set_meta("npc_population_rule", "strictly_descending")
 	set_meta("atmosphere_mode", "open_daylight" if built_floor == 1 else "slow_burn_suspense")
@@ -106,6 +127,26 @@ func rebuild(floor_number: int, palette: Dictionary, actor_textures: Dictionary)
 	set_meta("gallery_column_count", 0)
 	set_meta("gallery_column_spacing", 0.0)
 	set_meta("gallery_repeat_anomaly_count", 0)
+	set_meta("terrain_profile", "flat_shared_street")
+	set_meta("disc_angular_segment_count", 0)
+	set_meta("disc_radial_segment_count", 0)
+	set_meta("disc_radius_x", 0.0)
+	set_meta("disc_radius_z", 0.0)
+	set_meta("disc_height_variation", 0.0)
+	set_meta("physical_house_count", 0)
+	set_meta("physical_house_ratio", 0.0)
+	set_meta("grass_render_mode", "none")
+	set_meta("grass_coverage", "none")
+	set_meta("grass_instance_count", 0)
+	set_meta("grass_coverage_ratio", 0.0)
+	set_meta("grass_bounds", Vector2.ZERO)
+	set_meta("skylight_opening_count", 0)
+	set_meta("skylight_open_ratio", 0.0)
+	set_meta("dreamcore_object_type_count", 0)
+	set_meta("dreamcore_object_count", 0)
+	set_meta("dreamcore_object_types", PackedStringArray())
+	set_meta("dreamcore_non_pickup_count", 0)
+	set_meta("lighting_profile", "open_daylight" if built_floor == 1 else "slow_burn_suspense")
 
 	_build_environment(palette)
 	_build_architecture(palette)
@@ -141,10 +182,20 @@ func sync_collected_items(collected_ids: Array[String]) -> void:
 
 
 func start_position() -> Vector3:
+	if built_floor == 2:
+		var disc_spawn := _floor_two_disc_point(PI * 0.5, 0.82)
+		disc_spawn.y += 0.08
+		return disc_spawn
 	return Vector3(0.0, 0.08, map_length * 0.5 - 9.0)
 
 
+func start_yaw_degrees() -> float:
+	return 0.0
+
+
 func contains_playable_position(position: Vector3, inset: float = 0.0) -> bool:
+	if built_floor == 2:
+		return _floor_two_disc_contains(position, inset)
 	var half_width := maxf(0.5, map_width * 0.5 - inset)
 	var half_length := maxf(0.5, map_length * 0.5 - inset)
 	var inside_trunk := absf(position.x) <= half_width and absf(position.z) <= half_length
@@ -156,6 +207,8 @@ func contains_playable_position(position: Vector3, inset: float = 0.0) -> bool:
 
 
 func clamp_to_playable_position(position: Vector3, inset: float = 1.2) -> Vector3:
+	if built_floor == 2:
+		return _clamp_to_floor_two_disc(position, inset)
 	var half_width := maxf(0.5, map_width * 0.5 - inset)
 	var half_length := maxf(0.5, map_length * 0.5 - inset)
 	var trunk_candidate := Vector3(
@@ -179,6 +232,60 @@ func clamp_to_playable_position(position: Vector3, inset: float = 1.2) -> Vector
 
 func _sunlit_crossroad_span() -> float:
 	return map_width + SUNLIT_CROSSROAD_ARM_LENGTH * 2.0
+
+
+func _floor_two_disc_irregularity(angle: float) -> float:
+	return sin(angle * 3.0) * 5.8 + sin(angle * 7.0 + 1.2) * 2.7 + cos(angle * 11.0 - 0.4) * 1.5
+
+
+func _floor_two_disc_height(x: float, z: float, radial_ratio: float) -> float:
+	var broad_swell := sin(x * 0.052 + cos(z * 0.028)) * 0.46
+	var crossing_swell := cos(z * 0.047 - x * 0.019) * 0.34
+	var shallow_ripple := sin((x + z) * 0.024 + radial_ratio * 3.0) * 0.18
+	return -0.28 + broad_swell + crossing_swell + shallow_ripple
+
+
+func _floor_two_disc_point(angle: float, radial_ratio: float = 1.0) -> Vector3:
+	var safe_ratio := clampf(radial_ratio, 0.0, 1.0)
+	var cosine := cos(angle)
+	var sine := sin(angle)
+	var ellipse_radius := 1.0 / sqrt(
+		(cosine * cosine) / (FLOOR_TWO_DISC_RADIUS_X * FLOOR_TWO_DISC_RADIUS_X)
+		+ (sine * sine) / (FLOOR_TWO_DISC_RADIUS_Z * FLOOR_TWO_DISC_RADIUS_Z)
+	)
+	var boundary_radius := ellipse_radius + _floor_two_disc_irregularity(angle)
+	var x := cosine * boundary_radius * safe_ratio
+	var z := sine * boundary_radius * safe_ratio
+	return Vector3(x, _floor_two_disc_height(x, z, safe_ratio), z)
+
+
+func _floor_two_disc_angle(position: Vector3) -> float:
+	if is_zero_approx(position.x) and is_zero_approx(position.z):
+		return 0.0
+	return atan2(position.z, position.x)
+
+
+func _floor_two_disc_boundary_distance(angle: float) -> float:
+	var boundary := _floor_two_disc_point(angle, 1.0)
+	return Vector2(boundary.x, boundary.z).length()
+
+
+func _floor_two_disc_contains(position: Vector3, inset: float) -> bool:
+	var angle := _floor_two_disc_angle(position)
+	var allowed_radius := maxf(1.0, _floor_two_disc_boundary_distance(angle) - inset)
+	return Vector2(position.x, position.z).length() <= allowed_radius
+
+
+func _clamp_to_floor_two_disc(position: Vector3, inset: float) -> Vector3:
+	var flat_position := Vector2(position.x, position.z)
+	var angle := _floor_two_disc_angle(position)
+	# Leave a tiny interior margin so containment remains stable after float math.
+	var allowed_radius := maxf(1.0, _floor_two_disc_boundary_distance(angle) - inset - 0.05)
+	if flat_position.length() > allowed_radius:
+		flat_position = flat_position.normalized() * allowed_radius
+	var radial_ratio := clampf(flat_position.length() / maxf(1.0, _floor_two_disc_boundary_distance(angle)), 0.0, 1.0)
+	var ground_height := _floor_two_disc_height(flat_position.x, flat_position.y, radial_ratio)
+	return Vector3(flat_position.x, maxf(position.y, ground_height + 0.08), flat_position.y)
 
 
 func apply_palette(palette: Dictionary) -> void:
@@ -224,6 +331,10 @@ func _build_environment(palette: Dictionary) -> void:
 	environment.ambient_light_color = _style_ambient_color(palette)
 	if built_floor == 1:
 		environment.ambient_light_energy = 0.78
+	elif built_floor == 2:
+		environment.ambient_light_energy = 0.14
+	elif built_floor == 3:
+		environment.ambient_light_energy = 0.68
 	elif district_style == "night_white_blocks":
 		environment.ambient_light_energy = 0.17
 	elif district_style == "overgrown_gallery":
@@ -233,16 +344,33 @@ func _build_environment(palette: Dictionary) -> void:
 	environment.reflected_light_source = Environment.REFLECTION_SOURCE_DISABLED
 	environment.fog_enabled = true
 	environment.fog_light_color = _style_fog_color(palette)
-	environment.fog_light_energy = 0.52 if built_floor == 1 else (0.16 if district_style == "overgrown_gallery" else maxf(0.16, 0.27 - float(built_floor - 2) * 0.025))
-	environment.fog_density = 0.0062 if built_floor == 1 else 0.018 + float(built_floor - 2) * 0.0035
-	environment.fog_height = 1.1 if built_floor == 1 else 0.72
-	environment.fog_height_density = 0.16 if built_floor == 1 else 0.27 + float(built_floor - 2) * 0.025
+	if built_floor == 1:
+		environment.fog_light_energy = 0.52
+		environment.fog_density = 0.0062
+		environment.fog_height = 1.1
+		environment.fog_height_density = 0.16
+	elif built_floor == 2:
+		environment.fog_light_energy = 0.17
+		environment.fog_density = 0.0185
+		environment.fog_height = 0.52
+		environment.fog_height_density = 0.34
+	elif built_floor == 3:
+		environment.fog_light_energy = 0.64
+		environment.fog_density = 0.008
+		environment.fog_height = 1.35
+		environment.fog_height_density = 0.11
+	else:
+		environment.fog_light_energy = 0.16 if district_style == "overgrown_gallery" else maxf(0.16, 0.27 - float(built_floor - 2) * 0.025)
+		environment.fog_density = 0.018 + float(built_floor - 2) * 0.0035
+		environment.fog_height = 0.72
+		environment.fog_height_density = 0.27 + float(built_floor - 2) * 0.025
 	_environment.environment = environment
 	add_child(_environment)
 	set_meta("fog_density", environment.fog_density)
 	set_meta("fog_height_density", environment.fog_height_density)
 	set_meta("ambient_light_energy", environment.ambient_light_energy)
-	set_meta("suspense_color_temperature", "daylight" if built_floor == 1 else ("cold_green" if built_floor <= 3 else "cold_blue"))
+	set_meta("suspense_color_temperature", "daylight" if built_floor == 1 else ("cold_green" if built_floor == 2 else ("natural_daylight" if built_floor == 3 else "cold_blue")))
+	set_meta("lighting_profile", "open_daylight" if built_floor == 1 else ("near_black_disc" if built_floor == 2 else ("natural_skylight" if built_floor == 3 else "slow_burn_suspense")))
 
 	var key_light := DirectionalLight3D.new()
 	key_light.name = "RealityKeyLight"
@@ -250,6 +378,12 @@ func _build_environment(palette: Dictionary) -> void:
 	if built_floor == 1:
 		key_light.light_color = Color("FFF3D3")
 		key_light.light_energy = 1.32
+	elif built_floor == 2:
+		key_light.light_color = Color("78918C")
+		key_light.light_energy = 0.30
+	elif built_floor == 3:
+		key_light.light_color = Color("FFF4CB")
+		key_light.light_energy = 1.18
 	else:
 		var cold_key_colors := [Color("AFC7BE"), Color("C2CEC0"), Color("A9BBC4"), Color("96ACB6")]
 		var cold_key_energy := [0.34, 0.28, 0.36, 0.24]
@@ -265,18 +399,21 @@ func _build_architecture(palette: Dictionary) -> void:
 	var architecture := Node3D.new()
 	architecture.name = "Architecture"
 	add_child(architecture)
-	var ground_role := "grass" if district_style == "night_white_blocks" else ("gallery_floor" if district_style == "overgrown_gallery" else "sunlit_paving")
-	var street_ground := _add_box(
-		architecture,
-		"StreetGround",
-		Vector3(map_width, 0.20, map_length),
-		Vector3(0.0, -0.10, 0.0),
-		ground_role,
-		palette,
-		true
-	)
-	street_ground.set_meta("continuous_ground", true)
-	if district_style == "sunlit_brick_street":
+	if built_floor == 2:
+		_build_floor_two_disc_ground(architecture, palette)
+	else:
+		var ground_role := "grass_ground" if built_floor == 3 else ("grass" if district_style == "night_white_blocks" else ("gallery_floor" if district_style == "overgrown_gallery" else "sunlit_paving"))
+		var street_ground := _add_box(
+			architecture,
+			"StreetGround",
+			Vector3(map_width, 0.20, map_length),
+			Vector3(0.0, -0.10, 0.0),
+			ground_role,
+			palette,
+			true
+		)
+		street_ground.set_meta("continuous_ground", true)
+	if district_style == "sunlit_brick_street" and built_floor != 2:
 		var branch_ground := _add_box(
 			architecture,
 			"CrossroadGround",
@@ -289,16 +426,115 @@ func _build_architecture(palette: Dictionary) -> void:
 		branch_ground.set_meta("continuous_ground", true)
 		branch_ground.set_meta("crossroad_extension", true)
 	match district_style:
+		"night_white_blocks" when built_floor == 2:
+			_build_floor_two_scattered_district(architecture, palette)
 		"night_white_blocks":
 			_build_night_white_blocks(architecture, palette)
 		"overgrown_gallery":
 			_build_overgrown_gallery(architecture, palette)
 		_:
 			_build_sunlit_brick_street(architecture, palette)
+	if built_floor == 2 or built_floor == 3:
+		_build_dreamcore_artifacts(architecture, palette)
 	if built_floor >= 2:
 		_build_suspense_layer(architecture, palette)
 
 	_build_air_walls(architecture)
+
+
+func _build_floor_two_disc_ground(parent: Node3D, palette: Dictionary) -> void:
+	var surface_tool := SurfaceTool.new()
+	surface_tool.begin(Mesh.PRIMITIVE_TRIANGLES)
+	var min_height := INF
+	var max_height := -INF
+	for radial_index in FLOOR_TWO_DISC_RADIAL_SEGMENTS:
+		var inner_ratio := float(radial_index) / float(FLOOR_TWO_DISC_RADIAL_SEGMENTS)
+		var outer_ratio := float(radial_index + 1) / float(FLOOR_TWO_DISC_RADIAL_SEGMENTS)
+		for segment_index in FLOOR_TWO_DISC_SEGMENTS:
+			var angle_a := TAU * float(segment_index) / float(FLOOR_TWO_DISC_SEGMENTS)
+			var angle_b := TAU * float(segment_index + 1) / float(FLOOR_TWO_DISC_SEGMENTS)
+			var outer_a := _floor_two_disc_point(angle_a, outer_ratio)
+			var outer_b := _floor_two_disc_point(angle_b, outer_ratio)
+			for point in [outer_a, outer_b]:
+				min_height = minf(min_height, point.y)
+				max_height = maxf(max_height, point.y)
+			if radial_index == 0:
+				var center := _floor_two_disc_point(0.0, 0.0)
+				_add_disc_surface_triangle(surface_tool, center, outer_b, outer_a)
+				continue
+			var inner_a := _floor_two_disc_point(angle_a, inner_ratio)
+			var inner_b := _floor_two_disc_point(angle_b, inner_ratio)
+			_add_disc_surface_triangle(surface_tool, inner_a, outer_b, outer_a)
+			_add_disc_surface_triangle(surface_tool, inner_a, inner_b, outer_b)
+	surface_tool.generate_normals()
+	var disc_mesh := surface_tool.commit() as ArrayMesh
+	var ground := StaticBody3D.new()
+	ground.name = "IrregularDiscGround"
+	ground.collision_layer = 1
+	ground.collision_mask = 1
+	ground.set_meta("continuous_ground", true)
+	ground.set_meta("irregular_disc", true)
+	ground.set_meta("procedural_terrain", true)
+	parent.add_child(ground)
+	var mesh_instance := MeshInstance3D.new()
+	mesh_instance.name = "DiscSurface"
+	mesh_instance.mesh = disc_mesh
+	mesh_instance.set_meta("theme_role", "night_path")
+	mesh_instance.material_override = _material("night_path", palette, false)
+	ground.add_child(mesh_instance)
+	var collision := CollisionShape3D.new()
+	collision.name = "Collision"
+	var disc_shape := disc_mesh.create_trimesh_shape() as ConcavePolygonShape3D
+	disc_shape.backface_collision = true
+	collision.shape = disc_shape
+	ground.add_child(collision)
+	set_meta("terrain_profile", "undulating_irregular_disc")
+	set_meta("disc_angular_segment_count", FLOOR_TWO_DISC_SEGMENTS)
+	set_meta("disc_radial_segment_count", FLOOR_TWO_DISC_RADIAL_SEGMENTS)
+	set_meta("disc_radius_x", FLOOR_TWO_DISC_RADIUS_X)
+	set_meta("disc_radius_z", FLOOR_TWO_DISC_RADIUS_Z)
+	set_meta("disc_height_variation", max_height - min_height)
+
+
+func _add_disc_surface_triangle(surface_tool: SurfaceTool, a: Vector3, b: Vector3, c: Vector3) -> void:
+	for point in [a, b, c]:
+		surface_tool.set_uv(Vector2(point.x, point.z) * 0.04)
+		surface_tool.add_vertex(point)
+
+
+func _build_floor_two_scattered_district(parent: Node3D, palette: Dictionary) -> void:
+	var house_angles := [0.34, 1.18, 2.12, 2.96, 4.14, 5.32]
+	var house_radii := [0.58, 0.48, 0.69, 0.41, 0.64, 0.52]
+	var physical_house_count := mini(FLOOR_TWO_PHYSICAL_HOUSE_COUNT, room_count)
+	for room_index in room_count:
+		var angle := float(house_angles[room_index % house_angles.size()])
+		var radial_ratio := float(house_radii[room_index % house_radii.size()])
+		var room := _new_room(parent, room_index)
+		room.position = _floor_two_disc_point(angle, radial_ratio)
+		room.rotation.y = -angle + PI * 0.5 + sin(float(room_index) * 1.7) * 0.28
+		room.set_meta("scattered_disc_room", true)
+		room.set_meta("disc_angle", angle)
+		room.set_meta("disc_radius_ratio", radial_ratio)
+		_build_floor_two_sparse_house(room, room_index, palette)
+		_place_room_reward(room, room_index, Vector3(0.0, 0.0, 4.2), palette)
+	set_meta("physical_house_count", physical_house_count)
+	set_meta("physical_house_ratio", float(physical_house_count) / float(room_count))
+	set_meta("night_house_segment_count", physical_house_count)
+	set_meta("night_house_coverage_ratio", 0.14)
+	set_meta("night_house_max_gap", 42.0)
+
+
+func _build_floor_two_sparse_house(room: Node3D, room_index: int, palette: Dictionary) -> void:
+	var height := 3.5 + float(room_index % 2) * 0.8
+	var width := 4.4 + float(room_index % 3) * 0.6
+	var depth := 5.0 + float((room_index + 1) % 3) * 0.7
+	var house := _add_box(room, "ScatteredHouse%02d" % room_index, Vector3(width, height, depth), Vector3(0.0, height * 0.5, 0.0), "white_wall", palette, true)
+	house.set_meta("physical_house", true)
+	house.set_meta("logical_room_index", room_index)
+	_add_box(room, "HouseRoof", Vector3(width + 0.42, 0.22, depth + 0.42), Vector3(0.0, height + 0.11, 0.0), "wall_dark", palette, false)
+	_add_box(room, "HouseDoor", Vector3(1.05, 2.05, 0.08), Vector3(0.0, 1.025, depth * 0.5 + 0.045), "window", palette, false)
+	for window_index in 2:
+		_add_box(room, "HouseWindow%d" % window_index, Vector3(0.72, 0.72, 0.07), Vector3(-1.15 + float(window_index) * 2.3, 2.65, depth * 0.5 + 0.05), "lamp_light", palette, false)
 
 
 func _build_sunlit_brick_street(parent: Node3D, palette: Dictionary) -> void:
@@ -612,6 +848,7 @@ func _build_night_house(parent: Node3D, room_index: int, row: int, side: float, 
 
 func _build_overgrown_gallery(parent: Node3D, palette: Dictionary) -> void:
 	_add_box(parent, "GalleryWalk", Vector3(6.2, 0.05, map_length - 1.0), Vector3(0.0, 0.025, 0.0), "gallery_floor", palette, false)
+	_build_full_map_grass(parent, palette)
 	var gallery_span := _build_gallery_continuum(parent, palette)
 	var lot_rows := int(ceil(float(room_count) / 2.0))
 	var bay_pitch := gallery_span / float(lot_rows)
@@ -634,9 +871,7 @@ func _build_gallery_continuum(parent: Node3D, palette: Dictionary) -> float:
 		var outer_wall := _add_box(parent, "OuterWall%s" % side_name, Vector3(0.34, 3.55, gallery_span), Vector3(side * 7.7, 1.78, 0.0), "white_wall", palette, true)
 		outer_wall.set_meta("continuous_gallery", true)
 		outer_wall.set_meta("span_length", gallery_span)
-	var center_roof := _add_box(parent, "GalleryCeilingSpan", Vector3(5.4, 0.24, gallery_span), Vector3(0.0, 3.55, 0.0), "white_wall", palette, true)
-	center_roof.set_meta("continuous_gallery", true)
-	center_roof.set_meta("span_length", gallery_span)
+	_build_skylit_gallery_ceiling(parent, gallery_span, palette)
 
 	var column_run := gallery_span - 2.0
 	var interval_count := maxi(1, int(ceil(column_run / GALLERY_COLUMN_TARGET_SPACING)))
@@ -666,16 +901,376 @@ func _build_gallery_continuum(parent: Node3D, palette: Dictionary) -> float:
 
 func _build_gallery_bay(parent: Node3D, room_index: int, row: int, side: float, center_z: float, palette: Dictionary) -> void:
 	var room := _new_room(parent, room_index)
-	for patch_index in 4:
-		var patch_side := -1.0 if (room_index + patch_index) % 2 == 0 else 1.0
-		var patch_pos := Vector3(patch_side * (0.85 + float(patch_index % 2) * 0.75), 0.0, center_z - 2.6 + float(patch_index) * 1.65)
-		_build_grass_patch(room, patch_pos, room_index * 4 + patch_index, palette)
 	if row % 2 == 1:
 		_build_mood_panel(room, room_index, Vector3(side * 7.5, 2.0, center_z), side, palette)
 	_place_room_reward(room, room_index, Vector3(side * 2.15, 0.0, center_z), palette)
 
 
+func _build_skylit_gallery_ceiling(parent: Node3D, gallery_span: float, palette: Dictionary) -> void:
+	var ceiling := Node3D.new()
+	ceiling.name = "GalleryCeilingSpan"
+	ceiling.set_meta("skylit_ceiling", true)
+	ceiling.set_meta("span_length", gallery_span)
+	parent.add_child(ceiling)
+	var total_open_length := float(GALLERY_SKYLIGHT_COUNT) * GALLERY_SKYLIGHT_LENGTH
+	var solid_segment_length := (gallery_span - total_open_length) / float(GALLERY_SKYLIGHT_COUNT + 1)
+	var cursor := -gallery_span * 0.5
+	for segment_index in range(GALLERY_SKYLIGHT_COUNT + 1):
+		var segment_center := cursor + solid_segment_length * 0.5
+		var segment := _add_box(
+			ceiling,
+			"GalleryCeilingSegment%02d" % segment_index,
+			Vector3(5.4, 0.24, solid_segment_length),
+			Vector3(0.0, 3.55, segment_center),
+			"white_wall",
+			palette,
+			true
+		)
+		segment.set_meta("skylight_roof_segment", true)
+		cursor += solid_segment_length
+		if segment_index >= GALLERY_SKYLIGHT_COUNT:
+			continue
+		var opening := Node3D.new()
+		opening.name = "SkylightOpening%02d" % segment_index
+		opening.position = Vector3(0.0, 3.55, cursor + GALLERY_SKYLIGHT_LENGTH * 0.5)
+		opening.set_meta("skylight_opening", true)
+		opening.set_meta("opening_size", Vector2(5.4, GALLERY_SKYLIGHT_LENGTH))
+		ceiling.add_child(opening)
+		cursor += GALLERY_SKYLIGHT_LENGTH
+	set_meta("skylight_opening_count", GALLERY_SKYLIGHT_COUNT)
+	set_meta("skylight_open_ratio", total_open_length / gallery_span)
+
+
+func _build_full_map_grass(parent: Node3D, palette: Dictionary) -> void:
+	var columns := maxi(1, int(ceil(map_width / FULL_MAP_GRASS_SPACING)))
+	var rows := maxi(1, int(ceil(map_length / FULL_MAP_GRASS_SPACING)))
+	var instance_count := columns * rows
+	var grass_field := MultiMeshInstance3D.new()
+	grass_field.name = "FullMapGrass"
+	grass_field.set_meta("procedural_grass", true)
+	grass_field.set_meta("full_map_coverage", true)
+	grass_field.set_meta("non_interactable", true)
+	grass_field.extra_cull_margin = 4.0
+	var multimesh := MultiMesh.new()
+	multimesh.transform_format = MultiMesh.TRANSFORM_3D
+	multimesh.use_colors = true
+	multimesh.mesh = _grass_blade_mesh(FULL_MAP_GRASS_BLADE_WIDTH, FULL_MAP_GRASS_BLADE_HEIGHT, 0.035)
+	multimesh.instance_count = instance_count
+	# Explicitly cover every tuft. Without a full-field AABB, distant batches can
+	# disappear even though their instance transforms span the whole gallery.
+	multimesh.custom_aabb = AABB(
+		Vector3(-map_width * 0.5 - 0.5, -0.08, -map_length * 0.5 - 0.5),
+		Vector3(map_width + 1.0, FULL_MAP_GRASS_BLADE_HEIGHT + 0.42, map_length + 1.0)
+	)
+	var instance_index := 0
+	for row_index in rows:
+		for column_index in columns:
+			var phase := float(row_index * 37 + column_index * 61)
+			var x := -map_width * 0.5 + (float(column_index) + 0.5) * map_width / float(columns)
+			var z := -map_length * 0.5 + (float(row_index) + 0.5) * map_length / float(rows)
+			x += sin(phase * 0.73) * 0.34
+			z += cos(phase * 0.51) * 0.34
+			var height_scale := 0.72 + float(posmod(row_index * 5 + column_index * 3, 9)) * 0.055
+			var width_scale := 0.78 + float(posmod(row_index * 2 + column_index * 7, 7)) * 0.045
+			var yaw := phase * 0.19
+			var basis := Basis(Vector3.UP, yaw).scaled(Vector3(width_scale, height_scale, width_scale))
+			var transform := Transform3D(basis, Vector3(x, FULL_MAP_GRASS_BLADE_HEIGHT * 0.5 * height_scale, z))
+			multimesh.set_instance_transform(instance_index, transform)
+			var brightness := 0.80 + float(posmod(row_index + column_index * 2, 6)) * 0.035
+			multimesh.set_instance_color(instance_index, Color(brightness, 0.92 + (brightness - 0.8) * 0.25, 0.72, 1.0))
+			instance_index += 1
+	grass_field.multimesh = multimesh
+	var grass_material := _material("grass", palette, false)
+	grass_material.vertex_color_use_as_albedo = true
+	grass_material.cull_mode = BaseMaterial3D.CULL_DISABLED
+	grass_material.roughness = 0.94
+	grass_field.material_override = grass_material
+	parent.add_child(grass_field)
+	set_meta("terrain_profile", "full_map_meadow_gallery")
+	set_meta("grass_render_mode", "multimesh")
+	set_meta("grass_coverage", "full_map")
+	set_meta("grass_instance_count", instance_count)
+	set_meta("grass_coverage_ratio", 1.0)
+	set_meta("grass_bounds", Vector2(map_width, map_length))
+	set_meta("grass_density_spacing", FULL_MAP_GRASS_SPACING)
+	set_meta("grass_blade_height", FULL_MAP_GRASS_BLADE_HEIGHT)
+	set_meta("grass_blade_width", FULL_MAP_GRASS_BLADE_WIDTH)
+	set_meta("grass_custom_aabb", multimesh.custom_aabb)
+
+
+func _build_dreamcore_artifacts(parent: Node3D, palette: Dictionary) -> void:
+	var artifacts := Node3D.new()
+	artifacts.name = "DreamcoreArtifacts"
+	artifacts.set_meta("procedural_collection", true)
+	parent.add_child(artifacts)
+	var artifact_types := PackedStringArray([
+		"false_window",
+		"water_cooler",
+		"crt_cart",
+		"payphone",
+		"folding_chair",
+		"vending_machine",
+		"fluorescent_troffer",
+		"supply_crates",
+		"pipe_manifold",
+	])
+	var artifact_count := 18
+	for artifact_index in artifact_count:
+		var artifact_type := artifact_types[artifact_index % artifact_types.size()]
+		var artifact := Node3D.new()
+		artifact.name = "%s%02d" % [artifact_type.to_pascal_case(), artifact_index]
+		artifact.set_meta("dreamcore_object", true)
+		artifact.set_meta("dreamcore_type", artifact_type)
+		artifact.set_meta("procedural_low_poly", true)
+		artifact.set_meta("original_geometry", true)
+		artifact.set_meta("non_pickup", true)
+		artifact.set_meta("interactable", false)
+		artifact.set_meta("pickup_kind", "none")
+		var artifact_scale := 0.82 + float(posmod(artifact_index * 5, 4)) * 0.11
+		artifact.scale = Vector3.ONE * artifact_scale
+		if built_floor == 2:
+			var angle := 0.18 + TAU * float(artifact_index) / float(artifact_count) + sin(float(artifact_index) * 2.3) * 0.12
+			var radial_ratio := 0.24 + float(posmod(artifact_index * 5, 7)) * 0.075
+			artifact.position = _floor_two_disc_point(angle, radial_ratio)
+			artifact.position.y += 0.06
+			artifact.rotation.y = -angle + sin(float(artifact_index)) * 0.35
+		else:
+			var lane_side := -1.0 if artifact_index % 2 == 0 else 1.0
+			var progress := float(artifact_index + 1) / float(artifact_count + 1)
+			artifact.position = Vector3(lane_side * (5.2 + float(artifact_index % 3) * 0.65), 0.10, lerpf(-map_length * 0.38, map_length * 0.38, progress))
+			artifact.rotation.y = PI if lane_side > 0.0 else 0.0
+		artifacts.add_child(artifact)
+		match artifact_type:
+			"false_window":
+				_build_false_window(artifact, palette)
+			"water_cooler":
+				_build_water_cooler(artifact, palette)
+			"crt_cart":
+				_build_crt_cart(artifact, palette)
+			"payphone":
+				_build_payphone(artifact, palette)
+			"folding_chair":
+				_build_folding_chair(artifact, palette)
+			"vending_machine":
+				_build_vending_machine(artifact, palette)
+			"fluorescent_troffer":
+				_build_fluorescent_troffer(artifact, palette)
+			"supply_crates":
+				_build_supply_crates(artifact, palette)
+			_:
+				_build_pipe_manifold(artifact, palette)
+	set_meta("dreamcore_object_type_count", artifact_types.size())
+	set_meta("dreamcore_object_count", artifact_count)
+	set_meta("dreamcore_object_types", artifact_types)
+	set_meta("dreamcore_non_pickup_count", artifact_count)
+
+
+func _build_false_window(parent: Node3D, palette: Dictionary) -> void:
+	_add_box(parent, "FalseWindowGlass", Vector3(1.62, 2.10, 0.08), Vector3(0.0, 1.90, 0.02), "window", palette, false)
+	for x in [-0.90, 0.90]:
+		_add_box(parent, "FalseWindowJamb%s" % ("L" if x < 0.0 else "R"), Vector3(0.16, 2.55, 0.18), Vector3(x, 1.90, 0.08), "fixture_metal", palette, false)
+	for y in [0.62, 3.18]:
+		_add_box(parent, "FalseWindowRail%02d" % int(y * 10.0), Vector3(1.96, 0.16, 0.18), Vector3(0.0, y, 0.08), "fixture_metal", palette, false)
+	_add_box(parent, "FalseWindowMullion", Vector3(0.09, 2.35, 0.12), Vector3(0.0, 1.90, 0.15), "fixture_metal", palette, false)
+	_add_box(parent, "FalseWindowTransom", Vector3(1.72, 0.09, 0.12), Vector3(0.0, 1.88, 0.15), "fixture_metal", palette, false)
+	_add_box(parent, "FalseWindowSill", Vector3(2.22, 0.18, 0.52), Vector3(0.0, 0.54, 0.18), "backrooms_beige", palette, false)
+	for step_index in 3:
+		_add_box(
+			parent,
+			"WindowStep%02d" % step_index,
+			Vector3(2.05 - float(step_index) * 0.14, 0.14, 0.54),
+			Vector3(0.0, 0.07 + float(step_index) * 0.15, 1.38 - float(step_index) * 0.48),
+			"backrooms_beige",
+			palette,
+			false
+		)
+
+
+func _build_water_cooler(parent: Node3D, palette: Dictionary) -> void:
+	_add_box(parent, "WaterCoolerCabinet", Vector3(0.72, 1.18, 0.62), Vector3(0.0, 0.59, 0.0), "backrooms_beige", palette, false)
+	_add_box(parent, "WaterCoolerRecess", Vector3(0.46, 0.32, 0.07), Vector3(0.0, 0.82, 0.35), "rubber_black", palette, false)
+	_add_box(parent, "WaterCoolerDripTray", Vector3(0.42, 0.08, 0.24), Vector3(0.0, 0.60, 0.39), "fixture_metal", palette, false)
+	for tap_index in 2:
+		var x := -0.13 if tap_index == 0 else 0.13
+		var role := "cooler_blue" if tap_index == 0 else "indicator_red"
+		_add_box(parent, "WaterCoolerTap%02d" % tap_index, Vector3(0.11, 0.16, 0.14), Vector3(x, 0.92, 0.42), role, palette, false)
+	var jug := _add_low_poly_cylinder(parent, "WaterCoolerJug", 0.27, 0.34, 0.72, 12, "cooler_blue", palette)
+	jug.position = Vector3(0.0, 1.54, 0.0)
+	var neck := _add_low_poly_cylinder(parent, "WaterCoolerJugNeck", 0.14, 0.20, 0.20, 10, "cooler_blue", palette)
+	neck.position = Vector3(0.0, 1.12, 0.0)
+	var cap := _add_low_poly_cylinder(parent, "WaterCoolerCap", 0.15, 0.15, 0.08, 10, "rubber_black", palette)
+	cap.position = Vector3(0.0, 1.06, 0.0)
+	for cup_index in 4:
+		var cup := _add_low_poly_cylinder(parent, "WaterCup%02d" % cup_index, 0.08, 0.10, 0.13, 8, "fluorescent", palette)
+		cup.position = Vector3(0.46, 0.74 + float(cup_index) * 0.10, 0.02)
+
+
+func _build_crt_cart(parent: Node3D, palette: Dictionary) -> void:
+	_add_box(parent, "CRTCartUpperShelf", Vector3(1.48, 0.10, 0.92), Vector3(0.0, 0.95, 0.0), "cart_metal", palette, false)
+	_add_box(parent, "CRTCartLowerShelf", Vector3(1.40, 0.10, 0.82), Vector3(0.0, 0.37, 0.0), "cart_metal", palette, false)
+	for x in [-0.58, 0.58]:
+		for z in [-0.32, 0.32]:
+			_add_box(parent, "CRTCartPost%s%s" % ["L" if x < 0.0 else "R", "B" if z < 0.0 else "F"], Vector3(0.07, 0.86, 0.07), Vector3(x, 0.52, z), "fixture_metal", palette, false)
+			var wheel := _add_low_poly_cylinder(parent, "CRTCartWheel%s%s" % ["L" if x < 0.0 else "R", "B" if z < 0.0 else "F"], 0.13, 0.13, 0.08, 10, "rubber_black", palette)
+			wheel.position = Vector3(x, 0.10, z)
+			wheel.rotation.z = PI * 0.5
+	_add_box(parent, "CRTTelevisionBody", Vector3(1.32, 0.92, 0.92), Vector3(0.0, 1.48, 0.0), "backrooms_beige", palette, false)
+	_add_box(parent, "CRTTelevisionBezel", Vector3(1.12, 0.72, 0.08), Vector3(-0.05, 1.50, 0.49), "rubber_black", palette, false)
+	_add_box(parent, "CRTTelevisionScreen", Vector3(0.88, 0.58, 0.06), Vector3(-0.11, 1.52, 0.55), "screen_glow", palette, false)
+	for knob_index in 2:
+		var knob := _add_low_poly_cylinder(parent, "CRTKnob%02d" % knob_index, 0.07, 0.07, 0.07, 10, "fixture_metal", palette)
+		knob.position = Vector3(0.50, 1.60 - float(knob_index) * 0.23, 0.56)
+		knob.rotation.x = PI * 0.5
+	for antenna_side in [-1.0, 1.0]:
+		var antenna := _add_box(parent, "CRTAntenna%s" % ("L" if antenna_side < 0.0 else "R"), Vector3(0.04, 0.72, 0.04), Vector3(antenna_side * 0.22, 2.24, 0.0), "fixture_metal", palette, false)
+		antenna.rotation.z = antenna_side * 0.34
+
+
+func _build_payphone(parent: Node3D, palette: Dictionary) -> void:
+	_add_box(parent, "PayphonePedestal", Vector3(0.96, 1.62, 0.58), Vector3(0.0, 0.81, 0.0), "backrooms_beige", palette, false)
+	_add_box(parent, "PayphoneHousing", Vector3(0.88, 1.12, 0.34), Vector3(0.0, 1.48, 0.25), "fixture_metal", palette, false)
+	_add_box(parent, "PayphoneInstructionPlate", Vector3(0.42, 0.20, 0.05), Vector3(0.15, 1.86, 0.45), "fluorescent", palette, false)
+	_add_box(parent, "PayphoneCoinSlot", Vector3(0.18, 0.06, 0.05), Vector3(0.22, 1.69, 0.46), "rubber_black", palette, false)
+	for keypad_row in 4:
+		for keypad_column in 3:
+			_add_box(
+				parent,
+				"PayphoneKey%02d" % (keypad_row * 3 + keypad_column),
+				Vector3(0.10, 0.09, 0.05),
+				Vector3(0.05 + float(keypad_column) * 0.13, 1.48 - float(keypad_row) * 0.12, 0.47),
+				"rubber_black",
+				palette,
+				false
+			)
+	_add_box(parent, "PayphoneReturnHatch", Vector3(0.38, 0.16, 0.06), Vector3(0.16, 0.95, 0.46), "rubber_black", palette, false)
+	_add_box(parent, "PayphoneHandset", Vector3(0.18, 0.72, 0.18), Vector3(-0.40, 1.50, 0.50), "indicator_red", palette, false)
+	_add_box(parent, "PayphoneHandsetTop", Vector3(0.30, 0.20, 0.22), Vector3(-0.40, 1.84, 0.50), "indicator_red", palette, false)
+	_add_box(parent, "PayphoneHandsetBottom", Vector3(0.30, 0.20, 0.22), Vector3(-0.40, 1.16, 0.50), "indicator_red", palette, false)
+	for cord_index in 6:
+		var cord := _add_box(parent, "PayphoneCord%02d" % cord_index, Vector3(0.05, 0.28, 0.05), Vector3(-0.45 + sin(float(cord_index) * 1.7) * 0.10, 0.97 - float(cord_index) * 0.18, 0.42), "rubber_black", palette, false)
+		cord.rotation.z = sin(float(cord_index) * 1.7) * 0.45
+
+
+func _build_folding_chair(parent: Node3D, palette: Dictionary) -> void:
+	_add_box(parent, "FoldingChairSeat", Vector3(1.05, 0.13, 0.86), Vector3(0.0, 0.92, 0.0), "chair_vinyl", palette, false)
+	_add_box(parent, "FoldingChairBack", Vector3(1.05, 0.62, 0.12), Vector3(0.0, 1.58, -0.32), "chair_vinyl", palette, false)
+	for x in [-0.44, 0.44]:
+		for z in [-0.29, 0.29]:
+			var leg := _add_box(parent, "FoldingChairLeg%s%s" % ["L" if x < 0.0 else "R", "B" if z < 0.0 else "F"], Vector3(0.07, 1.18, 0.07), Vector3(x, 0.50, z), "chair_metal", palette, false)
+			leg.rotation.x = 0.22 if z < 0.0 else -0.22
+		var back_post := _add_box(parent, "FoldingChairBackPost%s" % ("L" if x < 0.0 else "R"), Vector3(0.07, 1.52, 0.07), Vector3(x, 1.04, -0.34), "chair_metal", palette, false)
+		back_post.rotation.x = -0.08
+	for side in [-1.0, 1.0]:
+		var brace := _add_box(parent, "FoldingChairBrace%s" % ("L" if side < 0.0 else "R"), Vector3(0.06, 1.04, 0.06), Vector3(side * 0.46, 0.53, 0.0), "chair_metal", palette, false)
+		brace.rotation.x = side * 0.58
+
+
+func _build_vending_machine(parent: Node3D, palette: Dictionary) -> void:
+	_add_box(parent, "VendingMachineBody", Vector3(1.34, 2.32, 0.82), Vector3(0.0, 1.16, 0.0), "machine_green", palette, false)
+	_add_box(parent, "VendingDisplay", Vector3(0.84, 1.34, 0.06), Vector3(-0.18, 1.48, 0.44), "window", palette, false)
+	for row in 3:
+		for column in 3:
+			var role: String = str(["indicator_red", "cooler_blue", "fluorescent"][posmod(row + column, 3)])
+			_add_box(parent, "VendingCan%02d" % (row * 3 + column), Vector3(0.16, 0.28, 0.10), Vector3(-0.48 + float(column) * 0.30, 1.83 - float(row) * 0.39, 0.49), role, palette, false)
+	_add_box(parent, "VendingControlPanel", Vector3(0.24, 0.92, 0.06), Vector3(0.48, 1.48, 0.45), "backrooms_beige", palette, false)
+	for button_index in 4:
+		_add_box(parent, "VendingButton%02d" % button_index, Vector3(0.10, 0.10, 0.05), Vector3(0.48, 1.76 - float(button_index) * 0.19, 0.50), "rubber_black", palette, false)
+	_add_box(parent, "VendingCoinSlot", Vector3(0.10, 0.20, 0.05), Vector3(0.48, 0.98, 0.50), "fixture_metal", palette, false)
+	_add_box(parent, "VendingPickupHatch", Vector3(0.74, 0.30, 0.08), Vector3(-0.12, 0.32, 0.46), "rubber_black", palette, false)
+
+
+func _build_fluorescent_troffer(parent: Node3D, palette: Dictionary) -> void:
+	_add_box(parent, "FluorescentTrofferBack", Vector3(1.62, 0.86, 0.10), Vector3(0.0, 1.62, 0.0), "fixture_metal", palette, false)
+	for x in [-0.78, 0.78]:
+		_add_box(parent, "TrofferFrameV%s" % ("L" if x < 0.0 else "R"), Vector3(0.08, 0.94, 0.16), Vector3(x, 1.62, 0.08), "backrooms_beige", palette, false)
+	for y in [1.19, 2.05]:
+		_add_box(parent, "TrofferFrameH%02d" % int(y * 10.0), Vector3(1.62, 0.08, 0.16), Vector3(0.0, y, 0.08), "backrooms_beige", palette, false)
+	for tube_index in 4:
+		_add_box(parent, "FluorescentTube%02d" % tube_index, Vector3(1.38, 0.09, 0.09), Vector3(0.0, 1.33 + float(tube_index) * 0.19, 0.13), "fluorescent", palette, false)
+	for wire_side in [-1.0, 1.0]:
+		var wire := _add_box(parent, "TrofferWire%s" % ("L" if wire_side < 0.0 else "R"), Vector3(0.035, 1.02, 0.035), Vector3(wire_side * 0.52, 2.55, 0.0), "rubber_black", palette, false)
+		wire.rotation.z = wire_side * 0.12
+
+
+func _build_supply_crates(parent: Node3D, palette: Dictionary) -> void:
+	for pallet_index in 4:
+		_add_box(parent, "SupplyPalletSlat%02d" % pallet_index, Vector3(2.18, 0.12, 0.26), Vector3(0.0, 0.10, -0.56 + float(pallet_index) * 0.38), "crate_wood", palette, false)
+	_build_crate_unit(parent, "SupplyCrateLeft", Vector3(-0.52, 0.72, 0.0), 0.0, palette)
+	_build_crate_unit(parent, "SupplyCrateRight", Vector3(0.54, 0.72, 0.05), -0.08, palette)
+	_build_crate_unit(parent, "SupplyCrateTop", Vector3(0.02, 1.74, 0.02), 0.06, palette)
+
+
+func _build_crate_unit(parent: Node3D, node_name: String, position: Vector3, yaw: float, palette: Dictionary) -> void:
+	var crate := Node3D.new()
+	crate.name = node_name
+	crate.position = position
+	crate.rotation.y = yaw
+	parent.add_child(crate)
+	_add_box(crate, "CrateCore", Vector3(0.94, 0.94, 0.88), Vector3.ZERO, "crate_wood", palette, false)
+	for rail_y in [-0.39, 0.39]:
+		_add_box(crate, "CrateRailH%s" % ("B" if rail_y < 0.0 else "T"), Vector3(1.02, 0.10, 0.10), Vector3(0.0, rail_y, 0.49), "crate_dark", palette, false)
+	for rail_x in [-0.43, 0.43]:
+		_add_box(crate, "CrateRailV%s" % ("L" if rail_x < 0.0 else "R"), Vector3(0.10, 0.92, 0.10), Vector3(rail_x, 0.0, 0.49), "crate_dark", palette, false)
+	for diagonal in [-1.0, 1.0]:
+		var brace := _add_box(crate, "CrateBrace%s" % ("L" if diagonal < 0.0 else "R"), Vector3(1.08, 0.09, 0.08), Vector3(0.0, 0.0, 0.55), "crate_dark", palette, false)
+		brace.rotation.z = diagonal * 0.70
+
+
+func _build_pipe_manifold(parent: Node3D, palette: Dictionary) -> void:
+	_add_box(parent, "PipeManifoldBackboard", Vector3(2.35, 2.45, 0.12), Vector3(0.0, 1.25, -0.16), "backrooms_beige", palette, false)
+	for pipe_index in 3:
+		var x := -0.72 + float(pipe_index) * 0.72
+		var pipe := _add_low_poly_cylinder(parent, "ManifoldPipeV%02d" % pipe_index, 0.10, 0.10, 2.20, 10, "pipe_metal", palette)
+		pipe.position = Vector3(x, 1.25, 0.02)
+	var cross_pipe := _add_low_poly_cylinder(parent, "ManifoldPipeCross", 0.12, 0.12, 1.82, 10, "pipe_metal", palette)
+	cross_pipe.position = Vector3(0.0, 1.42, 0.03)
+	cross_pipe.rotation.z = PI * 0.5
+	for valve_index in 2:
+		_build_valve_wheel(parent, "PipeValveWheel%02d" % valve_index, Vector3(-0.36 + float(valve_index) * 0.72, 1.42, 0.24), 0.28, palette)
+	var gauge := _add_low_poly_cylinder(parent, "PipePressureGauge", 0.28, 0.28, 0.10, 14, "fluorescent", palette)
+	gauge.position = Vector3(0.72, 2.05, 0.16)
+	gauge.rotation.x = PI * 0.5
+	var gauge_needle := _add_box(parent, "PipeGaugeNeedle", Vector3(0.04, 0.22, 0.05), Vector3(0.72, 2.08, 0.23), "indicator_red", palette, false)
+	gauge_needle.rotation.z = -0.55
+	_add_box(parent, "PipeDrainTray", Vector3(2.45, 0.16, 0.78), Vector3(0.0, 0.08, 0.05), "fixture_metal", palette, false)
+
+
+func _build_valve_wheel(parent: Node3D, node_name: String, center: Vector3, radius: float, palette: Dictionary) -> void:
+	var wheel := Node3D.new()
+	wheel.name = node_name
+	wheel.position = center
+	parent.add_child(wheel)
+	for segment_index in 8:
+		var angle := TAU * float(segment_index) / 8.0
+		var segment := _add_box(wheel, "ValveRim%02d" % segment_index, Vector3(0.25, 0.055, 0.07), Vector3(cos(angle) * radius, sin(angle) * radius, 0.0), "indicator_red", palette, false)
+		segment.rotation.z = angle + PI * 0.5
+	var hub := _add_low_poly_cylinder(wheel, "ValveHub", 0.09, 0.09, 0.10, 10, "indicator_red", palette)
+	hub.rotation.x = PI * 0.5
+	for spoke_index in 4:
+		var spoke := _add_box(wheel, "ValveSpoke%02d" % spoke_index, Vector3(radius * 1.65, 0.045, 0.05), Vector3.ZERO, "indicator_red", palette, false)
+		spoke.rotation.z = PI * 0.25 * float(spoke_index)
+
+
+func _add_low_poly_cylinder(parent: Node3D, node_name: String, top_radius: float, bottom_radius: float, height: float, radial_segments: int, role: String, palette: Dictionary) -> MeshInstance3D:
+	var mesh_instance := MeshInstance3D.new()
+	mesh_instance.name = node_name
+	var mesh := CylinderMesh.new()
+	mesh.top_radius = top_radius
+	mesh.bottom_radius = bottom_radius
+	mesh.height = height
+	mesh.radial_segments = radial_segments
+	mesh.rings = 1
+	mesh_instance.mesh = mesh
+	mesh_instance.set_meta("theme_role", role)
+	mesh_instance.material_override = _material(role, palette, true)
+	parent.add_child(mesh_instance)
+	return mesh_instance
+
+
 func _build_suspense_layer(parent: Node3D, palette: Dictionary) -> void:
+	if built_floor == 2:
+		_build_floor_two_disc_suspense(parent, palette)
+		return
 	var suspense := Node3D.new()
 	suspense.name = "SuspenseOcclusion"
 	suspense.set_meta("slow_burn_suspense", true)
@@ -749,11 +1344,78 @@ func _build_suspense_layer(parent: Node3D, palette: Dictionary) -> void:
 	set_meta("suspense_occlusion_rule", "alternating_side_screens")
 
 
+func _build_floor_two_disc_suspense(parent: Node3D, palette: Dictionary) -> void:
+	var suspense := Node3D.new()
+	suspense.name = "SuspenseOcclusion"
+	suspense.set_meta("slow_burn_suspense", true)
+	suspense.set_meta("scattered_across_disc", true)
+	parent.add_child(suspense)
+	var occluder_count := 7
+	for threshold_index in occluder_count:
+		var angle := 0.42 + TAU * float(threshold_index) / float(occluder_count) + sin(float(threshold_index) * 1.9) * 0.18
+		var radial_ratio := 0.34 + float(posmod(threshold_index * 3, 5)) * 0.095
+		var controlled_anomaly := threshold_index == 4
+		var screen_height := 2.2 if controlled_anomaly else 3.0
+		var screen_position := _floor_two_disc_point(angle, radial_ratio)
+		screen_position.y += screen_height * 0.5
+		var screen := _add_box(
+			suspense,
+			"SightlineScreen%02d" % threshold_index,
+			Vector3(1.5, screen_height, 0.34),
+			screen_position,
+			"wall_dark",
+			palette,
+			true
+		)
+		screen.rotation.y = -angle + PI * 0.5
+		screen.set_meta("suspense_occluder", true)
+		screen.set_meta("clear_path_width", SUSPENSE_CLEAR_PATH_WIDTH)
+		screen.set_meta("controlled_repeat_anomaly", controlled_anomaly)
+		var lintel_position := _floor_two_disc_point(angle, radial_ratio)
+		lintel_position.y += 3.15
+		var lintel := _add_box(
+			suspense,
+			"RepeatedLintel%02d" % threshold_index,
+			Vector3(SUSPENSE_CLEAR_PATH_WIDTH + 0.24, 0.18, 0.34),
+			lintel_position,
+			"dream_cyan" if controlled_anomaly else "wall_dark",
+			palette,
+			false
+		)
+		lintel.rotation.y = -angle + PI * 0.5
+		lintel.set_meta("architectural_repeat", true)
+		lintel.set_meta("controlled_repeat_anomaly", controlled_anomaly)
+
+	var light_count := 7
+	for light_index in light_count:
+		var angle := PI * 0.5 + TAU * float(light_index) / float(light_count)
+		var radial_ratio := 0.82 if light_index == 0 else 0.32 + float(posmod(light_index * 4, 6)) * 0.09
+		var light_position := _floor_two_disc_point(angle, radial_ratio)
+		light_position.y += 2.9
+		_add_box(suspense, "SuspenseFixture%02d" % light_index, Vector3(0.72, 0.12, 0.28), light_position, "lamp_light", palette, false)
+		var pool := OmniLight3D.new()
+		pool.name = "SuspenseLight%02d" % light_index
+		pool.position = light_position
+		pool.light_color = Color("B07B55") if light_index == 1 else Color("668783")
+		pool.light_energy = 1.25 if light_index == 1 else 1.65
+		pool.omni_range = 22.0
+		pool.shadow_enabled = light_index == 0
+		pool.set_meta("temperature_exception", light_index == 1)
+		suspense.add_child(pool)
+	set_meta("suspense_occluder_count", occluder_count)
+	set_meta("suspense_light_count", light_count)
+	set_meta("controlled_repeat_count", occluder_count * 2 + 1)
+	set_meta("jump_scare_trigger_count", 0)
+	set_meta("minimum_clear_path_width", SUSPENSE_CLEAR_PATH_WIDTH)
+	set_meta("suspense_occlusion_rule", "scattered_disc_thresholds")
+
+
 func _new_room(parent: Node3D, room_index: int) -> Node3D:
 	var room := Node3D.new()
 	room.name = "Room%02d" % room_index
 	room.set_meta("room_index", room_index)
 	room.set_meta("street_lot", true)
+	room.set_meta("logical_room", true)
 	room.set_meta("district_style", district_style)
 	parent.add_child(room)
 	return room
@@ -809,40 +1471,22 @@ func _build_mood_panel(parent: Node3D, room_index: int, position: Vector3, side:
 	parent.add_child(panel)
 
 
-func _build_grass_patch(parent: Node3D, position: Vector3, seed_index: int, palette: Dictionary) -> void:
-	var patch := Node3D.new()
-	patch.name = "GrassPatch%02d" % seed_index
-	patch.position = position
-	parent.add_child(patch)
-	for tuft_index in 30:
-		var tuft := MeshInstance3D.new()
-		tuft.name = "Blade%d" % tuft_index
-		var blade_width := 0.07 + float((seed_index + tuft_index) % 4) * 0.018
-		var blade_height := 0.30 + float((seed_index * 3 + tuft_index) % 8) * 0.055
-		tuft.mesh = _grass_blade_mesh(blade_width, blade_height, -0.04 + float((seed_index + tuft_index) % 5) * 0.02)
-		var angle := float(seed_index * 17 + tuft_index * 53) * 0.11
-		var radius := 0.10 + float(tuft_index % 10) * 0.11
-		tuft.position = Vector3(cos(angle) * radius, blade_height * 0.5, sin(angle) * radius)
-		tuft.rotation_degrees = Vector3(0.0, rad_to_deg(angle) + float(tuft_index % 3) * 37.0, -9.0 + float((seed_index + tuft_index) % 7) * 3.0)
-		tuft.set_meta("theme_role", "grass")
-		tuft.material_override = _material("grass", palette, false)
-		patch.add_child(tuft)
-
-
 func _grass_blade_mesh(width: float, height: float, tip_offset: float) -> ArrayMesh:
 	var mesh := ArrayMesh.new()
 	var arrays: Array = []
 	arrays.resize(Mesh.ARRAY_MAX)
-	arrays[Mesh.ARRAY_VERTEX] = PackedVector3Array([
-		Vector3(-width * 0.5, -height * 0.5, 0.0),
-		Vector3(width * 0.5, -height * 0.5, 0.0),
-		Vector3(tip_offset, height * 0.5, 0.0),
-	])
-	arrays[Mesh.ARRAY_TEX_UV] = PackedVector2Array([
-		Vector2(0.0, 1.0),
-		Vector2(1.0, 1.0),
-		Vector2(0.5, 0.0),
-	])
+	var vertices := PackedVector3Array()
+	var uvs := PackedVector2Array()
+	for blade_index in 4:
+		var angle := PI * 0.25 * float(blade_index)
+		var right := Vector3(cos(angle), 0.0, sin(angle)) * width * 0.5
+		var offset := Vector3(cos(angle + PI * 0.5), 0.0, sin(angle + PI * 0.5)) * (0.055 + float(blade_index % 2) * 0.035)
+		vertices.append(offset - right + Vector3(0.0, -height * 0.5, 0.0))
+		vertices.append(offset + right + Vector3(0.0, -height * 0.5, 0.0))
+		vertices.append(offset + Vector3(cos(angle) * tip_offset, height * 0.5, sin(angle) * tip_offset))
+		uvs.append_array(PackedVector2Array([Vector2(0.0, 1.0), Vector2(1.0, 1.0), Vector2(0.5, 0.0)]))
+	arrays[Mesh.ARRAY_VERTEX] = vertices
+	arrays[Mesh.ARRAY_TEX_UV] = uvs
 	mesh.add_surface_from_arrays(Mesh.PRIMITIVE_TRIANGLES, arrays)
 	return mesh
 
@@ -956,6 +1600,9 @@ func _build_air_walls(parent: Node3D) -> void:
 	var walls := Node3D.new()
 	walls.name = "AirWalls"
 	parent.add_child(walls)
+	if built_floor == 2:
+		_build_floor_two_disc_air_walls(walls)
+		return
 	if district_style == "sunlit_brick_street":
 		_build_sunlit_air_walls(walls)
 		return
@@ -963,6 +1610,24 @@ func _build_air_walls(parent: Node3D) -> void:
 	_add_air_wall(walls, "EastAirWall", Vector3(AIR_WALL_THICKNESS, AIR_WALL_HEIGHT, map_length + AIR_WALL_THICKNESS * 2.0), Vector3(map_width * 0.5, AIR_WALL_HEIGHT * 0.5, 0.0))
 	_add_air_wall(walls, "NorthAirWall", Vector3(map_width, AIR_WALL_HEIGHT, AIR_WALL_THICKNESS), Vector3(0.0, AIR_WALL_HEIGHT * 0.5, -map_length * 0.5))
 	_add_air_wall(walls, "SouthAirWall", Vector3(map_width, AIR_WALL_HEIGHT, AIR_WALL_THICKNESS), Vector3(0.0, AIR_WALL_HEIGHT * 0.5, map_length * 0.5))
+
+
+func _build_floor_two_disc_air_walls(walls: Node3D) -> void:
+	for segment_index in FLOOR_TWO_DISC_AIR_WALL_SEGMENTS:
+		var angle_a := TAU * float(segment_index) / float(FLOOR_TWO_DISC_AIR_WALL_SEGMENTS)
+		var angle_b := TAU * float(segment_index + 1) / float(FLOOR_TWO_DISC_AIR_WALL_SEGMENTS)
+		var point_a := _floor_two_disc_point(angle_a, 1.0)
+		var point_b := _floor_two_disc_point(angle_b, 1.0)
+		var flat_delta := Vector2(point_b.x - point_a.x, point_b.z - point_a.z)
+		var center := (point_a + point_b) * 0.5
+		center.y = maxf(point_a.y, point_b.y) + AIR_WALL_HEIGHT * 0.5
+		var wall := _add_air_wall(
+			walls,
+			"DiscAirWall%02d" % segment_index,
+			Vector3(flat_delta.length() + 0.5, AIR_WALL_HEIGHT, AIR_WALL_THICKNESS),
+			center
+		)
+		wall.rotation.y = -atan2(flat_delta.y, flat_delta.x)
 
 
 func _build_sunlit_air_walls(walls: Node3D) -> void:
@@ -1005,7 +1670,7 @@ func _build_sunlit_air_walls(walls: Node3D) -> void:
 		)
 
 
-func _add_air_wall(parent: Node3D, node_name: String, size: Vector3, position: Vector3) -> void:
+func _add_air_wall(parent: Node3D, node_name: String, size: Vector3, position: Vector3) -> StaticBody3D:
 	var wall := StaticBody3D.new()
 	wall.name = node_name
 	wall.position = position
@@ -1019,6 +1684,7 @@ func _add_air_wall(parent: Node3D, node_name: String, size: Vector3, position: V
 	shape.size = size
 	collision.shape = shape
 	wall.add_child(collision)
+	return wall
 
 
 func _build_useful_item(parent: Node3D, room_index: int, position: Vector3, palette: Dictionary) -> void:
@@ -1093,6 +1759,8 @@ func _build_actors(palette: Dictionary, actor_textures: Dictionary) -> void:
 	add_child(actors)
 	var spawn := start_position()
 	var merchant_position := Vector3(-3.4, 0.0, spawn.z - 8.0)
+	if built_floor == 2:
+		merchant_position = _floor_two_disc_point(PI * 0.5 + 0.12, 0.72)
 	var merchant_texture := actor_textures.get("merchant") as Texture2D
 	var npc_textures: Array = actor_textures.get("npcs", [])
 	var fallback_texture := merchant_texture
@@ -1108,11 +1776,17 @@ func _build_actors(palette: Dictionary, actor_textures: Dictionary) -> void:
 	var lateral_positions := [3.4, -3.0, 1.6, -3.3, 0.5]
 	for index in ordinary_npc_count:
 		var progress := float(index + 1) / float(ordinary_npc_count + 1)
-		var actor_position := Vector3(
-			float(lateral_positions[index % lateral_positions.size()]),
-			0.0,
-			lerpf(street_south, street_north, progress)
-		)
+		var actor_position: Vector3
+		if built_floor == 2:
+			var disc_angle := 0.72 + TAU * float(index + 1) / float(ordinary_npc_count + 2) + sin(float(index) * 1.7) * 0.16
+			var disc_radius := 0.30 + float(posmod(index * 3, 4)) * 0.14
+			actor_position = _floor_two_disc_point(disc_angle, disc_radius)
+		else:
+			actor_position = Vector3(
+				float(lateral_positions[index % lateral_positions.size()]),
+				0.0,
+				lerpf(street_south, street_north, progress)
+			)
 		var npc_texture: Texture2D = fallback_texture
 		if not npc_textures.is_empty() and npc_textures[index % npc_textures.size()] is Texture2D:
 			npc_texture = npc_textures[index % npc_textures.size()]
@@ -1131,6 +1805,9 @@ func _make_actor(node_name: String, actor_type: String, display_name: String, po
 	actor.set_meta("actor_type", actor_type)
 	actor.set_meta("display_name", display_name)
 	actor.set_meta("tint_index", tint_index)
+	actor.set_meta("face_veil", true)
+	actor.set_meta("face_veil_mode", 1 if actor_type == "merchant" else tint_index % 3)
+	actor.set_meta("face_identity_readable", false)
 	var collision := CollisionShape3D.new()
 	collision.name = "InteractionShape"
 	var capsule := CapsuleShape3D.new()
@@ -1153,6 +1830,16 @@ func _make_actor(node_name: String, actor_type: String, display_name: String, po
 		sprite.scale = Vector3(1.05, 1.05, 1.05)
 	else:
 		sprite.modulate = Color.WHITE.lerp(_color(palette, "muted"), 0.08 + tint_index * 0.04)
+	var veil_material := ShaderMaterial.new()
+	veil_material.shader = NPC_FACE_VEIL_SHADER
+	veil_material.set_shader_parameter("albedo_texture", npc_texture)
+	veil_material.set_shader_parameter("body_tint", sprite.modulate)
+	veil_material.set_shader_parameter("veil_color", Color("8B1E2D") if actor_type == "merchant" or tint_index % 3 == 1 else _color(palette, "ink"))
+	veil_material.set_shader_parameter("mask_mode", float(1 if actor_type == "merchant" else tint_index % 3))
+	veil_material.set_shader_parameter("mask_strength", 0.94 if actor_type == "merchant" else 0.86)
+	veil_material.set_shader_parameter("seed", float(built_floor * 17 + tint_index * 7 + (3 if actor_type == "merchant" else 0)))
+	sprite.modulate = Color.WHITE
+	sprite.material_override = veil_material
 	actor.add_child(sprite)
 	return actor
 
@@ -1189,12 +1876,20 @@ func _material(role: String, palette: Dictionary, emission: bool) -> StandardMat
 	material.albedo_color = _role_color(role, palette)
 	material.roughness = 0.94
 	material.metallic = 0.0
+	if role in ["fixture_metal", "cart_metal", "chair_metal", "pipe_metal"]:
+		material.roughness = 0.58
+		material.metallic = 0.54
 	if role == "grass":
 		material.cull_mode = BaseMaterial3D.CULL_DISABLED
-	if emission or role == "lamp_light":
+	if role == "night_path" and built_floor == 2:
+		material.cull_mode = BaseMaterial3D.CULL_DISABLED
+		material.emission_enabled = true
+		material.emission = Color("28453A")
+		material.emission_energy_multiplier = 0.78
+	if emission or role in ["lamp_light", "screen_glow", "fluorescent"]:
 		material.emission_enabled = true
 		material.emission = _role_color(role, palette)
-		material.emission_energy_multiplier = 1.6
+		material.emission_energy_multiplier = 1.18 if role in ["screen_glow", "fluorescent"] else 1.6
 	return material
 
 
@@ -1207,13 +1902,15 @@ func _role_color(role: String, palette: Dictionary) -> Color:
 		"brick_dark":
 			return Color("8F7655").lerp(_color(palette, "accent"), 0.08)
 		"white_wall":
-			return Color("F0F2E9") if district_style == "night_white_blocks" else Color("9DA99C")
+			return Color("F0F2E9") if district_style == "night_white_blocks" else (Color("DCE4D2") if built_floor == 3 else Color("9DA99C"))
 		"window":
 			return Color("0B0D0B").lerp(_color(palette, "ink"), 0.35)
 		"grass":
-			return (Color("17321D") if district_style == "night_white_blocks" else Color("4F7134")).lerp(_color(palette, "accent"), 0.18)
+			return (Color("17321D") if district_style == "night_white_blocks" else (Color("5F8D3E") if built_floor == 3 else Color("4F7134"))).lerp(_color(palette, "accent"), 0.12)
+		"grass_ground":
+			return Color("527D42").lerp(_color(palette, "accent"), 0.10)
 		"gallery_floor":
-			return Color("68756B").lerp(_color(palette, "accent"), 0.08)
+			return (Color("819978") if built_floor == 3 else Color("68756B")).lerp(_color(palette, "accent"), 0.08)
 		"sunlit_paving":
 			return Color("D7C8A8").lerp(_color(palette, "surface"), 0.16)
 		"night_path":
@@ -1246,11 +1943,49 @@ func _role_color(role: String, palette: Dictionary) -> Color:
 			return _color(palette, "accent").darkened(0.10)
 		"item":
 			return _color(palette, "flash_text")
+		"backrooms_beige":
+			return Color("CBBE8E") if built_floor == 2 else Color("E0D6A7")
+		"fixture_metal":
+			return Color("69746D") if built_floor == 2 else Color("9AA79A")
+		"cart_metal":
+			return Color("4F5A54") if built_floor == 2 else Color("7D8D80")
+		"chair_metal":
+			return Color("758079") if built_floor == 2 else Color("A8B6A9")
+		"chair_vinyl":
+			return Color("485C50") if built_floor == 2 else Color("6E8B72")
+		"pipe_metal":
+			return Color("60736B") if built_floor == 2 else Color("8CA392")
+		"machine_green":
+			return Color("3B5A48") if built_floor == 2 else Color("688E69")
+		"cooler_blue":
+			return Color("538A8C") if built_floor == 2 else Color("8FC9C1")
+		"indicator_red":
+			return Color("8F4050") if built_floor == 2 else Color("C86A76")
+		"screen_glow":
+			return Color("6E9A7D") if built_floor == 2 else Color("B5DBAA")
+		"fluorescent":
+			return Color("D7E7AF") if built_floor == 2 else Color("F0F3CB")
+		"crate_wood":
+			return Color("725B3F") if built_floor == 2 else Color("A68B5C")
+		"crate_dark":
+			return Color("3E3529") if built_floor == 2 else Color("65563B")
+		"rubber_black":
+			return Color("111614")
+		"dream_pink":
+			return Color("F3A7BD") if built_floor == 3 else Color("B75A82")
+		"dream_cyan":
+			return Color("A8E1D3") if built_floor == 3 else Color("4C918D")
+		"dream_ivory":
+			return Color("FFF0BF") if built_floor == 3 else Color("A99775")
 		_:
 			return _color(palette, "muted")
 
 
 func _style_background_color(palette: Dictionary) -> Color:
+	if built_floor == 2:
+		return Color("030607").lerp(_color(palette, "ink"), 0.08)
+	if built_floor == 3:
+		return Color("82B9B0").lerp(_color(palette, "surface"), 0.10)
 	if built_floor >= 2:
 		match district_style:
 			"night_white_blocks":
@@ -1271,6 +2006,10 @@ func _style_background_color(palette: Dictionary) -> Color:
 
 
 func _style_ambient_color(palette: Dictionary) -> Color:
+	if built_floor == 2:
+		return Color("55716B").lerp(_color(palette, "muted"), 0.08)
+	if built_floor == 3:
+		return Color("E1EBCF").lerp(_color(palette, "surface"), 0.12)
 	if built_floor >= 2:
 		match district_style:
 			"night_white_blocks":
@@ -1289,6 +2028,10 @@ func _style_ambient_color(palette: Dictionary) -> Color:
 
 
 func _style_fog_color(palette: Dictionary) -> Color:
+	if built_floor == 2:
+		return Color("111A19").lerp(_color(palette, "ink"), 0.10)
+	if built_floor == 3:
+		return Color("B5D4B4").lerp(_color(palette, "surface"), 0.10)
 	if built_floor >= 2:
 		match district_style:
 			"night_white_blocks":

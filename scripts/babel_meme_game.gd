@@ -46,7 +46,13 @@ const HUD_MONEY_ICON_PATH := "res://assets/generated/ui/hud_money_icon.png"
 const HUD_SETTINGS_ICON_PATH := "res://assets/generated/ui/hud_settings_icon.png"
 const PHONE_LAUNCHER_WALLPAPER_PATH := "res://assets/generated/1/IMG_4835.PNG"
 const SOCIAL_POSTER_SHEET_PATH := "res://assets/generated/social/poster_sheet.png"
-const PHONE_AMBIENCE_PATH := "res://assets/generated/audio/babel_phone_signal.wav"
+const PHONE_AMBIENCE_PATHS := {
+	1: "res://assets/generated/audio/babel_phone_signal_floor_1.wav",
+	2: "res://assets/generated/audio/babel_phone_signal.wav",
+	3: "res://assets/generated/audio/babel_phone_signal_floor_3.wav",
+	4: "res://assets/generated/audio/babel_phone_signal_floor_4.wav",
+	5: "res://assets/generated/audio/babel_phone_signal_floor_5.wav",
+}
 const REALITY_AMBIENCE_PATH := "res://assets/generated/audio/babel_reality_liminal.wav"
 const POLLUTION_AMBIENCE_PATH := "res://assets/generated/audio/babel_pollution_rot.wav"
 const FLASHBACK_AUDIO_PATH := "res://assets/generated/audio/pollution_flashback.wav"
@@ -55,9 +61,13 @@ const SOCIAL_POSTER_COLUMNS := 4
 const SOCIAL_POSTER_ROWS := 3
 const SOCIAL_POSTER_COUNT := SOCIAL_POSTER_COLUMNS * SOCIAL_POSTER_ROWS
 const SOCIAL_FEED_WHEEL_STEP := 2
-const SOCIAL_FEED_CARD_HEIGHT := 344.0
-const SOCIAL_FEED_POSTER_HEIGHT := 214.0
+const SOCIAL_FEED_POSTER_HEIGHTS := [
+	214.0, 176.0, 238.0, 194.0,
+	226.0, 184.0, 218.0, 202.0,
+	244.0, 188.0, 232.0, 180.0,
+]
 const SOCIAL_FEED_CAPTION_HEIGHT := 62.0
+const SOCIAL_FEED_CARD_CHROME_HEIGHT := 130.0
 const REALITY_MOVE_SPEED := 3.3
 const REALITY_SPRINT_MULTIPLIER := 1.85
 const REALITY_ACCELERATION := 14.0
@@ -375,6 +385,7 @@ var _bank_list: Control
 var _meme_bank_ring: Control
 var _meme_bank_focus_label: Label
 var _meme_bank_selected_index := 0
+var _meme_bank_tween: Tween
 var _reality_subtitle_panel: PanelContainer
 var _reality_subtitle_label: RichTextLabel
 var _reality_choice_row: HBoxContainer
@@ -629,7 +640,7 @@ func _begin_game_session(session_state: MemeGameState, world_data: Dictionary, s
 	_drag_offset = Vector2.ZERO
 	_last_responsive_layout_size = Vector2.ZERO
 	_reality_built_floor = 0
-	_reality_yaw = 0.0
+	_reality_yaw = _reality_floor.start_yaw_degrees()
 	_reality_pitch = 0.0
 	_set_reality_mouse_look(false)
 	_nearby_reality_actor = null
@@ -822,6 +833,7 @@ func _build_world() -> void:
 	add_child(_camera)
 	_camera.current = true
 	_camera.fov = 58.0
+	_configure_reality_depth_of_field()
 	_ensure_reality_input_map()
 
 	_reality_player = CharacterBody3D.new()
@@ -838,12 +850,6 @@ func _build_world() -> void:
 	player_collision.shape = player_capsule
 	player_collision.position.y = 0.88
 	_reality_player.add_child(player_collision)
-
-	var light := DirectionalLight3D.new()
-	light.name = "StreetLight"
-	light.rotation_degrees = Vector3(-55.0, 20.0, 0.0)
-	light.light_energy = 0.25
-	add_child(light)
 
 	_reality_floor = RealityFloorGeneratorScript.new()
 	_reality_floor.name = "RealityFloor"
@@ -915,6 +921,21 @@ func _build_world() -> void:
 	_canvas.name = "CanvasLayer"
 	add_child(_canvas)
 	_build_audio_players()
+
+
+func _configure_reality_depth_of_field() -> void:
+	if _camera == null:
+		return
+	var attributes := CameraAttributesPractical.new()
+	attributes.dof_blur_far_enabled = true
+	attributes.dof_blur_far_distance = 18.0
+	attributes.dof_blur_far_transition = 12.0
+	attributes.dof_blur_amount = 0.08
+	attributes.dof_blur_near_enabled = false
+	_camera.attributes = attributes
+	_camera.set_meta("fixed_focus_profile", "near_clear_far_soft")
+	_camera.set_meta("focus_distance_m", 18.0)
+	_camera.set_meta("far_transition_m", 12.0)
 
 
 func _ensure_reality_input_map() -> void:
@@ -1158,7 +1179,9 @@ func _active_actor_display_name() -> String:
 
 
 func _build_audio_players() -> void:
-	_phone_ambience = _make_audio_player("PhoneRoadAmbience", PHONE_AMBIENCE_PATH, true, -60.0)
+	var initial_floor := 1 if game == null else clampi(int(game.tower_floor), 1, MemeGameStateScript.MAX_TOWER_FLOOR)
+	_phone_ambience = _make_audio_player("PhoneRoadAmbience", _phone_music_path_for_floor(initial_floor), true, -60.0)
+	_phone_ambience.set_meta("phone_music_floor", initial_floor)
 	_reality_ambience = _make_audio_player("RealityRoomAmbience", REALITY_AMBIENCE_PATH, true, -60.0)
 	_pollution_ambience = _make_audio_player("PollutionMusicLayer", POLLUTION_AMBIENCE_PATH, true, -60.0)
 	_flashback_audio = _make_audio_player("PollutionFlashbackAudio", FLASHBACK_AUDIO_PATH, false, -8.0)
@@ -1190,6 +1213,33 @@ func _load_generated_wav(path: String, looped: bool) -> AudioStreamWAV:
 	return stream
 
 
+func _phone_music_path_for_floor(floor_number: int) -> String:
+	var safe_floor := clampi(floor_number, 1, MemeGameStateScript.MAX_TOWER_FLOOR)
+	return str(PHONE_AMBIENCE_PATHS.get(safe_floor, PHONE_AMBIENCE_PATHS[1]))
+
+
+func _ensure_phone_music_for_floor(floor_number: int) -> void:
+	if _phone_ambience == null:
+		return
+	var safe_floor := clampi(floor_number, 1, MemeGameStateScript.MAX_TOWER_FLOOR)
+	var target_path := _phone_music_path_for_floor(safe_floor)
+	if str(_phone_ambience.get_meta("generated_audio_path", "")) == target_path:
+		_phone_ambience.set_meta("phone_music_floor", safe_floor)
+		return
+	var phase := 0.0
+	if _reality_ambience != null and _reality_ambience.playing:
+		phase = _reality_ambience.get_playback_position()
+	elif _phone_ambience.playing:
+		phase = _phone_ambience.get_playback_position()
+	var was_playing := _phone_ambience.playing
+	_phone_ambience.stop()
+	_phone_ambience.stream = _load_generated_wav(target_path, true)
+	_phone_ambience.set_meta("generated_audio_path", target_path)
+	_phone_ambience.set_meta("phone_music_floor", safe_floor)
+	if is_inside_tree() and was_playing and _phone_ambience.stream != null:
+		_phone_ambience.play(phase)
+
+
 func _sync_audio_state(immediate: bool = false) -> void:
 	if _phone_ambience == null or _reality_ambience == null or _pollution_ambience == null:
 		return
@@ -1202,6 +1252,7 @@ func _sync_audio_state(immediate: bool = false) -> void:
 			if _flashback_audio != null:
 				_flashback_audio.stop()
 		return
+	_ensure_phone_music_for_floor(int(game.tower_floor))
 	var in_phone: bool = game.view_state == "phone_down"
 	var phone_target: float = -8.0 if in_phone else -42.0
 	var intimate_typing: bool = _reality_interaction_active and game.conversation_phase == "typing"
@@ -1721,6 +1772,7 @@ func _build_ui() -> void:
 	_reality_choice_row.offset_right = -290
 	_reality_choice_row.offset_bottom = -206
 	_reality_choice_row.add_theme_constant_override("separation", 14)
+	_reality_choice_row.clip_contents = true
 	_reality_choice_row.z_index = 15
 	_ui_root.add_child(_reality_choice_row)
 
@@ -1845,7 +1897,7 @@ func _build_ui() -> void:
 
 	_meme_bank_tab = Button.new()
 	_meme_bank_tab.name = "MemeBankTab"
-	_meme_bank_tab.text = "梗库"
+	_meme_bank_tab.text = "梗"
 	_meme_bank_tab.set_meta("meme_bank_tab", true)
 	_meme_bank_tab.set_meta("radial_center_button", true)
 	_meme_bank_tab.set_anchors_preset(Control.PRESET_CENTER_RIGHT)
@@ -1857,16 +1909,17 @@ func _build_ui() -> void:
 	_meme_bank_tab.pressed.connect(_toggle_meme_bank)
 	_meme_bank_window.add_child(_meme_bank_tab)
 
-	_meme_bank_drag_handle = _label("MEME RING  /  拖拽移动", 13, _theme_color("accent"))
+	_meme_bank_drag_handle = _label("≡", 24, _theme_color("accent"))
 	_meme_bank_drag_handle.name = "MemeBankDragHandle"
+	_meme_bank_drag_handle.tooltip_text = "拖动梗仓库"
 	_meme_bank_drag_handle.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
 	_meme_bank_drag_handle.vertical_alignment = VERTICAL_ALIGNMENT_CENTER
 	_meme_bank_drag_handle.set_anchors_preset(Control.PRESET_TOP_RIGHT)
-	_meme_bank_drag_handle.offset_left = -282.0
+	_meme_bank_drag_handle.offset_left = -70.0
 	_meme_bank_drag_handle.offset_top = 14.0
 	_meme_bank_drag_handle.offset_right = -26.0
 	_meme_bank_drag_handle.offset_bottom = 58.0
-	_meme_bank_drag_handle.custom_minimum_size = Vector2(256, 44)
+	_meme_bank_drag_handle.custom_minimum_size = Vector2(44, 44)
 	_meme_bank_window.add_child(_meme_bank_drag_handle)
 	_make_draggable_window(_meme_bank_window, "bank", _meme_bank_drag_handle)
 
@@ -1883,6 +1936,8 @@ func _build_ui() -> void:
 	_meme_bank_focus_label.offset_right = 286.0
 	_meme_bank_focus_label.offset_bottom = -26.0
 	_meme_bank_focus_label.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
+	_meme_bank_focus_label.max_lines_visible = 1
+	_meme_bank_focus_label.text_overrun_behavior = TextServer.OVERRUN_TRIM_ELLIPSIS
 	_meme_bank_focus_label.vertical_alignment = VERTICAL_ALIGNMENT_CENTER
 	_meme_bank_content.add_child(_meme_bank_focus_label)
 
@@ -2594,7 +2649,7 @@ func _apply_reality_layout() -> void:
 		hud_right = _hud_panel.offset_right
 	var compact := viewport_size.x < 760.0
 	var safe_left := maxf(18.0, hud_right + (12.0 if compact else 48.0))
-	var right_margin := 118.0 if compact else 150.0
+	var right_margin := 18.0 if compact else 150.0
 	var content_left := safe_left + (4.0 if compact else 80.0)
 	var content_right := -right_margin
 	if _reality_intent_preview != null:
@@ -2642,6 +2697,30 @@ func _apply_reality_layout() -> void:
 		_reality_subtitle_panel.offset_bottom = -104.0
 
 
+func _apply_view_toggle_layout() -> void:
+	if _view_toggle_button == null:
+		return
+	var viewport_size := _viewport_size()
+	_view_toggle_button.set_anchors_preset(Control.PRESET_BOTTOM_LEFT)
+	if viewport_size.x >= 760.0:
+		_view_toggle_button.offset_left = 470.0
+		_view_toggle_button.offset_top = -92.0
+		_view_toggle_button.offset_right = 596.0
+		_view_toggle_button.offset_bottom = -36.0
+		return
+	var safe_left := 12.0
+	if _hud_panel != null:
+		safe_left = _hud_panel.offset_right + 12.0
+	var safe_right := viewport_size.x - 12.0
+	var available_width := maxf(126.0, safe_right - safe_left)
+	var button_width := minf(220.0, available_width)
+	var button_left := safe_left + (available_width - button_width) * 0.5
+	_view_toggle_button.offset_left = button_left
+	_view_toggle_button.offset_top = -76.0
+	_view_toggle_button.offset_right = button_left + button_width
+	_view_toggle_button.offset_bottom = -20.0
+
+
 func _apply_responsive_layouts_if_needed(force: bool = false) -> void:
 	var viewport_size := _viewport_size()
 	if not force and viewport_size == _last_responsive_layout_size:
@@ -2656,6 +2735,7 @@ func _apply_responsive_layouts_if_needed(force: bool = false) -> void:
 		_apply_meme_bank_popup_layout(desired_bank_layout)
 	_apply_social_detail_window_layout()
 	_apply_reality_layout()
+	_apply_view_toggle_layout()
 	_layout_cinematic_bars()
 	_layout_hud_rail()
 
@@ -2942,43 +3022,59 @@ func _render_social_home_page(parent: VBoxContainer) -> void:
 	feed_scroll.gui_input.connect(_on_social_feed_scroll_gui_input.bind(feed_scroll))
 	feed_frame.add_child(feed_scroll)
 
-	var masonry := HBoxContainer.new()
+	var masonry := GridContainer.new()
 	masonry.name = "SocialFeedMasonry"
-	masonry.add_theme_constant_override("separation", 12)
+	masonry.columns = 2
+	masonry.add_theme_constant_override("h_separation", 12)
+	masonry.add_theme_constant_override("v_separation", 10)
 	masonry.size_flags_horizontal = Control.SIZE_EXPAND_FILL
 	feed_scroll.add_child(masonry)
-	var columns: Array[VBoxContainer] = []
-	for column_index in 2:
-		var column := VBoxContainer.new()
-		column.name = "SocialMasonryColumn%d" % column_index
-		column.size_flags_horizontal = Control.SIZE_EXPAND_FILL
-		column.add_theme_constant_override("separation", 10)
-		masonry.add_child(column)
-		columns.append(column)
 	for visible_index in visible_post_indices.size():
 		var post_index: int = int(visible_post_indices[visible_index])
 		var post := _social_post_for_index(post_index)
 		var card_panel := _panel()
 		card_panel.name = "SocialPostCard%d" % post_index
 		card_panel.set_meta("social_card", true)
-		card_panel.custom_minimum_size = Vector2(0, SOCIAL_FEED_CARD_HEIGHT)
+		card_panel.custom_minimum_size = Vector2(0, _social_feed_card_height(post_index))
 		card_panel.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+		card_panel.size_flags_vertical = Control.SIZE_SHRINK_BEGIN
+		card_panel.clip_contents = true
 		card_panel.mouse_filter = Control.MOUSE_FILTER_STOP
 		card_panel.gui_input.connect(_on_social_card_gui_input.bind(post_index))
 		card_panel.mouse_default_cursor_shape = Control.CURSOR_POINTING_HAND
-		columns[visible_index % columns.size()].add_child(card_panel)
+		masonry.add_child(card_panel)
+		var card_clip := Control.new()
+		card_clip.name = "SocialPostClip%d" % post_index
+		card_clip.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+		card_clip.size_flags_vertical = Control.SIZE_EXPAND_FILL
+		card_clip.clip_contents = true
+		card_panel.add_child(card_clip)
 		var card := VBoxContainer.new()
+		card.name = "SocialPostLayout%d" % post_index
+		card.set_anchors_and_offsets_preset(Control.PRESET_FULL_RECT)
 		card.add_theme_constant_override("separation", 6)
-		card_panel.add_child(card)
+		card.clip_contents = true
+		card_clip.add_child(card)
 		_render_social_card_poster(card, post_index, post)
+		var caption_slot := Control.new()
+		caption_slot.name = "SocialPostCaptionSlot%d" % post_index
+		caption_slot.custom_minimum_size = Vector2(0, SOCIAL_FEED_CAPTION_HEIGHT)
+		caption_slot.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+		caption_slot.size_flags_vertical = Control.SIZE_SHRINK_BEGIN
+		caption_slot.clip_contents = true
+		card.add_child(caption_slot)
 		var caption := _label(_social_caption(post, post_index), 14, _theme_color("ink"))
 		caption.name = "SocialPostCaption%d" % post_index
-		caption.custom_minimum_size.y = SOCIAL_FEED_CAPTION_HEIGHT
+		caption.set_anchors_and_offsets_preset(Control.PRESET_FULL_RECT)
 		caption.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
 		caption.max_lines_visible = 3
 		caption.text_overrun_behavior = TextServer.OVERRUN_TRIM_ELLIPSIS
-		card.add_child(caption)
+		caption_slot.add_child(caption)
 		var meta_row := HBoxContainer.new()
+		meta_row.name = "SocialPostActions%d" % post_index
+		meta_row.custom_minimum_size.y = 44
+		meta_row.size_flags_vertical = Control.SIZE_SHRINK_BEGIN
+		meta_row.clip_contents = true
 		meta_row.add_theme_constant_override("separation", 4)
 		card.add_child(meta_row)
 		var likes := Button.new()
@@ -2996,10 +3092,21 @@ func _render_social_home_page(parent: VBoxContainer) -> void:
 		follow.custom_minimum_size = Vector2(74, 44)
 		follow.pressed.connect(_on_social_follow_pressed.bind(_social_author_id(post)))
 		meta_row.add_child(follow)
+	var hint_slot := Control.new()
+	hint_slot.name = "SocialScrollHintSlot"
+	hint_slot.custom_minimum_size.y = 32
+	hint_slot.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+	hint_slot.clip_contents = true
+	masonry.add_child(hint_slot)
 	var scroll_hint := _label("继续下滑浏览更多信号", 13, _theme_color("accent"))
 	scroll_hint.name = "SocialScrollHint"
+	scroll_hint.set_anchors_and_offsets_preset(Control.PRESET_FULL_RECT)
 	scroll_hint.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
-	columns[0].add_child(scroll_hint)
+	hint_slot.add_child(scroll_hint)
+	var hint_spacer := Control.new()
+	hint_spacer.name = "SocialScrollHintSpacer"
+	hint_spacer.custom_minimum_size.y = 32
+	masonry.add_child(hint_spacer)
 
 
 func _render_social_channel_empty_state(parent: VBoxContainer, node_name: String, title: String, body: String) -> void:
@@ -3054,7 +3161,7 @@ func _render_social_card_poster(parent: VBoxContainer, post_index: int, post: Di
 	var poster := PanelContainer.new()
 	poster.name = "SocialPostPoster%d" % post_index
 	poster.set_meta("poster_frame", true)
-	poster.custom_minimum_size.y = SOCIAL_FEED_POSTER_HEIGHT
+	poster.custom_minimum_size.y = _social_feed_poster_height(post_index)
 	poster.size_flags_horizontal = Control.SIZE_EXPAND_FILL
 	poster.add_theme_stylebox_override("panel", _style(_social_poster_color(post_index), _theme_color("accent")))
 	parent.add_child(poster)
@@ -3071,6 +3178,14 @@ func _render_social_card_poster(parent: VBoxContainer, post_index: int, post: Di
 	poster_texture.expand_mode = TextureRect.EXPAND_IGNORE_SIZE
 	poster_texture.stretch_mode = TextureRect.STRETCH_KEEP_ASPECT_COVERED
 	poster.add_child(poster_texture)
+
+
+func _social_feed_poster_height(post_index: int) -> float:
+	return float(SOCIAL_FEED_POSTER_HEIGHTS[posmod(post_index, SOCIAL_FEED_POSTER_HEIGHTS.size())])
+
+
+func _social_feed_card_height(post_index: int) -> float:
+	return _social_feed_poster_height(post_index) + SOCIAL_FEED_CARD_CHROME_HEIGHT
 
 
 func _social_poster_color(post_index: int) -> Color:
@@ -3917,13 +4032,13 @@ func _signal_contract_text(contract: Dictionary, breakdown: Dictionary) -> Strin
 func _render_bank() -> void:
 	if _meme_bank_tab != null:
 		if _meme_bank_open:
-			_meme_bank_tab.text = "收起\n梗环"
+			_meme_bank_tab.text = "×"
 			_meme_bank_tab.set_meta("meme_bank_peek", false)
-			_meme_bank_tab.custom_minimum_size = Vector2(120, 116)
+			_meme_bank_tab.custom_minimum_size = Vector2(88, 88)
 		elif _should_show_meme_bank():
-			_meme_bank_tab.text = "梗库\n%d" % game.completed_memes.size()
+			_meme_bank_tab.text = "梗 %d" % game.completed_memes.size()
 			_meme_bank_tab.set_meta("meme_bank_peek", false)
-			_meme_bank_tab.custom_minimum_size = Vector2(120, 116)
+			_meme_bank_tab.custom_minimum_size = Vector2(104, 88)
 		else:
 			_meme_bank_tab.text = ""
 			_meme_bank_tab.set_meta("meme_bank_peek", true)
@@ -3964,7 +4079,7 @@ func _on_meme_ring_selection_changed(index: int) -> void:
 	var meme: Dictionary = game.completed_memes[_meme_bank_selected_index]
 	selected_meme_id = str(meme.get("id", ""))
 	if _meme_bank_focus_label != null:
-		_meme_bank_focus_label.text = "%02d / %02d\n%s" % [_meme_bank_selected_index + 1, game.completed_memes.size(), str(meme.get("title", meme.get("text", "完整梗")))]
+		_meme_bank_focus_label.text = "%d/%d  ·  %s" % [_meme_bank_selected_index + 1, game.completed_memes.size(), str(meme.get("title", meme.get("text", "完整梗")))]
 	_render_publish()
 
 
@@ -4018,6 +4133,10 @@ func _render_reality() -> void:
 			button.text = str(choice.get("summary", "回应"))
 			button.custom_minimum_size = Vector2(96 if _viewport_size().x < 760.0 else 164, 56)
 			button.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+			button.clip_text = true
+			button.text_overrun_behavior = TextServer.OVERRUN_TRIM_ELLIPSIS
+			if _viewport_size().x < 760.0:
+				button.add_theme_font_size_override("font_size", 13)
 			button.set_meta("reality_response_choice", true)
 			button.mouse_entered.connect(_on_reality_choice_hovered.bind(choice_id))
 			button.mouse_exited.connect(_on_reality_choice_unhovered.bind(choice_id))
@@ -4448,6 +4567,21 @@ func _toggle_meme_bank() -> void:
 	if _meme_bank_open and _meme_bank_window != null:
 		_meme_bank_window.move_to_front()
 	_render()
+	_play_meme_bank_motion(_meme_bank_open)
+
+
+func _play_meme_bank_motion(opening: bool) -> void:
+	if _meme_bank_window == null or not _meme_bank_window.visible:
+		return
+	if _meme_bank_tween != null and _meme_bank_tween.is_valid():
+		_meme_bank_tween.kill()
+	_meme_bank_window.pivot_offset = _meme_bank_window.size * 0.5
+	_meme_bank_window.scale = Vector2.ONE * (0.84 if opening else 1.10)
+	_meme_bank_window.modulate = Color(1.0, 1.0, 1.0, 0.18 if opening else 0.72)
+	_meme_bank_window.set_meta("motion_easing", "easeOutQuint")
+	_meme_bank_tween = create_tween().set_parallel(true)
+	_meme_bank_tween.tween_property(_meme_bank_window, "scale", Vector2.ONE, 0.28).set_trans(Tween.TRANS_QUINT).set_ease(Tween.EASE_OUT)
+	_meme_bank_tween.tween_property(_meme_bank_window, "modulate", Color.WHITE, 0.22).set_trans(Tween.TRANS_QUINT).set_ease(Tween.EASE_OUT)
 
 
 func _close_app_window(app_id: String) -> void:

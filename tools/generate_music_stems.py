@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Render the original, phase-aligned Babel liminal score stems."""
+"""Render and verify the original Babel score and phone-floor loops."""
 
 from __future__ import annotations
 
@@ -9,6 +9,7 @@ import json
 import math
 import random
 import wave
+from collections.abc import Callable
 from pathlib import Path
 
 try:
@@ -34,10 +35,57 @@ SEED = 80_199_611
 MAX_SEAM_DELTA_PCM = 1_400
 MAX_SEAM_RATIO = 2.5
 MAX_ADAPTIVE_MIX_PEAK_DBFS = -1.0
+MAX_PHONE_FLOOR_CORRELATION = 0.45
 STEM_FILENAMES = {
 	"reality": "babel_reality_liminal.wav",
 	"phone": "babel_phone_signal.wav",
 	"pollution": "babel_pollution_rot.wav",
+}
+PHONE_FLOOR_FILENAMES = {
+	"floor_1": "babel_phone_signal_floor_1.wav",
+	"floor_2": "babel_phone_signal.wav",
+	"floor_3": "babel_phone_signal_floor_3.wav",
+	"floor_4": "babel_phone_signal_floor_4.wav",
+	"floor_5": "babel_phone_signal_floor_5.wav",
+}
+GENERATED_PHONE_FLOORS = ("floor_3", "floor_4", "floor_5")
+PRESERVED_ASSET_HASHES = {
+	"babel_reality_liminal.wav": "39b5bc85c5c62c77af894ce471ff29d5602ab956e48b21064f364d55b6e8071a",
+	"babel_phone_signal_floor_1.wav": "e361ea4b487e2ea0ef15a8d970a245429cdbf7fb9cb7fad69192cf6a7b04f698",
+	"babel_phone_signal.wav": "be1e497be9cc9131ae1e261c3494e2fcf310e01393c2dfdf3a81b07851c87de3",
+}
+PHONE_FLOOR_SOURCE_BLOB = "f671f7d3fc892e4d216a6f4bb95fd63a1da43127"
+PHONE_FLOOR_IDENTITIES = {
+	"floor_1": {
+		"title": "Recovered Carrier",
+		"source": "project_git_history",
+		"design": "The earlier project-original phone carrier restored byte-for-byte from its Git blob",
+		"palette": ["narrowband carrier", "packet chimes", "cold static"],
+	},
+	"floor_2": {
+		"title": "Cold Window Signal",
+		"source": "preserved_project_asset",
+		"design": "The existing active phone signal retained byte-for-byte as the second floor",
+		"palette": ["FM packet fragments", "soft clock", "wideband signal dust"],
+	},
+	"floor_3": {
+		"title": "Abandoned Switchboard",
+		"source": "deterministic_synthesis",
+		"design": "Beatless low-frequency exchange hum with sparse descending hollow tolls",
+		"palette": ["substation drone", "descending tolls", "electromagnetic fog"],
+	},
+	"floor_4": {
+		"title": "Relay Service Level",
+		"source": "deterministic_synthesis",
+		"design": "Five-step industrial relay motion with dry impacts and inharmonic metal decay",
+		"palette": ["five-step relay", "motor pulse", "metallic service alarm"],
+	},
+	"floor_5": {
+		"title": "The Unanswered Choir",
+		"source": "deterministic_synthesis",
+		"design": "Slow synthetic formant clusters, reverse-breath swells, and a distant subharmonic void",
+		"palette": ["synthetic formants", "reverse breath", "subharmonic void"],
+	},
 }
 ADAPTIVE_MIX_SCENARIOS = {
 	"phone_default": {"reality": -26.0, "phone": -8.0, "pollution": -60.0},
@@ -93,6 +141,9 @@ def periodic_noise_bank(seed: int, count: int, low_hz: float, high_hz: float) ->
 REALITY_NOISE = periodic_noise_bank(SEED + 1, 14, 16.0, 480.0)
 PHONE_NOISE = periodic_noise_bank(SEED + 2, 9, 180.0, 2_600.0)
 POLLUTION_NOISE = periodic_noise_bank(SEED + 3, 18, 90.0, 4_800.0)
+FLOOR_3_NOISE = periodic_noise_bank(SEED + 303, 17, 22.0, 680.0)
+FLOOR_4_NOISE = periodic_noise_bank(SEED + 404, 13, 210.0, 5_200.0)
+FLOOR_5_NOISE = periodic_noise_bank(SEED + 505, 21, 45.0, 1_900.0)
 
 
 def periodic_noise(t: np.ndarray, components: list[tuple[float, float, float]], stereo_phase: float) -> np.ndarray:
@@ -274,6 +325,131 @@ def render_phone(t: np.ndarray) -> tuple[np.ndarray, np.ndarray]:
 	return left, right
 
 
+def periodic_event_delta(t: np.ndarray, onset: float, period: float) -> np.ndarray:
+	return np.mod(t - onset, period)
+
+
+def hollow_toll(
+	t: np.ndarray,
+	onset: float,
+	note: int,
+	stereo_phase: float,
+	period: float = 16.0,
+) -> np.ndarray:
+	local_t = periodic_event_delta(t, onset, period)
+	duration = 4.4
+	mask = local_t < duration
+	attack = 1.0 - np.exp(-local_t * 18.0)
+	release = smoothstep((duration - local_t) / 0.75)
+	envelope = np.where(mask, attack * np.exp(-local_t * 0.72) * release, 0.0)
+	frequency = loop_frequency(midi(note))
+	voice = np.sin(TAU * frequency * local_t + stereo_phase)
+	voice += 0.47 * np.sin(TAU * loop_frequency(frequency * 2.007) * local_t - stereo_phase * 0.6)
+	voice += 0.18 * np.sin(TAU * loop_frequency(frequency * 3.93) * local_t + 0.8)
+	return envelope * voice * 0.105
+
+
+def render_phone_floor_3(t: np.ndarray) -> tuple[np.ndarray, np.ndarray]:
+	breath = 0.68 + 0.18 * np.sin(TAU * t / 24.0) + 0.08 * np.sin(TAU * t / 48.0 + 0.7)
+	root = loop_frequency(midi(38))
+	tritone = loop_frequency(midi(44))
+	left = np.sin(TAU * root * t - 0.13) * 0.062
+	right = np.sin(TAU * loop_frequency(root * 0.997) * t + 0.17) * 0.062
+	left += np.sin(TAU * tritone * t + 0.31 * np.sin(TAU * t / 16.0)) * 0.031
+	right += np.sin(TAU * loop_frequency(tritone * 1.004) * t - 0.29 * np.sin(TAU * t / 16.0)) * 0.031
+	left *= breath
+	right *= breath
+	left += periodic_noise(t, FLOOR_3_NOISE, -0.27) * (0.032 + 0.012 * breath)
+	right += periodic_noise(t, FLOOR_3_NOISE, 0.31) * (0.032 + 0.012 * breath)
+	for onset, note in ((1.6, 55), (6.1, 48), (10.9, 42)):
+		left += hollow_toll(t, onset, note, -0.36)
+		right += hollow_toll(t, onset + 0.035, note, 0.39)
+	carrier_waver = 0.5 + 0.5 * np.sin(TAU * t / 12.0)
+	carrier = np.sin(TAU * loop_frequency(1_037.0) * t + 2.2 * np.sin(TAU * t / 8.0))
+	left += carrier * carrier_waver * 0.012
+	right -= carrier * carrier_waver * 0.010
+	return left, right
+
+
+def metallic_alarm(t: np.ndarray, onset: float, stereo_phase: float) -> np.ndarray:
+	local_t = periodic_event_delta(t, onset, 12.0)
+	duration = 2.65
+	mask = local_t < duration
+	attack = 1.0 - np.exp(-local_t * 48.0)
+	release = smoothstep((duration - local_t) / 0.42)
+	envelope = np.where(mask, attack * np.exp(-local_t * 1.32) * release, 0.0)
+	partials = (317.0, 503.0, 811.0, 1_229.0)
+	voice = np.zeros_like(t)
+	for index, frequency in enumerate(partials):
+		voice += np.sin(TAU * loop_frequency(frequency) * local_t + stereo_phase * (index + 1)) / (index + 1.0)
+	return envelope * voice * 0.085
+
+
+def render_phone_floor_4(t: np.ndarray) -> tuple[np.ndarray, np.ndarray]:
+	step_period = 0.8
+	pattern_period = 4.0
+	step_phase = np.mod(t, step_period)
+	step_index = np.floor(np.mod(t, pattern_period) / step_period).astype(np.int32)
+	accents = np.choose(step_index, [1.0, 0.32, 0.72, 0.24, 0.88])
+	impact_envelope = accents * (1.0 - np.exp(-step_phase * 92.0)) * np.exp(-step_phase * 15.5)
+	left_impact = np.sin(TAU * (72.0 * step_phase + 22.0 * step_phase * step_phase) - 0.16)
+	right_impact = np.sin(TAU * (76.0 * step_phase + 19.0 * step_phase * step_phase) + 0.19)
+	left = left_impact * impact_envelope * 0.15
+	right = right_impact * impact_envelope * 0.15
+	motor_gate = 0.62 + 0.24 * np.sin(TAU * t / pattern_period)
+	left += np.tanh(1.7 * np.sin(TAU * loop_frequency(37.0) * t)) * motor_gate * 0.034
+	right += np.tanh(1.7 * np.sin(TAU * loop_frequency(37.5) * t + 0.22)) * motor_gate * 0.034
+	left += periodic_noise(t, FLOOR_4_NOISE, -0.42) * (0.025 + impact_envelope * 0.12)
+	right += periodic_noise(t, FLOOR_4_NOISE, 0.46) * (0.025 + impact_envelope * 0.12)
+	left += metallic_alarm(t, 3.15, -0.44)
+	right += metallic_alarm(t, 3.19, 0.48)
+	ratchet_phase = periodic_event_delta(t, 7.1, 8.0)
+	ratchet_mask = ratchet_phase < 0.72
+	ratchet = np.where(ratchet_mask, np.exp(-ratchet_phase * 3.4), 0.0)
+	ratchet *= np.sin(TAU * loop_frequency(1_860.0) * ratchet_phase) * (np.maximum(0.0, np.sin(TAU * ratchet_phase * 10.0)) ** 5)
+	left += ratchet * 0.075
+	right -= ratchet * 0.068
+	return left, right
+
+
+FLOOR_5_CLUSTER_NOTES = (33, 34, 40, 46, 53)
+
+
+def synthetic_formant_cluster(t: np.ndarray, stereo_phase: float) -> np.ndarray:
+	result = np.zeros_like(t)
+	for voice_index, note in enumerate(FLOOR_5_CLUSTER_NOTES):
+		fundamental = loop_frequency(midi(note))
+		wander = 0.22 * np.sin(TAU * t / (24.0 + voice_index * 8.0) + stereo_phase)
+		voice = np.sin(TAU * fundamental * t + wander + stereo_phase * (voice_index + 1))
+		voice += 0.24 * np.sin(TAU * loop_frequency(fundamental * 2.0) * t - stereo_phase)
+		voice += 0.11 * np.sin(TAU * loop_frequency(fundamental * 5.01) * t + 0.4)
+		result += voice * (0.030 / (1.0 + voice_index * 0.20))
+	formant_motion = 0.5 + 0.5 * np.sin(TAU * t / 32.0 + stereo_phase)
+	result += np.sin(TAU * loop_frequency(421.0) * t + stereo_phase) * formant_motion * 0.018
+	result += np.sin(TAU * loop_frequency(683.0) * t - stereo_phase) * (1.0 - formant_motion) * 0.014
+	return result
+
+
+def render_phone_floor_5(t: np.ndarray) -> tuple[np.ndarray, np.ndarray]:
+	long_swell = 0.46 + 0.38 * (0.5 + 0.5 * np.sin(TAU * t / 32.0 - 0.8))
+	left = synthetic_formant_cluster(t, -0.29) * long_swell
+	right = synthetic_formant_cluster(t, 0.33) * long_swell
+	sub = np.sin(TAU * loop_frequency(midi(21)) * t + 0.18 * np.sin(TAU * t / 48.0))
+	left += sub * 0.055
+	right += sub * 0.053
+	reverse_phase = periodic_event_delta(t, 12.0, 24.0)
+	reverse_duration = 8.0
+	reverse_mask = reverse_phase < reverse_duration
+	reverse_envelope = smoothstep(reverse_phase / 6.8) * smoothstep((reverse_duration - reverse_phase) / 0.75)
+	reverse_envelope = np.where(reverse_mask, reverse_envelope, 0.0)
+	left += periodic_noise(t, FLOOR_5_NOISE, -0.18) * (0.018 + reverse_envelope * 0.095)
+	right += periodic_noise(t, FLOOR_5_NOISE, 0.21) * (0.018 + reverse_envelope * 0.095)
+	distant_tone = np.sin(TAU * loop_frequency(2_117.0) * t + 3.4 * np.sin(TAU * t / 24.0))
+	left += distant_tone * reverse_envelope * 0.013
+	right -= distant_tone * reverse_envelope * 0.011
+	return left, right
+
+
 POLLUTION_ROOT_MIDI = MOTIF_ROOT_MIDI - 12
 POLLUTION_STEP_ORDER = (0, 1, 2, 3, 4, 3, 2, 1)
 POLLUTION_ROOT_SHIFTS = (0, 0, -2, -2, 0, 0, -1, 0)
@@ -341,6 +517,11 @@ RENDERERS = {
 	"phone": render_phone,
 	"pollution": render_pollution,
 }
+PHONE_FLOOR_RENDERERS = {
+	"floor_3": render_phone_floor_3,
+	"floor_4": render_phone_floor_4,
+	"floor_5": render_phone_floor_5,
+}
 
 
 def soft_master(left: np.ndarray, right: np.ndarray) -> np.ndarray:
@@ -348,15 +529,19 @@ def soft_master(left: np.ndarray, right: np.ndarray) -> np.ndarray:
 	return np.tanh(stereo * 1.18) * 0.78
 
 
-def render_stem(name: str, filename: str) -> None:
+def render_audio(
+	renderer: Callable[[np.ndarray], tuple[np.ndarray, np.ndarray]],
+	filename: str,
+	target_peak_dbfs: float = -3.0,
+) -> None:
 	path = OUT_DIR / filename
 	peak = 0.0
 	for start in range(0, FRAME_COUNT, CHUNK_FRAMES):
 		end = min(FRAME_COUNT, start + CHUNK_FRAMES)
 		t = np.arange(start, end, dtype=np.float64) / SAMPLE_RATE
-		left, right = RENDERERS[name](t)
+		left, right = renderer(t)
 		peak = max(peak, float(np.max(np.abs(soft_master(left, right)))))
-	target_peak = 10.0 ** (-3.0 / 20.0)
+	target_peak = 10.0 ** (target_peak_dbfs / 20.0)
 	normalization = target_peak / max(peak, 1e-9)
 	with wave.open(str(path), "wb") as wav_file:
 		wav_file.setnchannels(2)
@@ -365,9 +550,17 @@ def render_stem(name: str, filename: str) -> None:
 		for start in range(0, FRAME_COUNT, CHUNK_FRAMES):
 			end = min(FRAME_COUNT, start + CHUNK_FRAMES)
 			t = np.arange(start, end, dtype=np.float64) / SAMPLE_RATE
-			left, right = RENDERERS[name](t)
+			left, right = renderer(t)
 			pcm = (np.clip(soft_master(left, right) * normalization, -0.98, 0.98) * 32767.0).astype("<i2")
 			wav_file.writeframesraw(pcm.tobytes())
+
+
+def render_stem(name: str, filename: str) -> None:
+	render_audio(RENDERERS[name], filename)
+
+
+def render_phone_floor(name: str, filename: str) -> None:
+	render_audio(PHONE_FLOOR_RENDERERS[name], filename, target_peak_dbfs=-4.0)
 
 
 def sha256(path: Path) -> str:
@@ -402,6 +595,86 @@ def inspect_wav(path: Path) -> dict[str, int | float | str]:
 		"seam_delta_ratio": round(seam_ratio, 3),
 		"peak_dbfs": round(peak_dbfs, 3),
 		"rms_dbfs": round(rms_dbfs, 3),
+	}
+
+
+def inspect_phone_floor_correlations() -> dict[str, float]:
+	names = list(PHONE_FLOOR_FILENAMES)
+	readers = {name: wave.open(str(OUT_DIR / PHONE_FLOOR_FILENAMES[name]), "rb") for name in names}
+	sums = {name: 0.0 for name in names}
+	squares = {name: 0.0 for name in names}
+	products = {(left, right): 0.0 for index, left in enumerate(names) for right in names[index + 1 :]}
+	sample_count = 0
+	try:
+		for start in range(0, FRAME_COUNT, CHUNK_FRAMES):
+			frame_count = min(CHUNK_FRAMES, FRAME_COUNT - start)
+			chunks = {
+				name: np.frombuffer(reader.readframes(frame_count), dtype="<i2").astype(np.float64)
+				for name, reader in readers.items()
+			}
+			sample_count += frame_count * 2
+			for name, chunk in chunks.items():
+				sums[name] += float(np.sum(chunk))
+				squares[name] += float(np.dot(chunk, chunk))
+			for pair in products:
+				products[pair] += float(np.dot(chunks[pair[0]], chunks[pair[1]]))
+	finally:
+		for reader in readers.values():
+			reader.close()
+	correlations: dict[str, float] = {}
+	for (left, right), product in products.items():
+		covariance = product - sums[left] * sums[right] / sample_count
+		left_variance = squares[left] - sums[left] * sums[left] / sample_count
+		right_variance = squares[right] - sums[right] * sums[right] / sample_count
+		correlation = abs(covariance / math.sqrt(max(left_variance * right_variance, 1e-9)))
+		correlations[f"{left}__{right}"] = round(correlation, 6)
+	return correlations
+
+
+def phone_floor_contract() -> dict[str, object]:
+	layers: dict[str, object] = {}
+	for name, filename in PHONE_FLOOR_FILENAMES.items():
+		identity = PHONE_FLOOR_IDENTITIES[name]
+		layer: dict[str, object] = {
+			"floor": int(name.removeprefix("floor_")),
+			"title": identity["title"],
+			"source": identity["source"],
+			"design": identity["design"],
+			"palette": identity["palette"],
+			"file": filename,
+			**inspect_wav(OUT_DIR / filename),
+		}
+		if name == "floor_1":
+			layer["git_blob"] = PHONE_FLOOR_SOURCE_BLOB
+		layers[name] = layer
+	correlations = inspect_phone_floor_correlations()
+	return {
+		"contract_version": 1,
+		"shared_start_frame": 0,
+		"shared_end_frame": FRAME_COUNT,
+		"duration_seconds": DURATION_SECONDS,
+		"sample_rate": SAMPLE_RATE,
+		"channels": 2,
+		"originality": {
+			"project_original_audio_only": True,
+			"commercial_game_music_used": False,
+			"samples_used": False,
+			"recordings_used": False,
+			"generated_method": "Mathematical oscillators, deterministic envelopes, FM, and seeded periodic noise",
+		},
+		"preservation": {
+			"reality_sha256": PRESERVED_ASSET_HASHES["babel_reality_liminal.wav"],
+			"floor_1_git_blob": PHONE_FLOOR_SOURCE_BLOB,
+			"floor_1_sha256": PRESERVED_ASSET_HASHES["babel_phone_signal_floor_1.wav"],
+			"floor_2_sha256": PRESERVED_ASSET_HASHES["babel_phone_signal.wav"],
+		},
+		"distinctness": {
+			"metric": "absolute full-loop stereo Pearson correlation",
+			"maximum_allowed": MAX_PHONE_FLOOR_CORRELATION,
+			"maximum_measured": round(max(correlations.values()), 6),
+			"pairwise_abs_correlations": correlations,
+		},
+		"layers": layers,
 	}
 
 
@@ -504,11 +777,21 @@ def score_contract() -> dict[str, object]:
 
 def write_metadata() -> None:
 	stems = {name: {"file": filename, **inspect_wav(OUT_DIR / filename)} for name, filename in STEM_FILENAMES.items()}
-	metadata = {**score_contract(), "stems": stems}
+	metadata = {**score_contract(), "stems": stems, "phone_floors": phone_floor_contract()}
 	METADATA_PATH.write_text(json.dumps(metadata, ensure_ascii=True, indent=2) + "\n", encoding="utf-8")
 
 
+def verify_preserved_assets() -> None:
+	for filename, expected_hash in PRESERVED_ASSET_HASHES.items():
+		path = OUT_DIR / filename
+		if not path.exists():
+			raise FileNotFoundError(path)
+		if sha256(path) != expected_hash:
+			raise RuntimeError(f"preserved asset changed: {filename}")
+
+
 def verify() -> None:
+	verify_preserved_assets()
 	if not METADATA_PATH.exists():
 		raise FileNotFoundError(METADATA_PATH)
 	metadata = json.loads(METADATA_PATH.read_text(encoding="utf-8"))
@@ -538,22 +821,51 @@ def verify() -> None:
 		stem_hashes.add(str(inspection["sha256"]))
 	if len(stem_hashes) != len(STEM_FILENAMES):
 		raise RuntimeError("adaptive stems must contain distinct audio renders")
+	expected_phone_floors = phone_floor_contract()
+	if metadata.get("phone_floors") != expected_phone_floors:
+		raise RuntimeError("phone floor metadata differs from the audio assets")
+	floor_hashes: set[str] = set()
+	for name, layer in expected_phone_floors["layers"].items():
+		if int(layer["frames"]) != FRAME_COUNT or int(layer["sample_rate"]) != SAMPLE_RATE or int(layer["channels"]) != 2:
+			raise RuntimeError(f"{name} must be a 96-second 22.05 kHz stereo loop")
+		if int(layer["seam_delta_pcm"]) > MAX_SEAM_DELTA_PCM or float(layer["seam_delta_ratio"]) > MAX_SEAM_RATIO:
+			raise RuntimeError(f"{name} has an audible loop discontinuity")
+		if not -4.1 <= float(layer["peak_dbfs"]) <= -2.9:
+			raise RuntimeError(f"{name} has an unexpected master peak")
+		if not -36.0 <= float(layer["rms_dbfs"]) <= -9.0:
+			raise RuntimeError(f"{name} has an unexpected average level")
+		floor_hashes.add(str(layer["sha256"]))
+	if len(floor_hashes) != len(PHONE_FLOOR_FILENAMES):
+		raise RuntimeError("every phone floor must contain a distinct audio render")
+	maximum_correlation = float(expected_phone_floors["distinctness"]["maximum_measured"])
+	if maximum_correlation > MAX_PHONE_FLOOR_CORRELATION:
+		raise RuntimeError("phone floor loops are not sufficiently distinct")
 
 
 def main() -> None:
 	parser = argparse.ArgumentParser()
 	parser.add_argument("--verify", action="store_true")
+	parser.add_argument(
+		"--include-core-stems",
+		action="store_true",
+		help="also rebuild the existing reality, phone, and pollution stems",
+	)
 	args = parser.parse_args()
 	OUT_DIR.mkdir(parents=True, exist_ok=True)
 	if args.verify:
 		verify()
 		return
-	for name, filename in STEM_FILENAMES.items():
+	if args.include_core_stems:
+		for name, filename in STEM_FILENAMES.items():
+			print(f"rendering core stem {name}: {filename}")
+			render_stem(name, filename)
+	for name in GENERATED_PHONE_FLOORS:
+		filename = PHONE_FLOOR_FILENAMES[name]
 		print(f"rendering {name}: {filename}")
-		render_stem(name, filename)
+		render_phone_floor(name, filename)
 	write_metadata()
 	verify()
-	print(f"rendered {len(STEM_FILENAMES)} synchronized stems at {DURATION_SECONDS:.0f}s")
+	print(f"rendered {len(GENERATED_PHONE_FLOORS)} phone-floor loops at {DURATION_SECONDS:.0f}s")
 
 
 if __name__ == "__main__":

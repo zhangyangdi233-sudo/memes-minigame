@@ -27,6 +27,8 @@ func _run() -> void:
 	_test_catalog_coverage_and_dynamic_templates()
 	_test_all_script_literals_have_translations()
 	_test_language_specific_pickup_units()
+	_test_japanese_dialogue_units()
+	_test_audited_localization_copy()
 	_test_english_reality_dialogue_uses_words()
 	await _test_language_selection_and_settings_ui()
 
@@ -93,7 +95,8 @@ func _test_language_specific_pickup_units() -> void:
 	locale.set_locale("ja")
 	_assert_eq(locale.first_pickable_unit("不存在的十三层"), "存在", "Japanese pickup should select a lexical unit rather than one character")
 	_assert_eq(locale.pickable_units("存在しない13階"), ["存在", "しない", "13階"], "Japanese pickup should preserve kanji, kana, and numbered noun units")
-	_assert_eq(locale.pickable_units("最終エレベーター"), ["最終", "エレベーター"], "Japanese pickup should keep a full katakana loanword")
+	_assert_eq(locale.pickable_units("最終便のエレベーター"), ["最終便", "エレベーター"], "Japanese pickup should keep a full katakana loanword and filter only a standalone particle")
+	_assert_eq(locale.pickable_units("はじめ でんわ のぼる"), ["はじめ", "でんわ", "のぼる"], "Japanese pickup should not strip kana that resemble a leading particle")
 
 	var game = StateScript.new()
 	game.new_run()
@@ -106,6 +109,54 @@ func _test_language_specific_pickup_units() -> void:
 		"rarity": 1,
 	}), "English token pickup should succeed")
 	_assert_eq(str(game.notebook_tokens[0].get("text", "")), "nonexistent", "English notes should store one semantic word")
+
+
+func _test_japanese_dialogue_units() -> void:
+	var locale = LocaleScript.new()
+	locale.set_locale("ja")
+	var sentence := "はじめに、でんわで話す。"
+	var units := locale.dialogue_units(sentence)
+	_assert_eq(units, ["はじめに、", "でんわで", "話す。"], "Japanese dialogue should advance by natural language chunks instead of characters")
+	_assert_eq(LocaleScript.split_dialogue_units(sentence, "ja-JP"), units, "state code should be able to reuse the locale-aware dialogue splitter statically")
+	_assert_eq("".join(units), sentence, "Japanese dialogue units should preserve the complete sentence")
+	_assert_true(units.size() < sentence.length(), "Japanese dialogue should require fewer inputs than its character count")
+
+
+func _test_audited_localization_copy() -> void:
+	var ui_catalog = UICatalogScript.new()
+	var state_catalog = StateCatalogScript.new()
+	var ui_en: Dictionary = ui_catalog.entries("en")
+	var ui_ja: Dictionary = ui_catalog.entries("ja")
+	var state_en: Dictionary = state_catalog.entries("en")
+	var state_ja: Dictionary = state_catalog.entries("ja")
+	var restock_source := "今天货架是空的。梗框每隔两天才补一次。"
+	_assert_eq(StateScript.MEME_FRAME_OFFER_INTERVAL, 3, "audited restock copy should stay aligned with the three-day offer interval")
+	_assert_eq(ui_en[restock_source], "The shelf is empty today. Meme Frames are restocked every three days.", "English restock copy should describe the actual interval")
+	_assert_eq(ui_ja[restock_source], "今日は棚が空だ。ミーム枠は3日ごとに補充される。", "Japanese restock copy should describe the actual interval")
+	_assert_eq(state_en["我想要一个只装一个字的框，它不需要替我解释。"], "I want a frame that holds one word. It doesn't need to speak for me.", "English merchant dialogue should use natural wording")
+	_assert_eq(ui_ja["塔下施工档案"], "塔のふもとの工事記録", "Japanese archive title should use natural grammar")
+	_assert_eq(ui_ja["末班电梯"], "最終便のエレベーター", "Japanese last-elevator copy should describe the final service")
+	_assert_eq(ui_ja["抄写员"], "書記官", "Japanese actor title should use a natural role name")
+	_assert_eq(ui_ja["一个空框。只够装下一个字。"], "空の枠。単語を一つだけ入れられる。", "Japanese frame copy should describe one lexical word, not one character")
+	_assert_eq(state_ja["发布一个只含 1 个语言单位的基础梗"], "一語だけの基本ミームを投稿する", "Japanese pattern copy should use the same lexical-word unit")
+	var aid_descriptions := {
+		"现实句子严重失真时，临时压低 18% 的污染噪声。": [
+			"After an understanding check fails, increase its success chance by 18 percentage points.",
+			"理解判定に失敗したとき、その判定の成功率を18ポイント上げる。",
+		],
+		"现实句子严重失真时，临时压低 14% 的污染噪声。": [
+			"After an understanding check fails, increase its success chance by 14 percentage points.",
+			"理解判定に失敗したとき、その判定の成功率を14ポイント上げる。",
+		],
+		"仅能使用一次，但会压低 32% 的污染噪声。": [
+			"One use only. After an understanding check fails, increase its success chance by 32 percentage points.",
+			"1回のみ使用可能。理解判定に失敗したとき、その判定の成功率を32ポイント上げる。",
+		],
+	}
+	for source in aid_descriptions:
+		var expected: Array = aid_descriptions[source]
+		_assert_eq(state_en[source], expected[0], "English aid copy should describe the failed-check bonus")
+		_assert_eq(state_ja[source], expected[1], "Japanese aid copy should describe the failed-check bonus")
 
 
 func _test_english_reality_dialogue_uses_words() -> void:

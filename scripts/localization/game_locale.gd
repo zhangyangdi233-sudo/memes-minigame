@@ -7,6 +7,7 @@ const CATALOG_PATHS := [
 	"res://scripts/localization/ui_catalog.gd",
 	"res://scripts/localization/state_catalog.gd",
 ]
+const JAPANESE_STANDALONE_PARTICLES := ["の", "に", "へ", "を", "が", "は", "で", "と"]
 
 var current_locale := "zh"
 var language_selected := false
@@ -132,8 +133,8 @@ func pickable_units(source: String) -> Array[String]:
 		var japanese_word_regex := RegEx.new()
 		japanese_word_regex.compile("[A-Za-z0-9]+[\\x{4E00}-\\x{9FFF}々〆ヵヶ]*|[\\x{4E00}-\\x{9FFF}々〆ヵヶ]+|[\\x{3040}-\\x{309F}ー]+|[\\x{30A0}-\\x{30FF}ー]+")
 		for match_result in japanese_word_regex.search_all(localized):
-			var unit := _trim_japanese_leading_particle(match_result.get_string())
-			if not unit.is_empty():
+			var unit := match_result.get_string()
+			if unit not in JAPANESE_STANDALONE_PARTICLES:
 				result.append(unit)
 		return result
 	for index in localized.length():
@@ -143,12 +144,51 @@ func pickable_units(source: String) -> Array[String]:
 	return result
 
 
-func _trim_japanese_leading_particle(unit: String) -> String:
-	if unit.length() <= 1:
-		return "" if unit in ["の", "に", "へ", "を", "が", "は", "で", "と"] else unit
-	if unit.substr(0, 1) in ["の", "に", "へ", "を", "が", "は", "で", "と"]:
-		return unit.substr(1)
-	return unit
+func dialogue_units(source: String) -> Array[String]:
+	return split_dialogue_units(source, current_locale)
+
+
+static func split_dialogue_units(source: String, locale_code: String) -> Array[String]:
+	var units: Array[String] = []
+	if source.is_empty():
+		return units
+	var normalized := locale_code.to_lower().replace("-", "_")
+	if normalized.begins_with("en"):
+		var english_word_regex := RegEx.new()
+		english_word_regex.compile("\\S+\\s*")
+		for match_result in english_word_regex.search_all(source):
+			units.append(match_result.get_string())
+		return units
+	if normalized.begins_with("ja"):
+		var japanese_unit_regex := RegEx.new()
+		japanese_unit_regex.compile("[A-Za-z0-9]+(?:['’][A-Za-z0-9]+)*[\\x{4E00}-\\x{9FFF}々〆ヵヶ]*|[\\x{4E00}-\\x{9FFF}々〆ヵヶ]+[\\x{3040}-\\x{309F}ー]*|[\\x{3040}-\\x{309F}ー]+|[\\x{30A0}-\\x{30FF}ー]+")
+		var cursor := 0
+		var leading_separator := ""
+		for match_result in japanese_unit_regex.search_all(source):
+			var match_start := match_result.get_start()
+			if match_start > cursor:
+				var separator := source.substr(cursor, match_start - cursor)
+				if units.is_empty():
+					leading_separator += separator
+				else:
+					units[units.size() - 1] += separator
+			var unit := match_result.get_string()
+			if unit in JAPANESE_STANDALONE_PARTICLES and not units.is_empty():
+				units[units.size() - 1] += leading_separator + unit
+				leading_separator = ""
+			else:
+				units.append(leading_separator + unit)
+				leading_separator = ""
+			cursor = match_result.get_end()
+		if cursor < source.length():
+			if units.is_empty():
+				units.append(source)
+			else:
+				units[units.size() - 1] += source.substr(cursor)
+		return units
+	for index in source.length():
+		units.append(source.substr(index, 1))
+	return units
 
 
 func has_untranslated_han(text: String) -> bool:
@@ -266,7 +306,7 @@ func _dynamic_patterns() -> Dictionary:
 			{"pattern": "^任意键  ([0-9]+) / ([0-9]+)$", "replacement": "いずれかのキー  $1 / $2"},
 			{"pattern": "^([0-9]+) 资金$", "replacement": "$1 資金"},
 			{"pattern": "^梗库\\n([0-9]+)$", "replacement": "ミーム庫\\n$1"},
-			{"pattern": "^梗字「(.+)」$", "replacement": "ミーム文字「$1」"},
+			{"pattern": "^梗字「(.+)」$", "replacement": "単語ミーム「$1」"},
 			{"pattern": "^复合「(.+)」$", "replacement": "融合「$1」"},
 		],
 		"en": [
@@ -282,7 +322,7 @@ func _dynamic_patterns() -> Dictionary:
 			{"pattern": "^任意键  ([0-9]+) / ([0-9]+)$", "replacement": "ANY KEY  $1 / $2"},
 			{"pattern": "^([0-9]+) 资金$", "replacement": "$1 FUNDS"},
 			{"pattern": "^梗库\\n([0-9]+)$", "replacement": "MEME BANK\\n$1"},
-			{"pattern": "^梗字「(.+)」$", "replacement": "GLYPH MEME \"$1\""},
+			{"pattern": "^梗字「(.+)」$", "replacement": "WORD MEME \"$1\""},
 			{"pattern": "^复合「(.+)」$", "replacement": "FUSION \"$1\""},
 		],
 	}

@@ -1,6 +1,7 @@
 class_name MemeGameState
 extends RefCounted
 
+const GameLocaleScript = preload("res://scripts/localization/game_locale.gd")
 const MAX_TOWER_FLOOR := 5
 const TOWER_THRESHOLDS := [0, 144, 256, 376, 480, 600]
 const MAX_THRESHOLD_DISCOUNT := 280
@@ -41,8 +42,8 @@ const SIGNAL_CONTRACTS := [
 	{
 		"id": "single_glyph",
 		"label": "独字成句",
-		"description": "发布一个只含 1 个字的基础梗",
-		"rule": "text_length",
+		"description": "发布一个只含 1 个语言单位的基础梗",
+		"rule": "unit_count",
 		"threshold": 1,
 		"base_bonus": 8,
 		"multiplier_bonus": 2,
@@ -83,7 +84,7 @@ const SIGNAL_CONTRACTS := [
 
 const MEME_FRAME_PRICE := 7
 const MEME_FRAME_OFFER_INTERVAL := 3
-const NPC_MEME_FRAME_REWARD_CHANCE_PERCENT := 35
+const NPC_MEME_FRAME_REWARD_CHANCE_PERCENT := 45
 const NPC_MEME_FRAME_REWARD_PITY_LIMIT := 3
 const ASCENT_REWARDS := [
 	{"id": "star", "tarot_id": "star", "numeral": "XVII", "label": "星星", "description": "命中至少 2 个风向时，整数倍率额外 +1。", "effect": "trend_multiplier_bonus", "value": 1.0},
@@ -1091,16 +1092,7 @@ func _sentence_with_legacy(base_sentence: String) -> String:
 
 
 func _conversation_units(sentence: String) -> Array[String]:
-	var units: Array[String] = []
-	if conversation_locale != "en":
-		for index in sentence.length():
-			units.append(sentence.substr(index, 1))
-		return units
-	var word_regex := RegEx.new()
-	word_regex.compile("\\S+\\s*")
-	for match_result in word_regex.search_all(sentence):
-		units.append(match_result.get_string())
-	return units
+	return GameLocaleScript.split_dialogue_units(sentence, conversation_locale)
 
 
 func _conversation_corruption_text(roll: int, character_index: int) -> String:
@@ -1117,7 +1109,9 @@ func _resolve_typed_reality_understanding() -> bool:
 	conversation_understanding_rolls = []
 	last_communication_item_used = ""
 	last_communication_item_remaining = 0
-	var legacy_penalty := legacy_rules.size() * 6
+	var legacy_relief := int(round(_modifier_total("legacy_relief")))
+	var legacy_penalty_per_rule := maxi(2, 6 - legacy_relief)
+	var legacy_penalty := legacy_rules.size() * legacy_penalty_per_rule
 	var base_clear_chance := clampi(100 - pollution - legacy_penalty, 5, 96)
 	var check_count := 3 if conversation_actor_type == "merchant" else 1
 	var understood := false
@@ -1357,6 +1351,7 @@ func confirm_craft() -> bool:
 		"pollution_bias": maxi(1, int(_find_token_rarity(token_id)) - 1),
 		"clarity_bias": -1,
 		"fusion_level": 0,
+		"unit_count": 1,
 		"source_passives": source_passives,
 		"created_day": day,
 	}
@@ -1419,6 +1414,7 @@ func confirm_meme_fusion() -> bool:
 		"pollution_bias": int(left.get("pollution_bias", 0)) + int(right.get("pollution_bias", 0)) + 6 + fusion_level * 2,
 		"clarity_bias": int(left.get("clarity_bias", 0)) + int(right.get("clarity_bias", 0)) - 4,
 		"fusion_level": fusion_level,
+		"unit_count": maxi(2, int(left.get("unit_count", 1)) + int(right.get("unit_count", 1))),
 		"fused_from": pair_ids,
 		"source_passives": source_passives,
 		"created_day": day,
@@ -1854,10 +1850,10 @@ func _evaluate_signal_contract(meme: Dictionary, matching_tags: Array, repeat_co
 			current = tags.size()
 			matched = current >= threshold
 			progress = "%d/%d 隐藏标签" % [mini(current, threshold), threshold]
-		"text_length":
-			current = str(meme.get("text", "")).length()
+		"unit_count":
+			current = maxi(1, int(meme.get("unit_count", 1 if int(meme.get("fusion_level", 0)) == 0 else 2)))
 			matched = current == threshold
-			progress = "%d/%d 字" % [current, threshold]
+			progress = "%d/%d 语言单位" % [current, threshold]
 		"all_tags":
 			var required_tags: Array = contract.get("required_tags", [])
 			for required_tag in required_tags:

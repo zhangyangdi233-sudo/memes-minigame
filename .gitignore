@@ -10,6 +10,14 @@ tools/current_*.png.import
 tests/*.gd.uid
 tools/*.gd.uid
 
+# Retired QA captures from the superseded abstract dreamcore prop set
+tools/current_floor_*_backward_chair.png
+tools/current_floor_*_echo_halo.png
+tools/current_floor_*_faceless_stop.png
+tools/current_floor_*_listening_bloom.png
+tools/current_floor_*_nowhere_stairs.png
+tools/current_floor_*_unanswered_phone.png
+
 # Local logs and crash dumps
 *.log
 *.tmp

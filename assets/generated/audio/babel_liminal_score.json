@@ -197,5 +197,151 @@
       "peak_dbfs": -3.0,
       "rms_dbfs": -20.567
     }
+  },
+  "phone_floors": {
+    "contract_version": 1,
+    "shared_start_frame": 0,
+    "shared_end_frame": 2116800,
+    "duration_seconds": 96.0,
+    "sample_rate": 22050,
+    "channels": 2,
+    "originality": {
+      "project_original_audio_only": true,
+      "commercial_game_music_used": false,
+      "samples_used": false,
+      "recordings_used": false,
+      "generated_method": "Mathematical oscillators, deterministic envelopes, FM, and seeded periodic noise"
+    },
+    "preservation": {
+      "reality_sha256": "39b5bc85c5c62c77af894ce471ff29d5602ab956e48b21064f364d55b6e8071a",
+      "floor_1_git_blob": "f671f7d3fc892e4d216a6f4bb95fd63a1da43127",
+      "floor_1_sha256": "e361ea4b487e2ea0ef15a8d970a245429cdbf7fb9cb7fad69192cf6a7b04f698",
+      "floor_2_sha256": "be1e497be9cc9131ae1e261c3494e2fcf310e01393c2dfdf3a81b07851c87de3"
+    },
+    "distinctness": {
+      "metric": "absolute full-loop stereo Pearson correlation",
+      "maximum_allowed": 0.45,
+      "maximum_measured": 0.142407,
+      "pairwise_abs_correlations": {
+        "floor_1__floor_2": 0.142407,
+        "floor_1__floor_3": 0.000114,
+        "floor_1__floor_4": 0.000399,
+        "floor_1__floor_5": 0.0,
+        "floor_2__floor_3": 3.9e-05,
+        "floor_2__floor_4": 0.000352,
+        "floor_2__floor_5": 1e-06,
+        "floor_3__floor_4": 0.002466,
+        "floor_3__floor_5": 1.5e-05,
+        "floor_4__floor_5": 0.004896
+      }
+    },
+    "layers": {
+      "floor_1": {
+        "floor": 1,
+        "title": "Recovered Carrier",
+        "source": "project_git_history",
+        "design": "The earlier project-original phone carrier restored byte-for-byte from its Git blob",
+        "palette": [
+          "narrowband carrier",
+          "packet chimes",
+          "cold static"
+        ],
+        "file": "babel_phone_signal_floor_1.wav",
+        "sha256": "e361ea4b487e2ea0ef15a8d970a245429cdbf7fb9cb7fad69192cf6a7b04f698",
+        "frames": 2116800,
+        "sample_rate": 22050,
+        "channels": 2,
+        "seam_delta_pcm": 411,
+        "seam_reference_pcm": 8253,
+        "seam_delta_ratio": 0.05,
+        "peak_dbfs": -3.0,
+        "rms_dbfs": -21.184,
+        "git_blob": "f671f7d3fc892e4d216a6f4bb95fd63a1da43127"
+      },
+      "floor_2": {
+        "floor": 2,
+        "title": "Cold Window Signal",
+        "source": "preserved_project_asset",
+        "design": "The existing active phone signal retained byte-for-byte as the second floor",
+        "palette": [
+          "FM packet fragments",
+          "soft clock",
+          "wideband signal dust"
+        ],
+        "file": "babel_phone_signal.wav",
+        "sha256": "be1e497be9cc9131ae1e261c3494e2fcf310e01393c2dfdf3a81b07851c87de3",
+        "frames": 2116800,
+        "sample_rate": 22050,
+        "channels": 2,
+        "seam_delta_pcm": 433,
+        "seam_reference_pcm": 12949,
+        "seam_delta_ratio": 0.033,
+        "peak_dbfs": -3.0,
+        "rms_dbfs": -22.515
+      },
+      "floor_3": {
+        "floor": 3,
+        "title": "Abandoned Switchboard",
+        "source": "deterministic_synthesis",
+        "design": "Beatless low-frequency exchange hum with sparse descending hollow tolls",
+        "palette": [
+          "substation drone",
+          "descending tolls",
+          "electromagnetic fog"
+        ],
+        "file": "babel_phone_signal_floor_3.wav",
+        "sha256": "658dc19d12850fd94fd5c150a77f741d2a07b0b28f153b8b1889e0354bc31d3f",
+        "frames": 2116800,
+        "sample_rate": 22050,
+        "channels": 2,
+        "seam_delta_pcm": 163,
+        "seam_reference_pcm": 1061,
+        "seam_delta_ratio": 0.154,
+        "peak_dbfs": -4.001,
+        "rms_dbfs": -17.717
+      },
+      "floor_4": {
+        "floor": 4,
+        "title": "Relay Service Level",
+        "source": "deterministic_synthesis",
+        "design": "Five-step industrial relay motion with dry impacts and inharmonic metal decay",
+        "palette": [
+          "five-step relay",
+          "motor pulse",
+          "metallic service alarm"
+        ],
+        "file": "babel_phone_signal_floor_4.wav",
+        "sha256": "73e0374907d6e9fbe10fbb4be951d9415ab2b210883664e0e0d81263b5f2b011",
+        "frames": 2116800,
+        "sample_rate": 22050,
+        "channels": 2,
+        "seam_delta_pcm": 562,
+        "seam_reference_pcm": 3298,
+        "seam_delta_ratio": 0.17,
+        "peak_dbfs": -4.001,
+        "rms_dbfs": -24.034
+      },
+      "floor_5": {
+        "floor": 5,
+        "title": "The Unanswered Choir",
+        "source": "deterministic_synthesis",
+        "design": "Slow synthetic formant clusters, reverse-breath swells, and a distant subharmonic void",
+        "palette": [
+          "synthetic formants",
+          "reverse breath",
+          "subharmonic void"
+        ],
+        "file": "babel_phone_signal_floor_5.wav",
+        "sha256": "0d79332034563d58489b248688988712a977bb0f7088a929864fe1bbeb30138f",
+        "frames": 2116800,
+        "sample_rate": 22050,
+        "channels": 2,
+        "seam_delta_pcm": 380,
+        "seam_reference_pcm": 2565,
+        "seam_delta_ratio": 0.148,
+        "peak_dbfs": -4.001,
+        "rms_dbfs": -15.827
+      }
+    }
   }
 }

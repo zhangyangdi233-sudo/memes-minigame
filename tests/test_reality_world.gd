@@ -41,6 +41,16 @@ func _run() -> void:
 	_assert_true(player != null, "reality view should expose a CharacterBody3D player")
 	_assert_true(floor_root != null, "reality view should expose a generated floor root")
 	_assert_true(camera != null, "reality view should retain the shared 3D camera")
+	if camera != null:
+		var camera_attributes := camera.attributes as CameraAttributesPractical
+		_assert_true(camera_attributes != null, "reality camera should use practical fixed-focus attributes")
+		if camera_attributes != null:
+			_assert_true(camera_attributes.dof_blur_far_enabled, "fixed focus should blur the distant world")
+			_assert_true(not camera_attributes.dof_blur_near_enabled, "fixed focus should keep nearby actors and props clear")
+			_assert_near(camera_attributes.dof_blur_far_distance, 18.0, 0.01, "far blur should begin beyond the interaction range")
+			_assert_near(camera_attributes.dof_blur_far_transition, 12.0, 0.01, "far focus should soften gradually instead of popping")
+			_assert_near(camera_attributes.dof_blur_amount, 0.08, 0.001, "far blur should obscure silhouettes without erasing navigation")
+		_assert_eq(str(camera.get_meta("fixed_focus_profile", "")), "near_clear_far_soft", "camera should expose its fixed-focus art direction")
 	_assert_true(top_bar != null and bottom_bar != null, "gameplay should expose fixed cinematic bars")
 	if top_bar != null and bottom_bar != null:
 		_assert_true(not top_bar.visible and not bottom_bar.visible, "phone view should not be squeezed by the reality-only cinematic bars")
@@ -145,6 +155,11 @@ func _run() -> void:
 		_assert_true(merchant_billboard != null and merchant_billboard.texture != null, "merchant should use generated 2D character artwork")
 		if merchant_billboard != null:
 			_assert_eq(merchant_billboard.billboard, BaseMaterial3D.BILLBOARD_ENABLED, "2D actors should always face the camera")
+			_assert_actor_face_veil(merchant, merchant_billboard, "merchant")
+	var sample_npc := _find_actor(floor_root, "npc")
+	if sample_npc != null:
+		var sample_npc_billboard := sample_npc.get_node_or_null("Billboard") as Sprite3D
+		_assert_actor_face_veil(sample_npc, sample_npc_billboard, "ordinary NPC")
 	var npc_texture_ids: Dictionary = {}
 	_collect_actor_texture_ids(floor_root, "npc", npc_texture_ids)
 	_assert_eq(npc_texture_ids.size(), 3, "ordinary NPCs should rotate through all three protagonist-style character artworks")
@@ -321,33 +336,71 @@ func _run() -> void:
 	floor_root = game_root.get_node_or_null("RealityFloor") as Node3D
 	await physics_frame
 	_assert_eq(int(floor_root.get_meta("room_count", 0)), 6, "second floor should retain its six gameplay rooms")
+	_assert_eq(int(floor_root.get_meta("logical_room_count", 0)), 6, "second floor should expose all six rooms as logical gameplay anchors")
 	_assert_eq(int(floor_root.get_meta("ordinary_npc_count", 0)), 3, "second floor should reduce ordinary NPCs to three")
 	_assert_eq(_count_actors(floor_root, "npc"), 3, "second-floor actor population should match its metadata")
 	_assert_eq(str(floor_root.get_meta("district_style", "")), "night_white_blocks", "second floor should use the night white-block district")
+	_assert_eq(str(floor_root.get_meta("layout_mode", "")), "irregular_disc", "second floor should replace the linear street with one broad irregular clearing")
+	_assert_eq(str(floor_root.get_meta("terrain_profile", "")), "undulating_irregular_disc", "second floor should identify its filled rolling-disc terrain")
 	_assert_eq(str(floor_root.get_meta("atmosphere_mode", "")), "slow_burn_suspense", "suspense atmosphere should begin on the second floor")
-	_assert_true(float(floor_root.get_meta("fog_density", 0.0)) >= 0.0179, "second-floor fog should be visibly denser than first-floor daylight haze")
-	_assert_true(float(floor_root.get_meta("ambient_light_energy", 1.0)) <= 0.20, "second-floor ambient light should leave deliberate shadowed sightlines")
+	_assert_eq(str(floor_root.get_meta("lighting_profile", "")), "near_black_disc", "second floor should advertise its deliberately near-black clearing profile")
+	_assert_true(float(floor_root.get_meta("fog_density", 0.0)) >= 0.018, "second-floor fog should remain visibly denser than first-floor daylight haze")
+	_assert_true(float(floor_root.get_meta("ambient_light_energy", 1.0)) <= 0.15, "second-floor ambient light should stay dark while preserving terrain silhouettes")
+	_assert_true(float(floor_root.get_meta("key_light_energy", 1.0)) <= 0.31, "second-floor key light should preserve the near-black ring silhouette")
 	_assert_eq(str(floor_root.get_meta("suspense_color_temperature", "")), "cold_green", "second-floor global light should use a cold green temperature against warm lamps")
-	_assert_true(_find_node_by_name(floor_root, "WarmPool") != null and _find_node_by_name(floor_root, "SuspenseLight00") != null, "second floor should contrast warm street pools with colder suspense lights")
+	_assert_true(_find_node_by_name(floor_root, "SuspenseLight00") != null, "second floor should retain sparse clearing lights")
+	_assert_eq(int(floor_root.get_meta("suspense_light_count", 0)), 7, "second-floor clearing should scatter seven readable light pools across its area")
 	_assert_true(_find_node_by_name(floor_root, "SuspenseOcclusion") != null, "second floor should add procedural sightline occlusion")
 	_assert_true(int(floor_root.get_meta("suspense_occluder_count", 0)) >= 5, "slow-burn atmosphere should repeat several non-blocking sightline screens")
 	_assert_true(int(floor_root.get_meta("controlled_repeat_count", 0)) > int(floor_root.get_meta("suspense_occluder_count", 0)), "architectural repetition should include one restrained spatial anomaly")
 	_assert_eq(int(floor_root.get_meta("jump_scare_trigger_count", -1)), 0, "suspense geometry should not add jump-scare trigger areas")
 	_assert_true(float(floor_root.get_meta("minimum_clear_path_width", 0.0)) >= 5.6, "occluders should preserve a generous continuous walking lane")
-	_assert_eq(int(floor_root.get_meta("night_house_segment_count", 0)), 6, "second floor should turn all six rooms into connected terrace segments")
-	_assert_true(float(floor_root.get_meta("night_house_coverage_ratio", 0.0)) >= 0.98, "second-floor houses should cover nearly the full inhabited street length")
-	_assert_true(float(floor_root.get_meta("night_house_max_gap", 99.0)) <= 1.2, "adjacent house segments should use narrow seams instead of detached-building gaps")
-	_assert_true(int(floor_root.get_meta("night_facade_bay_count", 0)) >= 48, "continuous terraces should expose a dense rhythm of repeated house bays")
-	var continuous_houses: Array[Node3D] = []
-	_collect_nodes_with_meta(floor_root, "continuous_house_segment", continuous_houses)
-	_assert_eq(continuous_houses.size(), 6, "every second-floor room should contribute one continuous house segment")
-	for house in continuous_houses:
-		_assert_true(float(house.get_meta("segment_length", 0.0)) >= 60.0, "second-floor house segments should be elongated rather than isolated cubes")
+	_assert_true(float(floor_root.get_meta("map_width", 0.0)) >= 245.0 and float(floor_root.get_meta("map_length", 0.0)) >= 255.0, "second-floor clearing diameter should be comparable to the full first-floor journey")
+	_assert_true(int(floor_root.get_meta("disc_angular_segment_count", 0)) >= 96, "second-floor clearing should use enough boundary segments for an irregular circular silhouette")
+	_assert_true(int(floor_root.get_meta("disc_radial_segment_count", 0)) >= 16, "second-floor clearing should tessellate its filled interior instead of leaving a central hole")
+	_assert_true(float(floor_root.get_meta("disc_radius_x", 0.0)) >= 110.0 and float(floor_root.get_meta("disc_radius_z", 0.0)) >= 115.0, "second-floor clearing should expose its large unequal radii")
+	_assert_true(float(floor_root.get_meta("disc_height_variation", 0.0)) >= 1.0, "second-floor procedural surface should include visible walkable elevation changes")
+	var disc_ground := _find_node_by_name(floor_root, "IrregularDiscGround") as StaticBody3D
+	_assert_true(disc_ground != null and bool(disc_ground.get_meta("irregular_disc", false)), "second floor should build one metadata-tagged filled procedural ground body")
+	if disc_ground != null:
+		var disc_surface := disc_ground.get_node_or_null("DiscSurface") as MeshInstance3D
+		var disc_collision := disc_ground.get_node_or_null("Collision") as CollisionShape3D
+		_assert_true(disc_surface != null and disc_surface.mesh is ArrayMesh, "disc terrain should be generated as an original low-poly ArrayMesh")
+		if disc_surface != null:
+			var disc_material := disc_surface.material_override as StandardMaterial3D
+			_assert_true(disc_material != null and disc_material.cull_mode == BaseMaterial3D.CULL_DISABLED, "second-floor terrain should remain visible from the playable side even when procedural winding flips")
+		_assert_true(disc_collision != null and disc_collision.shape is ConcavePolygonShape3D, "disc elevation should be backed by matching trimesh collision")
+	var logical_rooms: Array[Node3D] = []
+	_collect_nodes_with_meta(floor_root, "logical_room", logical_rooms)
+	_assert_eq(logical_rooms.size(), 6, "the broad second-floor clearing should retain six gameplay houses")
+	var physical_houses: Array[Node3D] = []
+	_collect_nodes_with_meta(floor_root, "physical_house", physical_houses)
+	_assert_eq(physical_houses.size(), int(floor_root.get_meta("physical_house_count", -1)), "physical-house metadata should match generated second-floor buildings")
+	_assert_eq(physical_houses.size(), 6, "six houses should be sparse at this map scale without collapsing into a facade row")
+	var house_min_x := INF
+	var house_max_x := -INF
+	var house_min_z := INF
+	var house_max_z := -INF
+	for house in physical_houses:
+		house_min_x = minf(house_min_x, house.global_position.x)
+		house_max_x = maxf(house_max_x, house.global_position.x)
+		house_min_z = minf(house_min_z, house.global_position.z)
+		house_max_z = maxf(house_max_z, house.global_position.z)
+	_assert_true(house_max_x - house_min_x >= 100.0 and house_max_z - house_min_z >= 100.0, "second-floor houses should scatter across both axes instead of forming two straight rows")
+	_assert_true(float(floor_root.get_meta("night_house_coverage_ratio", 1.0)) <= 0.16, "houses should occupy only a small share of the broad clearing")
 	var floor_two_spawn: Vector3 = floor_root.call("start_position")
-	_assert_true(bool(floor_root.call("contains_playable_position", floor_two_spawn)), "second-floor spawn should remain inside the playable street")
-	var floor_two_centerline_hit := _centerline_collision(floor_root, player)
-	_assert_true(floor_two_centerline_hit.is_empty(), "second-floor central walking lane should remain collision-free: %s" % str(floor_two_centerline_hit.get("collider", "")))
+	_assert_true(bool(floor_root.call("contains_playable_position", floor_two_spawn)), "second-floor spawn should remain inside the playable clearing")
+	_assert_near(float(floor_root.call("start_yaw_degrees")), 0.0, 0.01, "second-floor spawn should face inward across the scattered settlement")
+	_assert_true(bool(floor_root.call("contains_playable_position", Vector3.ZERO)), "the irregular clearing should fill its center with walkable terrain")
+	var far_outside := Vector3(float(floor_root.get_meta("map_width", 0.0)), 0.08, float(floor_root.get_meta("map_length", 0.0)))
+	_assert_true(not bool(floor_root.call("contains_playable_position", far_outside)), "positions beyond the irregular circular edge should remain outside the map")
+	var clamped_outside: Vector3 = floor_root.call("clamp_to_playable_position", far_outside)
+	_assert_true(bool(floor_root.call("contains_playable_position", clamped_outside, 1.2)), "clamping should move an exterior point onto the irregular circular boundary")
+	_assert_true(not _vertical_ground_collision(floor_root, floor_two_spawn, player).is_empty(), "second-floor spawn should stand above the undulating disc collision")
+	_assert_true(not _vertical_ground_collision(floor_root, Vector3.ZERO, player).is_empty(), "second-floor center should be backed by real filled terrain collision")
+	_assert_dreamcore_objects(floor_root, "second floor")
 	var floor_two_fog_density := float(floor_root.get_meta("fog_density", 0.0))
+	var floor_two_ambient_energy := float(floor_root.get_meta("ambient_light_energy", 0.0))
 
 	game_root.game.tower_floor = 5
 	game_root._ensure_reality_floor_current()
@@ -376,7 +429,9 @@ func _run() -> void:
 	_assert_eq(str(floor_root.get_meta("district_style", "")), "overgrown_gallery", "third floor should use the overgrown white-gallery district")
 	_assert_eq(int(floor_root.get_meta("ordinary_npc_count", 0)), 2, "third floor should reduce ordinary NPCs to two")
 	_assert_eq(_count_actors(floor_root, "npc"), 2, "third-floor actor population should match its metadata")
-	_assert_true(_find_node_by_name(floor_root, "GalleryRoof") != null and _find_node_by_name(floor_root, "GalleryCeilingSpan") != null and _find_node_by_name(floor_root, "GrassPatch00") != null, "overgrown district should combine a covered white colonnade with procedural grass")
+	_assert_eq(str(floor_root.get_meta("layout_mode", "")), "skylit_overgrown_gallery", "third floor should expose its meadow-and-skylight layout")
+	_assert_eq(str(floor_root.get_meta("terrain_profile", "")), "full_map_meadow_gallery", "third floor should identify its full-map meadow terrain")
+	_assert_true(_find_node_by_name(floor_root, "GalleryRoof") != null and _find_node_by_name(floor_root, "GalleryCeilingSpan") != null and _find_node_by_name(floor_root, "FullMapGrass") != null, "overgrown district should combine a skylit white colonnade with one full-map grass field")
 	_assert_true(bool(floor_root.get_meta("gallery_continuous", false)), "third-floor gallery architecture should be one elongated continuum")
 	_assert_true(float(floor_root.get_meta("gallery_span_ratio", 0.0)) >= 0.95, "gallery roofs and outer walls should span nearly the full street")
 	_assert_true(float(floor_root.get_meta("gallery_column_spacing", 99.0)) <= 7.2, "third-floor columns should maintain a continuous rhythm without long empty breaks")
@@ -385,6 +440,16 @@ func _run() -> void:
 	if gallery_roof != null:
 		_assert_true(bool(gallery_roof.get_meta("continuous_gallery", false)), "gallery roof should identify itself as a continuous structure")
 		_assert_true(float(gallery_roof.get_meta("span_length", 0.0)) >= float(floor_root.get_meta("map_length", 0.0)) - 14.1, "gallery roof should replace short disconnected roof pieces with one long span")
+	var gallery_ceiling := _find_node_by_name(floor_root, "GalleryCeilingSpan") as Node3D
+	_assert_true(gallery_ceiling != null and bool(gallery_ceiling.get_meta("skylit_ceiling", false)), "third-floor central ceiling should explicitly identify its skylit construction")
+	_assert_true(int(floor_root.get_meta("skylight_opening_count", 0)) >= 4, "third-floor ceiling should retain several substantial skylight openings")
+	_assert_true(float(floor_root.get_meta("skylight_open_ratio", 0.0)) >= 0.12, "skylights should remove a meaningful share of the central roof span")
+	var skylight_openings: Array[Node3D] = []
+	_collect_nodes_with_meta(floor_root, "skylight_opening", skylight_openings)
+	_assert_eq(skylight_openings.size(), int(floor_root.get_meta("skylight_opening_count", -1)), "skylight metadata should match explicit open ceiling markers")
+	var skylight_roof_segments: Array[Node3D] = []
+	_collect_nodes_with_meta(floor_root, "skylight_roof_segment", skylight_roof_segments)
+	_assert_eq(skylight_roof_segments.size(), skylight_openings.size() + 1, "central roof geometry should be split around every skylight instead of covering the openings")
 	var gallery_columns: Array[Node3D] = []
 	_collect_nodes_with_meta(floor_root, "gallery_column", gallery_columns)
 	_assert_eq(gallery_columns.size(), int(floor_root.get_meta("gallery_column_count", 0)), "gallery column metadata should match the generated collision columns")
@@ -392,14 +457,33 @@ func _run() -> void:
 	if first_gallery_column != null:
 		_assert_true(absf(first_gallery_column.position.x) - 0.26 >= 2.8, "gallery column collisions should preserve the declared 5.6-metre central lane")
 	_assert_eq(str(floor_root.get_meta("atmosphere_mode", "")), "slow_burn_suspense", "third floor should keep the suspense atmosphere under the colonnade")
-	_assert_true(float(floor_root.get_meta("fog_density", 0.0)) > floor_two_fog_density, "third-floor fog should deepen beyond floor two")
+	_assert_eq(str(floor_root.get_meta("lighting_profile", "")), "natural_skylight", "third floor should switch from horror darkness to natural skylight")
+	_assert_eq(str(floor_root.get_meta("suspense_color_temperature", "")), "natural_daylight", "third-floor global illumination should use a natural daylight temperature")
+	_assert_true(float(floor_root.get_meta("ambient_light_energy", 0.0)) >= 0.65, "third floor should be substantially brighter and more natural than floor two")
+	_assert_true(float(floor_root.get_meta("ambient_light_energy", 0.0)) > floor_two_ambient_energy * 4.5, "third-floor ambient light should clearly separate itself from the near-black ring")
+	_assert_true(float(floor_root.get_meta("key_light_energy", 0.0)) >= 1.1, "third-floor key light should read as strong daylight through the skylights")
+	_assert_true(float(floor_root.get_meta("fog_density", 1.0)) < floor_two_fog_density * 0.5, "third-floor daylight should use cleaner air than the dark ring")
 	_assert_eq(int(floor_root.get_meta("jump_scare_trigger_count", -1)), 0, "third-floor suspense should rely on space and repetition instead of jump-scare areas")
 	_assert_true(_centerline_collision(floor_root, player).is_empty(), "third-floor continuous colonnade should keep its centerline walkable")
-	var grass_patch := _find_node_by_name(floor_root, "GrassPatch00") as Node3D
-	if grass_patch != null:
-		_assert_true(grass_patch.get_child_count() >= 30, "gallery grass should read as dense encroachment rather than sparse markers")
-		var first_blade := grass_patch.get_child(0) as MeshInstance3D
-		_assert_true(first_blade != null and first_blade.mesh is ArrayMesh, "gallery vegetation should use tapered grass blades rather than cone placeholders")
+	var grass_field := _find_node_by_name(floor_root, "FullMapGrass") as MultiMeshInstance3D
+	_assert_true(grass_field != null and grass_field.multimesh != null, "third-floor vegetation should render through a single MultiMeshInstance3D")
+	if grass_field != null and grass_field.multimesh != null:
+		_assert_eq(grass_field.multimesh.instance_count, int(floor_root.get_meta("grass_instance_count", -1)), "grass instance metadata should match the MultiMesh allocation")
+		_assert_true(grass_field.multimesh.instance_count >= 50000, "full-map meadow should contain enough deterministic tufts to read as continuous ground cover")
+		_assert_true(grass_field.multimesh.mesh is ArrayMesh, "MultiMesh grass should retain the custom tapered low-poly blade mesh")
+		var grass_aabb := grass_field.multimesh.custom_aabb
+		_assert_true(grass_aabb.size.x >= float(floor_root.get_meta("map_width", 0.0)) and grass_aabb.size.z >= float(floor_root.get_meta("map_length", 0.0)), "grass culling bounds should span the complete third-floor ground")
+		var grass_material := grass_field.material_override as StandardMaterial3D
+		_assert_true(grass_material != null and grass_material.cull_mode == BaseMaterial3D.CULL_DISABLED, "grass blades should remain visible from either side")
+	_assert_true(float(floor_root.get_meta("grass_density_spacing", 99.0)) <= 0.45, "third-floor grass spacing should be dense enough to cover the entire map")
+	_assert_true(float(floor_root.get_meta("grass_blade_height", 99.0)) <= 0.38, "third-floor grass should use a low meadow profile instead of sparse tall spikes")
+	_assert_eq(str(floor_root.get_meta("grass_render_mode", "")), "multimesh", "third-floor grass should advertise its batched rendering mode")
+	_assert_eq(str(floor_root.get_meta("grass_coverage", "")), "full_map", "third-floor grass metadata should explicitly cover the full map")
+	_assert_eq(float(floor_root.get_meta("grass_coverage_ratio", 0.0)), 1.0, "third-floor grass coverage ratio should span the complete playable footprint")
+	var grass_bounds := floor_root.get_meta("grass_bounds", Vector2.ZERO) as Vector2
+	_assert_true(is_equal_approx(grass_bounds.x, float(floor_root.get_meta("map_width", 0.0))) and is_equal_approx(grass_bounds.y, float(floor_root.get_meta("map_length", 0.0))), "grass MultiMesh bounds metadata should match the generated map dimensions")
+	_assert_true(_find_node_by_name(floor_root, "GrassPatch00") == null, "third floor should replace per-patch blade nodes with one batched field")
+	_assert_dreamcore_objects(floor_root, "third floor")
 	var gallery_reference_portal := _find_node_by_name(floor_root, "ReferencePortal") as MeshInstance3D
 	_assert_true(gallery_reference_portal != null and str(gallery_reference_portal.get_meta("reference_texture", "")).contains("overgrown_gallery"), "gallery district should use the supplied reference as a distant spatial continuation")
 
@@ -418,6 +502,54 @@ func _run() -> void:
 
 	game_root.queue_free()
 	await process_frame
+
+
+func _assert_dreamcore_objects(floor_root: Node3D, floor_label: String) -> void:
+	var objects: Array[Node3D] = []
+	_collect_nodes_with_meta(floor_root, "dreamcore_object", objects)
+	_assert_eq(objects.size(), int(floor_root.get_meta("dreamcore_object_count", -1)), "%s dreamcore object metadata should match generated instances" % floor_label)
+	_assert_true(int(floor_root.get_meta("dreamcore_object_type_count", 0)) >= 9, "%s should contain a varied set of recognizable liminal object categories" % floor_label)
+	_assert_true(objects.size() >= 18, "%s should distribute recognizable liminal props across the map rather than cluster a token sample" % floor_label)
+	_assert_eq(int(floor_root.get_meta("dreamcore_non_pickup_count", -1)), objects.size(), "%s should mark every dreamcore object as non-pickup" % floor_label)
+	var object_types := {}
+	for artifact in objects:
+		object_types[str(artifact.get_meta("dreamcore_type", ""))] = true
+		_assert_true(bool(artifact.get_meta("procedural_low_poly", false)), "%s dreamcore objects should identify their procedural low-poly construction" % floor_label)
+		_assert_true(bool(artifact.get_meta("original_geometry", false)), "%s dreamcore objects should use original generated geometry" % floor_label)
+		_assert_true(bool(artifact.get_meta("non_pickup", false)) and not bool(artifact.get_meta("interactable", true)), "%s dreamcore objects should be explicitly decorative and non-pickup" % floor_label)
+		_assert_true(not (artifact is Area3D) and not bool(artifact.get_meta("useful_item", false)), "%s dreamcore objects should never enter the pickup Area3D path" % floor_label)
+	var expected_types := ["false_window", "water_cooler", "crt_cart", "payphone", "folding_chair", "vending_machine", "fluorescent_troffer", "supply_crates", "pipe_manifold"]
+	for expected_type in expected_types:
+		_assert_true(object_types.has(expected_type), "%s should include the recognizable %s prop" % [floor_label, expected_type])
+	var silhouette_parts := ["FalseWindowGlass", "WaterCoolerJug", "CRTTelevisionScreen", "PayphoneHandset", "FoldingChairSeat", "VendingMachineBody", "FluorescentTube00", "SupplyCrateLeft", "PipeValveWheel00"]
+	for part_name in silhouette_parts:
+		_assert_true(_find_node_by_name(floor_root, part_name) != null, "%s should preserve the defining silhouette part %s" % [floor_label, part_name])
+
+
+func _assert_actor_face_veil(actor: Area3D, billboard: Sprite3D, actor_label: String) -> void:
+	_assert_true(billboard != null, "%s should expose a billboard for the face veil" % actor_label)
+	if billboard == null:
+		return
+	var material := billboard.material_override as ShaderMaterial
+	_assert_true(material != null and material.shader != null, "%s should use an animated shader face veil" % actor_label)
+	_assert_true(bool(actor.get_meta("face_veil", false)), "%s should declare its identity-obscuring veil" % actor_label)
+	_assert_true(not bool(actor.get_meta("face_identity_readable", true)), "%s face should remain deliberately unreadable" % actor_label)
+	if material != null and material.shader != null:
+		_assert_eq(material.shader.resource_path, "res://shaders/npc_face_veil.gdshader", "%s should use the shared psychological-horror face shader" % actor_label)
+		_assert_true(float(material.get_shader_parameter("mask_strength")) >= 0.8, "%s veil should visibly obscure the face" % actor_label)
+
+
+func _vertical_ground_collision(floor_root: Node3D, point: Vector3, player: CharacterBody3D) -> Dictionary:
+	if floor_root == null or floor_root.get_world_3d() == null:
+		return {"missing_world": true}
+	var from := floor_root.to_global(point + Vector3(0.0, 4.0, 0.0))
+	var to := floor_root.to_global(point + Vector3(0.0, -5.0, 0.0))
+	var query := PhysicsRayQueryParameters3D.create(from, to)
+	query.collision_mask = 1
+	query.collide_with_areas = false
+	if player != null:
+		query.exclude = [player.get_rid()]
+	return floor_root.get_world_3d().direct_space_state.intersect_ray(query)
 
 
 func _centerline_collision(floor_root: Node3D, player: CharacterBody3D) -> Dictionary:
@@ -519,3 +651,8 @@ func _assert_true(value: bool, message: String) -> void:
 func _assert_eq(actual, expected, message: String) -> void:
 	if actual != expected:
 		_failures.append("%s (expected %s, got %s)" % [message, str(expected), str(actual)])
+
+
+func _assert_near(actual: float, expected: float, tolerance: float, message: String) -> void:
+	if absf(actual - expected) > tolerance:
+		_failures.append("%s (expected %.4f +/- %.4f, got %.4f)" % [message, expected, tolerance, actual])
