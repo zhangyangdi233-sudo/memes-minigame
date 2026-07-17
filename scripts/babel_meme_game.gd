@@ -82,6 +82,10 @@ const CINEMATIC_MAX_BAR_RATIO := 0.12
 const HUD_RAIL_WIDTH := 158.0
 const HUD_RAIL_MAX_HEIGHT := 700.0
 const HUD_RAIL_FRAME_MARGIN := 10.0
+const MEME_BANK_MOTION_TRANSITION := Tween.TRANS_QUINT
+const MEME_BANK_MOTION_EASE := Tween.EASE_OUT
+const MEME_BANK_SCALE_DURATION := 0.28
+const MEME_BANK_ALPHA_DURATION := 0.22
 const SAVE_PATH := "user://babel_meme_save.dat"
 const SAVE_FILE_VERSION := 1
 const SOCIAL_CHANNELS := [
@@ -4551,15 +4555,37 @@ func _toggle_meme_bank() -> void:
 func _play_meme_bank_motion(opening: bool) -> void:
 	if _meme_bank_window == null or not _meme_bank_window.visible:
 		return
+	var profile := _meme_bank_motion_profile(opening)
 	if _meme_bank_tween != null and _meme_bank_tween.is_valid():
 		_meme_bank_tween.kill()
 	_meme_bank_window.pivot_offset = _meme_bank_window.size * 0.5
-	_meme_bank_window.scale = Vector2.ONE * (0.84 if opening else 1.10)
-	_meme_bank_window.modulate = Color(1.0, 1.0, 1.0, 0.18 if opening else 0.72)
+	_meme_bank_window.scale = profile["start_scale"]
+	_meme_bank_window.modulate = Color(1.0, 1.0, 1.0, float(profile["start_alpha"]))
 	_meme_bank_window.set_meta("motion_easing", "easeOutQuint")
+	_meme_bank_window.set_meta("motion_phase", profile["phase"])
+	_meme_bank_window.set_meta("motion_transition", profile["transition"])
+	_meme_bank_window.set_meta("motion_ease", profile["ease"])
 	_meme_bank_tween = create_tween().set_parallel(true)
-	_meme_bank_tween.tween_property(_meme_bank_window, "scale", Vector2.ONE, 0.28).set_trans(Tween.TRANS_QUINT).set_ease(Tween.EASE_OUT)
-	_meme_bank_tween.tween_property(_meme_bank_window, "modulate", Color.WHITE, 0.22).set_trans(Tween.TRANS_QUINT).set_ease(Tween.EASE_OUT)
+	_meme_bank_tween.tween_property(_meme_bank_window, "scale", profile["target_scale"], float(profile["scale_duration"])) \
+		.set_trans(int(profile["transition"])).set_ease(int(profile["ease"]))
+	_meme_bank_tween.tween_property(_meme_bank_window, "modulate", Color(1.0, 1.0, 1.0, float(profile["target_alpha"])), float(profile["alpha_duration"])) \
+		.set_trans(int(profile["transition"])).set_ease(int(profile["ease"]))
+
+
+func _meme_bank_motion_profile(opening: bool) -> Dictionary:
+	return {
+		"phase": "opening" if opening else "closing",
+		"transition": MEME_BANK_MOTION_TRANSITION,
+		"ease": MEME_BANK_MOTION_EASE,
+		"scale_duration": MEME_BANK_SCALE_DURATION,
+		"alpha_duration": MEME_BANK_ALPHA_DURATION,
+		"start_scale": Vector2.ONE * (0.84 if opening else 1.10),
+		"start_alpha": 0.18 if opening else 0.72,
+		"target_scale": Vector2.ONE,
+		"target_alpha": 1.0,
+		"properties": ["scale", "modulate:a"],
+		"interrupts_previous": true,
+	}
 
 
 func _close_app_window(app_id: String) -> void:
