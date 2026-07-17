@@ -1,6 +1,6 @@
 # Generated Asset Provenance
 
-The game keeps nine composition-defining raster assets as curated OpenAI imagegen outputs. They are loaded directly at runtime and are not recreated by the procedural fallback generator.
+The game keeps ten composition-defining raster assets as curated OpenAI imagegen outputs. They are loaded directly at runtime and are not recreated by the procedural fallback generator.
 
 ## Curated imagegen assets
 
@@ -11,12 +11,13 @@ The game keeps nine composition-defining raster assets as curated OpenAI imagege
 | `social/poster_sheet.png` | `/Users/zhang/.codex/generated_images/019f3588-2c22-7b91-914e-587404e05fbc/ig_076d677daea12b9f016a4cbcafe3c08191937224629c9b05eb.png` | 1448 x 1086 | `76ae2647761ba61c4923f161f49d9e09f142042d26088b37b267a9db1d059594` | Twelve-cell social urban-legend poster atlas |
 | `ui/arcana_sheet.png` | `/Users/zhang/.codex/generated_images/019f3588-2c22-7b91-914e-587404e05fbc/exec-479815ca-02a7-4a9d-b2c9-382b2dc7f426.png` | 1536 x 1024 | `ca52ccc5d003c7a7786fd8f3157fc134a1f7426cf488ef78fc3eb98ece10e7bc` | Six-cell signal-arcana consumable atlas |
 | `characters/protagonist_operator.png` | `/Users/zhang/.codex/generated_images/019f3588-2c22-7b91-914e-587404e05fbc/exec-4ff17ce4-2fbc-41ea-bf9f-6335ec884086.png` | 1024 x 1536 | `d5c0f85474b7f7f59d7e031d81e751eb7e928fe7f105329372d4951fe7d0a1cd` | Identity-preserving protagonist based on the project owner's drawings |
-| `characters/merchant_frame_vendor.png` | `/Users/zhang/.codex/generated_images/019f3588-2c22-7b91-914e-587404e05fbc/exec-8da1abae-e72f-4812-894d-00f1b0f803ce.png` | 1024 x 1536 | `25086b7a615cb7db29fd8c1a64df8f9d5e641f5bff0c394b41e0ee2cd65ba9c3` | Empty-frame merchant billboard |
-| `characters/npc_late_arrival.png` | `/Users/zhang/.codex/generated_images/019f3588-2c22-7b91-914e-587404e05fbc/exec-587c81ff-ceac-4ae4-91fb-8c0450427659.png` | 1024 x 1536 | `ac04e563a31f32e4b08a45d0f781d12fdd6eb6c9ce00f80cd2918ce3b163a3ff` | Late-arrival commuter billboard |
-| `characters/npc_echo_tenant.png` | `/Users/zhang/.codex/generated_images/019f3588-2c22-7b91-914e-587404e05fbc/exec-54bba57d-4581-414a-bc65-221c74fdcb6e.png` | 1024 x 1536 | `97b3f5c47efe59dc72cc7d639405a6bbc44f1dd9d3fd612225b9a527923bbf36` | Echo-tenant billboard |
-| `characters/npc_archive_witness.png` | `/Users/zhang/.codex/generated_images/019f3588-2c22-7b91-914e-587404e05fbc/exec-0f825ce3-8410-4444-85a8-025c84561426.png` | 1024 x 1536 | `48cd98bc9b808fcb0b7678f371208dc10be70ba4a15af4c87ce760bfb6215866` | Archive-witness billboard |
+| `characters/merchant_frame_vendor.png` | `/Users/zhang/.codex/generated_images/019f3588-2c22-7b91-914e-587404e05fbc/exec-babad000-53d2-4006-9576-6654cd08f271.png` | 1029 x 1528 | `3b6df2b26873108bb700b52e4ed0f7f5e5eaaac5f9c84e5e3981a3545277966c` | Cartoon frame vendor whose two eyes disagree through the inspection lens |
+| `characters/npc_late_arrival.png` | `/Users/zhang/.codex/generated_images/019f3588-2c22-7b91-914e-587404e05fbc/exec-1382dc4a-b761-4d0b-a441-25425982458a.png` | 1024 x 1536 | `2d5e0b3d4dfce39e5e5f255c06e28d5af92aaa665d420c20ac5c21332cb5cb79` | Cartoon late arrival with duplicated watches and a directionally wrong shoelace |
+| `characters/npc_echo_tenant.png` | `/Users/zhang/.codex/generated_images/019f3588-2c22-7b91-914e-587404e05fbc/exec-1710614f-6564-4cfc-ac52-0232c15fe033.png` | 1024 x 1536 | `f8d01e19b89862e61f64c5149b7b96493a6938fbb650cc40dc0d844a28a8abaa` | Cartoon echo tenant with split-focus pupils and visible signal rings |
+| `characters/npc_archive_witness.png` | `/Users/zhang/.codex/generated_images/019f3588-2c22-7b91-914e-587404e05fbc/exec-7d16abdc-e9db-450c-ab94-e07a605b6076.png` | 1024 x 1536 | `9f8442907de0e31d689d75b4653bd3c6005f1bdeac2d1e8738600d1ebfb4a1e5` | Cartoon archive witness surrounded by an almost-correct orbit of blank cards |
+| `effects/face_scribble_atlas.png` | `/Users/zhang/.codex/generated_images/019f3588-2c22-7b91-914e-587404e05fbc/exec-f1114544-6ff0-49d0-9e6d-53c39cda981b.png` | 1672 x 941 | `781fafe1c5868ca4807cb12a20f6231a9354f1fbd4a09ec725a1ba575631d36a` | Four-frame 40-60 px black marker atlas rendered by a separate transparent face-overlay sprite; source portraits remain untouched |
 
-The curated images use the established five-color International Style direction: deep green, ink black, warm cream, yellow green, and fluorescent pollution green. The character set shares flat cartoon proportions, limited moss-green values, pixel-stepped contours, and offset white signal outlines.
+The curated images use the established five-color International Style direction: deep green, ink black, warm cream, yellow green, and fluorescent pollution green. The character set keeps flat cartoon proportions, limited moss-green values, halftone texture, pixel-stepped contours, and restrained channel offsets. Horror comes from one readable rule error per character rather than realistic distress or grotesque anatomy; the full direction is documented in `docs/design/denpa_cartoon_horror_direction.md`.
 
 ## User-supplied visual references
 

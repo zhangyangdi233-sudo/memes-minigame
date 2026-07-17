@@ -2,7 +2,8 @@ extends Node3D
 
 class_name RealityFloorGenerator
 
-const NPC_FACE_VEIL_SHADER := preload("res://shaders/npc_face_veil.gdshader")
+const NPC_FACE_SCRIBBLE_OVERLAY_SHADER := preload("res://shaders/npc_face_scribble_overlay.gdshader")
+const NPC_FACE_SCRIBBLE_ATLAS := preload("res://assets/generated/effects/face_scribble_atlas.png")
 const DISTANT_MIRAGE_TEXTURE_PATH := "res://assets/generated/world/events/distant_mirage.png"
 
 const BASE_ROOM_COUNT := 4
@@ -630,11 +631,8 @@ func apply_palette(palette: Dictionary) -> void:
 		var sprite := actor.get_node_or_null("Billboard") as Sprite3D
 		if sprite == null:
 			continue
-		if str(actor.get_meta("actor_type", "npc")) == "merchant":
-			sprite.modulate = _color(palette, "surface")
-		else:
-			var tint_index := int(actor.get_meta("tint_index", 0))
-			sprite.modulate = Color.WHITE.lerp(_color(palette, "muted"), 0.08 + tint_index * 0.04)
+		# Character art remains untouched; palette changes belong to the world and UI.
+		sprite.modulate = Color.WHITE
 
 
 func _clear_floor() -> void:
@@ -2136,8 +2134,11 @@ func _make_actor(node_name: String, actor_type: String, display_name: String, po
 	actor.set_meta("display_name", display_name)
 	actor.set_meta("tint_index", tint_index)
 	actor.set_meta("face_veil", true)
+	actor.set_meta("face_veil_style", "separate_animated_marker_overlay")
 	actor.set_meta("face_veil_mode", 1 if actor_type == "merchant" else tint_index % 3)
 	actor.set_meta("face_identity_readable", false)
+	actor.set_meta("face_effect_separate_layer", true)
+	actor.set_meta("base_character_texture_preserved", true)
 	var collision := CollisionShape3D.new()
 	collision.name = "InteractionShape"
 	var capsule := CapsuleShape3D.new()
@@ -2155,22 +2156,34 @@ func _make_actor(node_name: String, actor_type: String, display_name: String, po
 	sprite.billboard = BaseMaterial3D.BILLBOARD_ENABLED
 	sprite.alpha_cut = SpriteBase3D.ALPHA_CUT_DISCARD
 	sprite.double_sided = true
-	if actor_type == "merchant":
-		sprite.modulate = _color(palette, "surface")
-		sprite.scale = Vector3(1.05, 1.05, 1.05)
-	else:
-		sprite.modulate = Color.WHITE.lerp(_color(palette, "muted"), 0.08 + tint_index * 0.04)
-	var veil_material := ShaderMaterial.new()
-	veil_material.shader = NPC_FACE_VEIL_SHADER
-	veil_material.set_shader_parameter("albedo_texture", npc_texture)
-	veil_material.set_shader_parameter("body_tint", sprite.modulate)
-	veil_material.set_shader_parameter("veil_color", Color("8B1E2D") if actor_type == "merchant" or tint_index % 3 == 1 else _color(palette, "ink"))
-	veil_material.set_shader_parameter("mask_mode", float(1 if actor_type == "merchant" else tint_index % 3))
-	veil_material.set_shader_parameter("mask_strength", 0.94 if actor_type == "merchant" else 0.86)
-	veil_material.set_shader_parameter("seed", float(built_floor * 17 + tint_index * 7 + (3 if actor_type == "merchant" else 0)))
 	sprite.modulate = Color.WHITE
-	sprite.material_override = veil_material
+	if actor_type == "merchant":
+		sprite.scale = Vector3(1.05, 1.05, 1.05)
 	actor.add_child(sprite)
+
+	var scribble_overlay := Sprite3D.new()
+	scribble_overlay.name = "FaceScribbleOverlay"
+	scribble_overlay.texture = npc_texture
+	scribble_overlay.pixel_size = sprite.pixel_size
+	scribble_overlay.position = sprite.position
+	scribble_overlay.scale = sprite.scale
+	scribble_overlay.billboard = BaseMaterial3D.BILLBOARD_ENABLED
+	scribble_overlay.alpha_cut = SpriteBase3D.ALPHA_CUT_DISCARD
+	scribble_overlay.double_sided = true
+	scribble_overlay.modulate = Color.WHITE
+	scribble_overlay.set_meta("separate_face_effect", true)
+	var scribble_material := ShaderMaterial.new()
+	scribble_material.shader = NPC_FACE_SCRIBBLE_OVERLAY_SHADER
+	scribble_material.render_priority = 8
+	scribble_material.set_shader_parameter("character_texture", npc_texture)
+	scribble_material.set_shader_parameter("scribble_atlas", NPC_FACE_SCRIBBLE_ATLAS)
+	scribble_material.set_shader_parameter("ink_color", Color("020202"))
+	scribble_material.set_shader_parameter("ink_opacity", 1.0)
+	scribble_material.set_shader_parameter("brush_width_px", 56.0)
+	scribble_material.set_shader_parameter("variation", float(1 if actor_type == "merchant" else tint_index % 3))
+	scribble_material.set_shader_parameter("seed", float(built_floor * 17 + tint_index * 7 + (3 if actor_type == "merchant" else 0)))
+	scribble_overlay.material_override = scribble_material
+	actor.add_child(scribble_overlay)
 	return actor
 
 

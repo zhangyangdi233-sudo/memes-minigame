@@ -1,8 +1,9 @@
 extends SceneTree
 
-const OUTPUT_PATH := "/Users/zhang/Documents/游戏/babel-meme-game/tools/current_merchant_view.png"
+const OUTPUT_PATH := "/Users/zhang/Documents/游戏/babel-meme-game/tools/current_npc_character_view.png"
+const MOTION_OUTPUT_PATH := "/Users/zhang/Documents/游戏/babel-meme-game/tools/current_npc_character_view_phase_b.png"
 const VIEW_SIZE := Vector2i(1672, 941)
-const HEADLESS_CAPTURE_ERROR := "Screenshot capture requires a rendered display. Run this tool without --headless from a GUI session."
+const HEADLESS_CAPTURE_ERROR := "NPC character capture requires a rendered display. Run this tool without --headless."
 
 
 func _init() -> void:
@@ -27,17 +28,20 @@ func _capture() -> void:
 	main._phone_art_alpha = 0.0
 	if main._phone_down_backdrop_image != null:
 		main._phone_down_backdrop_image.visible = false
+	main.game.pollution = 34
+	main.game.pollution_flashback_seen = true
 	var player := main.get_node_or_null("RealityPlayer") as CharacterBody3D
-	var merchant := main.get_node_or_null("RealityFloor/Actors/Merchant") as Area3D
-	if player != null and merchant != null:
-		player.position = merchant.position + Vector3(0.0, 0.0, 2.0)
-		main._refresh_nearby_reality_actor()
-		main._try_reality_interaction()
-		main.game.conversation_selected_choice_id = "trade"
-		main.game.conversation_phase = "result"
-		main.game.conversation_feedback = "信号商人敲了敲柜台，空框发出比内容更清楚的声音。"
-		main._render()
-	for frame in 16:
+	var npc := main.get_node_or_null("RealityFloor/Actors/NPC1") as Area3D
+	if npc == null:
+		npc = main.get_node_or_null("RealityFloor/Actors/NPC0") as Area3D
+	if player == null or npc == null:
+		push_error("Unable to locate an ordinary reality NPC")
+		quit(1)
+		return
+	player.position = npc.position + Vector3(0.0, 0.0, 1.75)
+	main._refresh_nearby_reality_actor()
+	main._try_reality_interaction()
+	for frame in 18:
 		await process_frame
 	var viewport_texture := root.get_texture()
 	if viewport_texture == null:
@@ -55,12 +59,20 @@ func _capture() -> void:
 		quit(1)
 		return
 	print("saved screenshot: %s" % OUTPUT_PATH)
+	for frame in 8:
+		await process_frame
+	var motion_image := root.get_texture().get_image()
+	var motion_error := motion_image.save_png(MOTION_OUTPUT_PATH)
+	if motion_error != OK:
+		push_error("Unable to save motion screenshot: %s" % motion_error)
+		quit(1)
+		return
+	print("saved motion screenshot: %s" % MOTION_OUTPUT_PATH)
 	quit(0)
 
 
 func _ensure_capture_supported() -> bool:
-	var display_name := DisplayServer.get_name().to_lower()
-	if display_name == "headless":
+	if DisplayServer.get_name().to_lower() == "headless":
 		push_error(HEADLESS_CAPTURE_ERROR)
 		quit(2)
 		return false

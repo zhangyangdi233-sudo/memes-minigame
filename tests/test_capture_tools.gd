@@ -20,6 +20,7 @@ func _run() -> void:
 		"res://tools/capture_authored_horror_events.gd",
 		"res://tools/capture_dialogue_scene.gd",
 		"res://tools/capture_merchant_scene.gd",
+		"res://tools/capture_npc_character_scene.gd",
 		"res://tools/capture_relic_scene.gd",
 		"res://tools/capture_ending_scene.gd",
 		"res://tools/capture_day_transition.gd",

@@ -84,6 +84,8 @@ func _run() -> void:
 			"res://assets/generated/characters/npc_late_arrival.png",
 			"res://assets/generated/characters/npc_echo_tenant.png",
 			"res://assets/generated/characters/npc_archive_witness.png",
+			"res://assets/generated/effects/face_scribble_atlas.png",
+			"res://shaders/npc_face_scribble_overlay.gdshader",
 			"res://assets/generated/ui/no_signal_icon.png",
 			"res://assets/generated/ui/hud_day_icon.png",
 			"res://assets/generated/ui/hud_pollution_icon.png",
