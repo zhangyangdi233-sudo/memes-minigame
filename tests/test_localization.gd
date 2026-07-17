@@ -42,6 +42,10 @@ func _test_catalog_coverage_and_dynamic_templates() -> void:
 	var state_ja: Dictionary = state_catalog.entries("ja")
 	_assert_true(ui_en.size() >= 300 and ui_en.size() == ui_ja.size(), "UI catalog should contain matching English and Japanese coverage")
 	_assert_true(state_en.size() >= 315 and state_en.size() == state_ja.size(), "state catalog should contain matching English and Japanese coverage")
+	_assert_catalog_parity(ui_en, ui_ja, "UI")
+	_assert_catalog_parity(state_en, state_ja, "state")
+	_assert_catalog_format_signatures(ui_en, ui_ja, "UI")
+	_assert_catalog_format_signatures(state_en, state_ja, "state")
 
 	var locale = LocaleScript.new()
 	locale.set_locale("en")
@@ -139,6 +143,14 @@ func _test_audited_localization_copy() -> void:
 	_assert_eq(ui_ja["抄写员"], "書記官", "Japanese actor title should use a natural role name")
 	_assert_eq(ui_ja["一个空框。只够装下一个字。"], "空の枠。単語を一つだけ入れられる。", "Japanese frame copy should describe one lexical word, not one character")
 	_assert_eq(state_ja["发布一个只含 1 个语言单位的基础梗"], "一語だけの基本ミームを投稿する", "Japanese pattern copy should use the same lexical-word unit")
+	_assert_eq(ui_ja["在发现瀑布流里关注一个账号，它的帖子会留在这里。"], "「おすすめ」でアカウントをフォローすると、その投稿がここに残る。", "Japanese empty-following guidance should name the actual Discover tab")
+	_assert_eq(ui_ja["开启 VHS 质感"], "VHS風表示", "Japanese toggle labels should use compact native UI wording")
+	_assert_eq(ui_en["门禁说我没回家我却在屋里"], "The Entry Log Says I Never Came Home. I'm Already Inside.", "English social horror copy should use short native clauses")
+	_assert_eq(ui_ja["门禁说我没回家我却在屋里"], "入退室記録では帰っていない。なのに、もう部屋にいる", "Japanese social horror copy should preserve the ordinary-to-impossible pivot")
+	_assert_eq(ui_ja["别急着懂。先把它转出去，懂会在后面补票。"], "急いで理解しなくていい。先に拡散して。理解はあとから追いついて、足りないぶんを払う。", "Japanese surreal copy should remain idiomatic without explaining away the metaphor")
+	_assert_eq(ui_en["梗仓库只在发布页或笔记本中出现。"], "The Meme Bank is available only while posting or using the Notebook.", "English Meme Bank guidance should match both valid contexts")
+	_assert_eq(ui_ja["梗仓库只在发布页或笔记本中出现。"], "ミーム庫は投稿画面かノートでのみ開ける。", "Japanese Meme Bank guidance should match both valid contexts")
+	_assert_true(not ui_en.has("梗仓库只在社交发布页出现。"), "stale publishing-only Meme Bank copy should be removed")
 	var aid_descriptions := {
 		"现实句子严重失真时，临时压低 18% 的污染噪声。": [
 			"After an understanding check fails, increase its success chance by 18 percentage points.",
@@ -226,6 +238,29 @@ func _find_node_by_name(node: Node, target_name: String) -> Node:
 		if found != null:
 			return found
 	return null
+
+
+func _assert_catalog_parity(english: Dictionary, japanese: Dictionary, catalog_name: String) -> void:
+	for source in english:
+		_assert_true(japanese.has(source), "%s catalog should include Japanese key: %s" % [catalog_name, source])
+	for source in japanese:
+		_assert_true(english.has(source), "%s catalog should include English key: %s" % [catalog_name, source])
+
+
+func _assert_catalog_format_signatures(english: Dictionary, japanese: Dictionary, catalog_name: String) -> void:
+	for source in english:
+		var source_signature := _format_signature(str(source))
+		_assert_eq(_format_signature(str(english[source])), source_signature, "%s English placeholders should match source: %s" % [catalog_name, source])
+		_assert_eq(_format_signature(str(japanese[source])), source_signature, "%s Japanese placeholders should match source: %s" % [catalog_name, source])
+
+
+func _format_signature(text: String) -> Array[String]:
+	var regex := RegEx.new()
+	regex.compile("%(?:02d|d|s|%)")
+	var signature: Array[String] = []
+	for match_result in regex.search_all(text):
+		signature.append(match_result.get_string())
+	return signature
 
 
 func _assert_true(value: bool, message: String) -> void:

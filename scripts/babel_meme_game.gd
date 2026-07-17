@@ -3028,6 +3028,7 @@ func _render_social_home_page(parent: VBoxContainer) -> void:
 		card_clip.size_flags_horizontal = Control.SIZE_EXPAND_FILL
 		card_clip.size_flags_vertical = Control.SIZE_EXPAND_FILL
 		card_clip.clip_contents = true
+		card_clip.mouse_filter = Control.MOUSE_FILTER_PASS
 		card_panel.add_child(card_clip)
 		var card := VBoxContainer.new()
 		card.name = "SocialPostLayout%d" % post_index
@@ -3042,6 +3043,7 @@ func _render_social_home_page(parent: VBoxContainer) -> void:
 		caption_slot.size_flags_horizontal = Control.SIZE_EXPAND_FILL
 		caption_slot.size_flags_vertical = Control.SIZE_SHRINK_BEGIN
 		caption_slot.clip_contents = true
+		caption_slot.mouse_filter = Control.MOUSE_FILTER_PASS
 		card.add_child(caption_slot)
 		var caption := _label(_social_caption(post, post_index), 14, _theme_color("ink"))
 		caption.name = "SocialPostCaption%d" % post_index
@@ -3049,12 +3051,14 @@ func _render_social_home_page(parent: VBoxContainer) -> void:
 		caption.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
 		caption.max_lines_visible = 3
 		caption.text_overrun_behavior = TextServer.OVERRUN_TRIM_ELLIPSIS
+		caption.mouse_filter = Control.MOUSE_FILTER_PASS
 		caption_slot.add_child(caption)
 		var meta_row := HBoxContainer.new()
 		meta_row.name = "SocialPostActions%d" % post_index
 		meta_row.custom_minimum_size.y = 44
 		meta_row.size_flags_vertical = Control.SIZE_SHRINK_BEGIN
 		meta_row.clip_contents = true
+		meta_row.mouse_filter = Control.MOUSE_FILTER_PASS
 		meta_row.add_theme_constant_override("separation", 4)
 		card.add_child(meta_row)
 		var likes := Button.new()
@@ -3143,6 +3147,7 @@ func _render_social_card_poster(parent: VBoxContainer, post_index: int, post: Di
 	poster.set_meta("poster_frame", true)
 	poster.custom_minimum_size.y = _social_feed_poster_height(post_index)
 	poster.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+	poster.mouse_filter = Control.MOUSE_FILTER_PASS
 	poster.add_theme_stylebox_override("panel", _style(_social_poster_color(post_index), _theme_color("accent")))
 	parent.add_child(poster)
 
@@ -3155,6 +3160,7 @@ func _render_social_card_poster(parent: VBoxContainer, post_index: int, post: Di
 	poster_texture.custom_minimum_size = Vector2(0, poster.custom_minimum_size.y)
 	poster_texture.size_flags_horizontal = Control.SIZE_EXPAND_FILL
 	poster_texture.size_flags_vertical = Control.SIZE_EXPAND_FILL
+	poster_texture.mouse_filter = Control.MOUSE_FILTER_PASS
 	poster_texture.expand_mode = TextureRect.EXPAND_IGNORE_SIZE
 	poster_texture.stretch_mode = TextureRect.STRETCH_KEEP_ASPECT_COVERED
 	poster.add_child(poster_texture)
@@ -4542,7 +4548,7 @@ func _toggle_meme_bank() -> void:
 	if _input_locked:
 		return
 	if not _should_show_meme_bank():
-		log_text = "梗仓库只在社交发布页出现。"
+		log_text = "梗仓库只在发布页或笔记本中出现。"
 		_render_status()
 		return
 	_meme_bank_open = not _meme_bank_open

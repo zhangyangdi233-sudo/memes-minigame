@@ -40,6 +40,27 @@ func _run() -> void:
 		_assert_true(has_staggered_height, "equal card width should not force every masonry card to the same height")
 		var first_clip := _find_node_by_name(cards[0], "SocialPostClip0") as Control
 		_assert_true(first_clip != null and first_clip.clip_contents, "localized content should be isolated from column width calculation")
+		var first_poster := _find_node_by_name(cards[0], "SocialPostTexture0") as TextureRect
+		_assert_true(first_poster != null, "first social card should expose a poster click target")
+		if first_poster != null:
+			var click_point := first_poster.get_global_rect().get_center()
+			var press := InputEventMouseButton.new()
+			press.position = click_point
+			press.global_position = click_point
+			press.button_index = MOUSE_BUTTON_LEFT
+			press.button_mask = MOUSE_BUTTON_MASK_LEFT
+			press.pressed = true
+			game_root.get_viewport().push_input(press, true)
+			await process_frame
+			var release := InputEventMouseButton.new()
+			release.position = click_point
+			release.global_position = click_point
+			release.button_index = MOUSE_BUTTON_LEFT
+			release.pressed = false
+			game_root.get_viewport().push_input(release, true)
+			await process_frame
+			_assert_true(game_root._social_detail_open, "clicking a poster in the rendered feed should open its detail page")
+			_assert_true(_find_node_by_name(game_root, "SocialPostDetailPage") != null, "poster click should render the social detail page")
 
 	game_root.queue_free()
 	await process_frame
