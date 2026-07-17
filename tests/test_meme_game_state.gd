@@ -132,7 +132,6 @@ func test_world_items_are_free_one_shot_publish_modifiers() -> void:
 	var boosted: Dictionary = game.get_publish_breakdown(meme)
 	_assert_eq(int(boosted.get("world_item_base_bonus", 0)), 8, "street chip should add eight publish base")
 	_assert_eq(int(boosted.get("world_item_multiplier_bonus", 0)), 1, "echo lens should add one point to the shared integer multiplier")
-	_assert_eq(int(boosted.get("world_item_multiplier", 1)), 2, "legacy world-item multiplier output should remain an integer")
 	_assert_true(int(boosted.get("score", 0)) > int(plain.get("score", 0)), "world items should materially improve the propagation preview")
 	_assert_eq((boosted.get("active_world_item_labels", []) as Array).size(), 2, "publish preview should name both armed world items")
 
@@ -847,8 +846,10 @@ func test_publish_breakdown_uses_base_times_multiplier_and_repeat_decay() -> voi
 	_assert_true(int(first.get("base_value", 0)) > 0, "publish breakdown should expose an additive base value")
 	_assert_true(int(first.get("total_multiplier", 0)) > 1, "matching tags and pollution should create a visible integer multiplier")
 	_assert_eq(int(first.get("score", 0)), int(first.get("base_value", 0)) * int(first.get("total_multiplier", 0)), "publish score should read as base value times one integer multiplier")
-	for key in ["synergy_multiplier", "pollution_multiplier", "repeat_multiplier", "contract_multiplier", "world_item_multiplier", "total_multiplier"]:
+	for key in ["trend_multiplier_bonus", "pollution_multiplier_bonus", "contract_multiplier_bonus", "fusion_multiplier_bonus", "world_item_multiplier_bonus", "repeat_penalty", "total_multiplier"]:
 		_assert_eq(float(first.get(key, 0)), float(int(first.get(key, 0))), "all exposed multiplier values should be whole numbers: %s" % key)
+	for redundant_key in ["synergy_multiplier", "pollution_multiplier", "repeat_multiplier", "contract_multiplier", "world_item_multiplier", "modifier_base_bonus"]:
+		_assert_true(not first.has(redundant_key), "publish breakdown should not expose redundant mirror value: %s" % redundant_key)
 	game.published_memes = [{"text": meme["text"], "score": first["score"], "floor": 1}]
 	var repeated: Dictionary = game.get_publish_breakdown(meme)
 	_assert_true(int(repeated.get("repeat_penalty", 0)) > 0, "reusing the same meme should subtract from the shared integer multiplier")

@@ -197,7 +197,7 @@ func rebuild(floor_number: int, palette: Dictionary, actor_textures: Dictionary,
 
 	_build_environment(palette)
 	_build_architecture(palette)
-	_build_actors(palette, actor_textures)
+	_build_actors(actor_textures)
 	configure_authored_events(day_number, palette)
 	set_meta("useful_item_count", useful_item_count)
 
@@ -2081,7 +2081,7 @@ func _build_useful_item(parent: Node3D, room_index: int, position: Vector3, pale
 	item.add_child(collision)
 
 
-func _build_actors(palette: Dictionary, actor_textures: Dictionary) -> void:
+func _build_actors(actor_textures: Dictionary) -> void:
 	var actors := Node3D.new()
 	actors.name = "Actors"
 	add_child(actors)
@@ -2094,7 +2094,7 @@ func _build_actors(palette: Dictionary, actor_textures: Dictionary) -> void:
 	var fallback_texture := merchant_texture
 	if not npc_textures.is_empty() and npc_textures[0] is Texture2D:
 		fallback_texture = npc_textures[0]
-	var merchant := _make_actor("Merchant", "merchant", "信号商人", merchant_position, merchant_texture if merchant_texture != null else fallback_texture, palette, 0)
+	var merchant := _make_actor("Merchant", "merchant", "信号商人", merchant_position, merchant_texture if merchant_texture != null else fallback_texture, 0)
 	actors.add_child(merchant)
 	_actors.append(merchant)
 
@@ -2118,12 +2118,12 @@ func _build_actors(palette: Dictionary, actor_textures: Dictionary) -> void:
 		var npc_texture: Texture2D = fallback_texture
 		if not npc_textures.is_empty() and npc_textures[index % npc_textures.size()] is Texture2D:
 			npc_texture = npc_textures[index % npc_textures.size()]
-		var actor := _make_actor("NPC%d" % index, "npc", labels[index % labels.size()], actor_position, npc_texture, palette, index % 3)
+		var actor := _make_actor("NPC%d" % index, "npc", labels[index % labels.size()], actor_position, npc_texture, index % 3)
 		actors.add_child(actor)
 		_actors.append(actor)
 
 
-func _make_actor(node_name: String, actor_type: String, display_name: String, position: Vector3, npc_texture: Texture2D, palette: Dictionary, tint_index: int) -> Area3D:
+func _make_actor(node_name: String, actor_type: String, display_name: String, position: Vector3, npc_texture: Texture2D, tint_index: int) -> Area3D:
 	var actor := Area3D.new()
 	actor.name = node_name
 	actor.position = position

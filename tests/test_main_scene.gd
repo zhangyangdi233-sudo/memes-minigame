@@ -19,6 +19,9 @@ func _run_async() -> void:
 
 
 func _run() -> void:
+	var main_source := FileAccess.get_file_as_string("res://scripts/babel_meme_game.gd")
+	for dead_declaration in ["var _stats_label:", "var _actions_label:", "var _hud_day_value:", "var _hud_heat_value:", "var _hud_pollution_value:", "var _hud_clarity_value:", "var _hud_floor_value:", "var _hud_money_value:"]:
+		_assert_true(not main_source.contains(dead_declaration), "removed legacy HUD binding should stay absent: %s" % dead_declaration)
 	var scene := load("res://scenes/babel_meme_game.tscn") as PackedScene
 	_assert_true(scene != null, "main scene should exist")
 	if scene == null:

@@ -332,16 +332,8 @@ var _phone_down_backdrop_image: TextureRect
 var _hand_phone_image: TextureRect
 var _cinematic_top_bar: ColorRect
 var _cinematic_bottom_bar: ColorRect
-var _stats_label: Label
-var _actions_label: Label
 var _hud_panel: PanelContainer
 var _hud_settings_icon: Button
-var _hud_day_value: Label
-var _hud_heat_value: Label
-var _hud_pollution_value: Label
-var _hud_clarity_value: Label
-var _hud_floor_value: Label
-var _hud_money_value: Label
 var _hud_actions_label: Label
 var _hud_tooltip: PanelContainer
 var _hud_tooltip_label: Label
@@ -2075,13 +2067,6 @@ func _build_apple_hud() -> void:
 	box.add_theme_constant_override("separation", 14)
 	center.add_child(box)
 
-	_hud_day_value = null
-	_hud_heat_value = null
-	_hud_pollution_value = null
-	_hud_clarity_value = null
-	_hud_floor_value = null
-	_hud_money_value = null
-
 	_add_hud_icon(box, "HUDDayIcon", "day", HUD_DAY_ICON_PATH)
 	_add_hud_icon(box, "HUDPollutionIcon", "pollution", HUD_POLLUTION_ICON_PATH)
 	_add_hud_icon(box, "HUDMoneyIcon", "money", HUD_MONEY_ICON_PATH)
@@ -2105,7 +2090,6 @@ func _build_apple_hud() -> void:
 	_hud_actions_label.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
 	_hud_actions_label.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
 	box.add_child(_hud_actions_label)
-	_actions_label = _hud_actions_label
 
 	var settings_spacer := Control.new()
 	settings_spacer.custom_minimum_size.y = 10
@@ -2765,22 +2749,8 @@ func _render() -> void:
 
 
 func _render_status() -> void:
-	if _hud_day_value != null:
-		_hud_day_value.text = str(game.day)
-	if _hud_heat_value != null:
-		_hud_heat_value.text = str(game.heat)
-	if _hud_pollution_value != null:
-		_hud_pollution_value.text = "%d%%" % game.pollution
-	if _hud_clarity_value != null:
-		_hud_clarity_value.text = "%d%%" % game.clarity
-	if _hud_floor_value != null:
-		_hud_floor_value.text = "%d/%d" % [game.tower_floor, MemeGameStateScript.MAX_TOWER_FLOOR]
-	if _hud_money_value != null:
-		_hud_money_value.text = str(game.money)
 	if _hud_actions_label != null:
 		_hud_actions_label.text = _action_text(game.actions_remaining)
-	if _actions_label != null and _actions_label != _hud_actions_label:
-		_actions_label.text = _action_text(game.actions_remaining)
 	if _desk_log != null:
 		_desk_log.text = log_text
 
