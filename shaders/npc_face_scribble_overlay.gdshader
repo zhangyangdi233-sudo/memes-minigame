@@ -4,8 +4,8 @@ render_mode unshaded, blend_mix, cull_disabled, depth_draw_never;
 uniform sampler2D character_texture : source_color, filter_linear_mipmap;
 uniform sampler2D scribble_atlas : source_color, filter_linear_mipmap;
 uniform vec4 ink_color : source_color = vec4(0.008, 0.008, 0.008, 1.0);
-uniform vec2 face_center = vec2(0.5, 0.19);
-uniform vec2 face_size = vec2(0.27, 0.15);
+uniform vec2 face_center = vec2(0.5, 0.18);
+uniform vec2 face_size = vec2(0.16, 0.09);
 uniform float brush_width_px : hint_range(40.0, 60.0, 1.0) = 56.0;
 uniform float ink_opacity : hint_range(0.0, 1.0) = 1.0;
 uniform float frame_rate : hint_range(1.0, 12.0, 1.0) = 6.0;
@@ -77,16 +77,21 @@ void fragment() {
 	float face_height_px = max(face_size.y * 2.0 * source_size.y, 1.0);
 	float marker_half_width = (brush_width_px * 0.5) / face_height_px;
 	float forced_ink = 0.0;
-	for (int line_index = 0; line_index < 9; line_index++) {
-		float row = 0.10 + float(line_index) * 0.10;
-		float angle = mix(-0.19, 0.19, hash21(vec2(float(line_index) + seed, 6.0)));
-		forced_ink = max(forced_ink, marker_line(local_face_uv, row, angle, float(line_index) + 41.0, animation_frame, marker_half_width));
-	}
-	forced_ink = max(forced_ink, marker_line(local_face_uv, 0.31, 0.53, 71.0, animation_frame, marker_half_width));
-	forced_ink = max(forced_ink, marker_line(local_face_uv, 0.50, -0.48, 72.0, animation_frame, marker_half_width));
-	forced_ink = max(forced_ink, marker_line(local_face_uv, 0.69, 0.44, 73.0, animation_frame, marker_half_width));
+	// Each pass remains a recognizable 40-60 px marker stroke. The two almost
+	// horizontal center passes cross both eyes in every redraw frame; the
+	// surrounding passes break the silhouette without filling a rectangular
+	// face-sized block.
+	forced_ink = max(forced_ink, marker_line(local_face_uv, 0.26, 0.14, 41.0, animation_frame, marker_half_width * 0.82));
+	forced_ink = max(forced_ink, marker_line(local_face_uv, 0.40, -0.035, 42.0, animation_frame, marker_half_width * 1.04));
+	forced_ink = max(forced_ink, marker_line(local_face_uv, 0.53, 0.040, 43.0, animation_frame, marker_half_width * 1.04));
+	forced_ink = max(forced_ink, marker_line(local_face_uv, 0.67, -0.13, 44.0, animation_frame, marker_half_width * 0.88));
+	forced_ink = max(forced_ink, marker_line(local_face_uv, 0.47, 0.50, 71.0, animation_frame, marker_half_width * 0.72));
+	forced_ink = max(forced_ink, marker_line(local_face_uv, 0.58, -0.46, 72.0, animation_frame, marker_half_width * 0.72));
 
-	float opaque_ink = step(0.06, max(hand_drawn_ink, forced_ink));
+	// The atlas contributes irregular marker grain only where a procedural
+	// stroke already exists. It can no longer merge the whole face into a blob.
+	float marker_grain = mix(0.88, 1.0, hand_drawn_ink);
+	float opaque_ink = step(0.06, forced_ink * marker_grain);
 	opaque_ink *= inside_face * step(0.08, character_alpha) * ink_opacity;
 	ALBEDO = ink_color.rgb;
 	EMISSION = vec3(0.0);

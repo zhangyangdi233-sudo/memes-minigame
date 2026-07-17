@@ -369,6 +369,7 @@ const SAVE_FIELD_NAMES := [
 	"notebook_tokens", "draft_slots", "completed_memes", "owned_meme_frames", "daily_meme_frame_bought",
 	"fusion_slots", "fused_meme_pairs", "dialogue_blanks", "published_memes", "last_publish_breakdown",
 	"event_log", "social_followed_handles", "social_liked_post_ids", "collected_world_item_ids",
+	"cover_watcher_seen_floors",
 	"pending_world_item_effects", "permanent_modifiers", "owned_tarot_ids", "pending_ascent_reward_choices",
 	"pending_ascent_reward_floor", "queued_ascent_reward_floors", "rewarded_ascent_floors",
 	"reality_sentence_slots", "legacy_rules", "last_clean_sentence", "last_polluted_sentence",
@@ -416,6 +417,7 @@ var social_followed_handles: Array[String] = []
 var social_liked_post_ids: Array[String] = []
 
 var collected_world_item_ids: Array[String] = []
+var cover_watcher_seen_floors: Array[int] = []
 var pending_world_item_effects: Dictionary = {}
 
 var permanent_modifiers: Array = []
@@ -507,6 +509,7 @@ func new_run() -> void:
 	social_followed_handles = []
 	social_liked_post_ids = []
 	collected_world_item_ids = []
+	cover_watcher_seen_floors = []
 	pending_world_item_effects = {}
 	permanent_modifiers = []
 	owned_tarot_ids = []
@@ -563,6 +566,12 @@ func load_save_data(save_data: Dictionary) -> bool:
 	actions_remaining = clampi(actions_remaining, 0, max_actions_per_day)
 	pollution = clampi(pollution, 0, 100)
 	clarity = clampi(clarity, 0, 100)
+	var normalized_watcher_floors: Array[int] = []
+	for floor_value in cover_watcher_seen_floors:
+		var floor_number := clampi(int(floor_value), 1, MAX_TOWER_FLOOR)
+		if floor_number not in normalized_watcher_floors:
+			normalized_watcher_floors.append(floor_number)
+	cover_watcher_seen_floors = normalized_watcher_floors
 	npc_meme_frame_reward_pity = clampi(npc_meme_frame_reward_pity, 0, NPC_MEME_FRAME_REWARD_PITY_LIMIT - 1)
 	if view_state != "phone_down" and view_state != "npc_up":
 		view_state = "phone_down"
@@ -596,6 +605,18 @@ func set_view_state(value: String) -> bool:
 
 func is_world_item_collected(item_id: String) -> bool:
 	return item_id in collected_world_item_ids
+
+
+func has_seen_cover_watcher(floor_number: int) -> bool:
+	return clampi(floor_number, 1, MAX_TOWER_FLOOR) in cover_watcher_seen_floors
+
+
+func mark_cover_watcher_seen(floor_number: int) -> bool:
+	var safe_floor := clampi(floor_number, 1, MAX_TOWER_FLOOR)
+	if safe_floor in cover_watcher_seen_floors:
+		return false
+	cover_watcher_seen_floors.append(safe_floor)
+	return true
 
 
 func collect_world_item(item_data: Dictionary) -> bool:

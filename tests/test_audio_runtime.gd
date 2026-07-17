@@ -36,6 +36,7 @@ func _run() -> void:
 	var pollution_music := game_root.get_node_or_null("PollutionMusicLayer") as AudioStreamPlayer
 	var flashback := game_root.get_node_or_null("PollutionFlashbackAudio") as AudioStreamPlayer
 	var action_tick := game_root.get_node_or_null("ActionTickAudio") as AudioStreamPlayer
+	var cover_watcher_stinger := game_root.get_node_or_null("CoverWatcherStinger") as AudioStreamPlayer
 	_assert_true(phone != null and phone.playing, "phone ambience should start when gameplay enters the tree")
 	_assert_true(reality != null and reality.playing, "reality ambience should stay running underneath the mix")
 	_assert_true(pollution_music != null and pollution_music.playing, "phase-aligned pollution music should run silently until needed")
@@ -46,6 +47,13 @@ func _run() -> void:
 	if pollution_music != null:
 		_assert_true(str(pollution_music.get_meta("generated_audio_path", "")).contains("babel_pollution_rot"), "pollution should use its own original synchronized stem")
 		_assert_near(pollution_music.volume_db, -60.0, 0.1, "low pollution should keep the corruption stem inaudible")
+	_assert_true(cover_watcher_stinger != null, "the recurring cover watcher should own a dedicated one-shot player")
+	if cover_watcher_stinger != null:
+		var watcher_stream := cover_watcher_stinger.stream as AudioStreamWAV
+		_assert_true(watcher_stream != null, "the watcher stinger should load as a generated WAV")
+		if watcher_stream != null:
+			_assert_true(watcher_stream.get_length() >= 2.0 and watcher_stream.get_length() <= 3.0, "the watcher stinger should end naturally within two to three seconds")
+		_assert_true(not bool(cover_watcher_stinger.get_meta("looped", true)), "the watcher stinger must never loop")
 	if phone != null and reality != null and pollution_music != null:
 		var phone_stream := phone.stream as AudioStreamWAV
 		var reality_stream := reality.stream as AudioStreamWAV
@@ -114,6 +122,11 @@ func _run() -> void:
 	await process_frame
 	_assert_true(action_tick != null and action_tick.playing, "spending an action should play the short tick")
 	game_root._finish_action_spend_animation()
+	game_root._on_cover_watcher_appeared(1)
+	await process_frame
+	_assert_true(cover_watcher_stinger != null and cover_watcher_stinger.playing, "revealing the watcher should play its short horror cue")
+	if cover_watcher_stinger != null:
+		cover_watcher_stinger.stop()
 	game_root.queue_free()
 	await process_frame
 

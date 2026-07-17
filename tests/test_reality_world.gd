@@ -536,6 +536,10 @@ func _assert_actor_face_veil(actor: Area3D, billboard: Sprite3D, actor_label: St
 	_assert_true(billboard != null, "%s should expose its untouched character billboard" % actor_label)
 	if billboard == null:
 		return
+	_assert_eq(billboard.billboard, BaseMaterial3D.BILLBOARD_ENABLED, "%s character layer should always face the active camera" % actor_label)
+	_assert_true(not billboard.shaded, "%s character colors should remain unlit and floor-independent" % actor_label)
+	_assert_eq(billboard.texture_filter, BaseMaterial3D.TEXTURE_FILTER_NEAREST, "%s character layer should avoid colored mipmap bleed at long distance" % actor_label)
+	_assert_eq(billboard.cast_shadow, GeometryInstance3D.SHADOW_CASTING_SETTING_OFF, "%s character layer should not inherit floor lighting through shadows" % actor_label)
 	_assert_true(billboard.material_override == null, "%s original character image should not receive a darkening or face-effect material" % actor_label)
 	_assert_eq(billboard.modulate, Color.WHITE, "%s original character colors should remain unchanged" % actor_label)
 	var overlay := actor.get_node_or_null("FaceScribbleOverlay") as Sprite3D
@@ -546,6 +550,10 @@ func _assert_actor_face_veil(actor: Area3D, billboard: Sprite3D, actor_label: St
 	_assert_true(overlay.texture == billboard.texture, "%s overlay should share the original canvas only for exact face alignment" % actor_label)
 	_assert_eq(overlay.position, billboard.position, "%s overlay should remain registered over the original portrait" % actor_label)
 	_assert_eq(overlay.scale, billboard.scale, "%s overlay should preserve the original portrait proportions" % actor_label)
+	_assert_eq(overlay.billboard, BaseMaterial3D.BILLBOARD_ENABLED, "%s handwriting layer should always face the same camera as the character" % actor_label)
+	_assert_true(not overlay.shaded, "%s handwriting should remain opaque black under every floor light" % actor_label)
+	_assert_eq(overlay.texture_filter, BaseMaterial3D.TEXTURE_FILTER_NEAREST, "%s handwriting layer should retain a stable silhouette at long distance" % actor_label)
+	_assert_true(overlay.render_priority > billboard.render_priority, "%s handwriting should render after and above the character layer" % actor_label)
 	var material := overlay.material_override as ShaderMaterial
 	_assert_true(material != null and material.shader != null, "%s separate handwriting layer should use an animated shader" % actor_label)
 	_assert_true(bool(actor.get_meta("face_veil", false)), "%s should declare its identity-obscuring veil" % actor_label)
@@ -564,6 +572,10 @@ func _assert_actor_face_veil(actor: Area3D, billboard: Sprite3D, actor_label: St
 		_assert_true(character_texture == billboard.texture, "%s overlay shader should use the portrait only as an alpha alignment mask" % actor_label)
 		var ink_color := material.get_shader_parameter("ink_color") as Color
 		_assert_true(maxf(ink_color.r, maxf(ink_color.g, ink_color.b)) < 0.08, "%s overlay should output near-black ink" % actor_label)
+		var face_center := material.get_shader_parameter("face_center") as Vector2
+		var face_size := material.get_shader_parameter("face_size") as Vector2
+		_assert_true(face_center.y >= 0.15 and face_center.y <= 0.20, "%s handwriting should stay centered on the illustrated face" % actor_label)
+		_assert_true(face_size.x <= 0.18 and face_size.y <= 0.10, "%s handwriting should cover the face without becoming a head-to-chest rectangle" % actor_label)
 
 
 func _vertical_ground_collision(floor_root: Node3D, point: Vector3, player: CharacterBody3D) -> Dictionary:

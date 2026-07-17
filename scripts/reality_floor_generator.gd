@@ -2,9 +2,16 @@ extends Node3D
 
 class_name RealityFloorGenerator
 
+signal cover_watcher_appeared(floor_number: int)
+signal cover_watcher_vanished(floor_number: int)
+
 const NPC_FACE_SCRIBBLE_OVERLAY_SHADER := preload("res://shaders/npc_face_scribble_overlay.gdshader")
 const NPC_FACE_SCRIBBLE_ATLAS := preload("res://assets/generated/effects/face_scribble_atlas.png")
 const DISTANT_MIRAGE_TEXTURE_PATH := "res://assets/generated/world/events/distant_mirage.png"
+const COVER_WATCHER_TEXTURE_PATH := "res://assets/generated/world/events/distant_mirage.png"
+const COVER_WATCHER_APPEAR_DELAY := 0.72
+const COVER_WATCHER_APPROACH_DISTANCE := 6.4
+const COVER_WATCHER_RETREAT_DURATION := 0.72
 
 const BASE_ROOM_COUNT := 4
 const WORLD_LENGTH_SCALE := 5.0
@@ -99,6 +106,9 @@ var _authored_event_nodes: Dictionary = {}
 var _authored_event_states: Dictionary = {}
 var _authored_event_origin := Vector3.ZERO
 var _authored_event_day := 1
+var _cover_watcher_root: Node3D
+var _cover_watcher_sprite: Sprite3D
+var _cover_watcher_state: Dictionary = {}
 
 
 static func room_count_for_floor(floor_number: int) -> int:
@@ -127,7 +137,7 @@ static func authored_event_kinds_for_floor_day(floor_number: int, day_number: in
 	return event_kinds
 
 
-func rebuild(floor_number: int, palette: Dictionary, actor_textures: Dictionary, day_number: int = 1) -> void:
+func rebuild(floor_number: int, palette: Dictionary, actor_textures: Dictionary, day_number: int = 1, cover_watcher_seen: bool = false) -> void:
 	_clear_floor()
 	built_floor = clampi(floor_number, 1, 5)
 	district_style = district_style_for_floor(built_floor)
@@ -193,12 +203,16 @@ func rebuild(floor_number: int, palette: Dictionary, actor_textures: Dictionary,
 	set_meta("authored_event_day", maxi(1, day_number))
 	set_meta("authored_event_trigger_mode", "movement_then_observation_then_look_away")
 	set_meta("authored_event_randomized", false)
+	set_meta("cover_watcher_event_count", 0)
+	set_meta("cover_watcher_trigger_mode", "brief_wait_then_retreat_on_approach")
+	set_meta("cover_watcher_once_per_floor", true)
 	set_meta("lighting_profile", "open_daylight" if built_floor == 1 else "slow_burn_suspense")
 
 	_build_environment(palette)
 	_build_architecture(palette)
 	_build_actors(actor_textures)
 	configure_authored_events(day_number, palette)
+	_build_cover_watcher_event(palette, cover_watcher_seen)
 	set_meta("useful_item_count", useful_item_count)
 
 
@@ -260,7 +274,7 @@ func configure_authored_events(day_number: int, palette: Dictionary) -> void:
 
 
 func update_authored_events(delta: float, player_position: Vector3, camera_forward: Vector3) -> void:
-	if _authored_event_nodes.is_empty():
+	if _authored_event_nodes.is_empty() and _cover_watcher_sprite == null:
 		return
 	var horizontal_travel := Vector2(player_position.x - _authored_event_origin.x, player_position.z - _authored_event_origin.z).length()
 	var safe_forward := camera_forward.normalized() if camera_forward.length_squared() > 0.0001 else Vector3(0.0, 0.0, -1.0)
@@ -272,10 +286,118 @@ func update_authored_events(delta: float, player_position: Vector3, camera_forwa
 				_update_dead_sign_event(horizontal_travel, player_position, safe_forward)
 			"distant_mirage":
 				_update_distant_mirage_event(delta, horizontal_travel, player_position)
+	_update_cover_watcher_event(delta, horizontal_travel, player_position)
 
 
 func get_authored_event_state(event_kind: String) -> Dictionary:
 	return (_authored_event_states.get(event_kind, {}) as Dictionary).duplicate(true)
+
+
+func get_cover_watcher_state() -> Dictionary:
+	return _cover_watcher_state.duplicate(true)
+
+
+func _cover_watcher_position() -> Vector3:
+	var origin := start_position()
+	var lateral_sign := -1.0 if built_floor in [2, 4] else 1.0
+	var target := origin + Vector3(lateral_sign * (4.1 + float(built_floor % 2) * 0.7), 0.08, -15.0 - float(built_floor % 3))
+	if built_floor == 2:
+		return _clamp_to_floor_two_disc(target, 4.5)
+	return clamp_to_playable_position(target, 4.0)
+
+
+func _build_cover_watcher_event(palette: Dictionary, already_seen: bool) -> void:
+	_cover_watcher_root = null
+	_cover_watcher_sprite = null
+	_cover_watcher_state = {
+		"enabled": not already_seen,
+		"triggered": false,
+		"retreating": false,
+		"vanished": already_seen,
+		"elapsed": 0.0,
+		"retreat_elapsed": 0.0,
+	}
+	if already_seen:
+		return
+	var event_root := Node3D.new()
+	event_root.name = "CoverWatcherEvent"
+	event_root.position = _cover_watcher_position()
+	event_root.set_meta("cover_watcher_event", true)
+	event_root.set_meta("non_jumpscare", true)
+	event_root.set_meta("half_body_peek", true)
+	event_root.set_meta("retreat_on_approach", true)
+	event_root.set_meta("once_per_floor", true)
+	event_root.set_meta("event_phase", "hidden_behind_cover")
+	add_child(event_root)
+	var cover_role := "brick_dark" if built_floor == 1 else ("white_wall" if built_floor in [2, 3] else "concrete")
+	var cover := _add_box(event_root, "WatcherCover", Vector3(1.72, 3.16, 0.72), Vector3(0.0, 1.50, 0.0), cover_role, palette, true)
+	cover.set_meta("cover_watcher_occluder", true)
+	cover.set_meta("remains_after_watcher", true)
+	var cap := _add_box(event_root, "WatcherCoverCap", Vector3(1.92, 0.16, 0.86), Vector3(0.0, 3.04, 0.0), cover_role, palette, false)
+	cap.set_meta("cover_watcher_occluder", true)
+	var sprite := Sprite3D.new()
+	sprite.name = "CoverWatcherSprite"
+	sprite.texture = load(COVER_WATCHER_TEXTURE_PATH) as Texture2D
+	var peek_sign := -1.0 if event_root.position.x >= _authored_event_origin.x else 1.0
+	var peek_x := peek_sign * 0.82
+	sprite.position = Vector3(peek_x, 1.22, -0.42)
+	sprite.pixel_size = 0.00150
+	sprite.billboard = BaseMaterial3D.BILLBOARD_ENABLED
+	sprite.double_sided = true
+	sprite.shaded = false
+	sprite.transparent = true
+	sprite.texture_filter = BaseMaterial3D.TEXTURE_FILTER_NEAREST
+	sprite.cast_shadow = GeometryInstance3D.SHADOW_CASTING_SETTING_OFF
+	sprite.alpha_cut = SpriteBase3D.ALPHA_CUT_DISCARD
+	sprite.modulate = Color(0.76, 0.86, 0.58, 0.92)
+	sprite.render_priority = 3
+	sprite.visible = false
+	sprite.set_meta("faceless_watcher", true)
+	sprite.set_meta("camera_facing_layer", true)
+	sprite.set_meta("side_peek_fraction", 0.46)
+	sprite.set_meta("base_peek_position", sprite.position)
+	event_root.add_child(sprite)
+	_cover_watcher_root = event_root
+	_cover_watcher_sprite = sprite
+	_cover_watcher_state["peek_x"] = peek_x
+	_cover_watcher_state["hidden_x"] = 0.0
+	_cover_watcher_state["approach_distance"] = COVER_WATCHER_APPROACH_DISTANCE
+	set_meta("cover_watcher_event_count", 1)
+
+
+func _update_cover_watcher_event(delta: float, horizontal_travel: float, player_position: Vector3) -> void:
+	if _cover_watcher_root == null or _cover_watcher_sprite == null or bool(_cover_watcher_state.get("vanished", false)):
+		return
+	var elapsed := float(_cover_watcher_state.get("elapsed", 0.0)) + delta
+	_cover_watcher_state["elapsed"] = elapsed
+	if not bool(_cover_watcher_state.get("triggered", false)):
+		if elapsed < COVER_WATCHER_APPEAR_DELAY and horizontal_travel < 0.85:
+			return
+		_cover_watcher_state["triggered"] = true
+		_cover_watcher_sprite.visible = true
+		_cover_watcher_root.set_meta("event_phase", "watching_from_cover")
+		cover_watcher_appeared.emit(built_floor)
+	var distance := player_position.distance_to(_cover_watcher_root.global_position)
+	if not bool(_cover_watcher_state.get("retreating", false)) and distance <= COVER_WATCHER_APPROACH_DISTANCE:
+		_cover_watcher_state["retreating"] = true
+		_cover_watcher_root.set_meta("event_phase", "retreating_behind_cover")
+	if not bool(_cover_watcher_state.get("retreating", false)):
+		var base_position: Vector3 = _cover_watcher_sprite.get_meta("base_peek_position", _cover_watcher_sprite.position)
+		_cover_watcher_sprite.position = base_position + Vector3(sin(elapsed * 2.7) * 0.012, sin(elapsed * 1.6) * 0.006, 0.0)
+		return
+	var retreat_elapsed := float(_cover_watcher_state.get("retreat_elapsed", 0.0)) + delta
+	_cover_watcher_state["retreat_elapsed"] = retreat_elapsed
+	var retreat_ratio := clampf(retreat_elapsed / COVER_WATCHER_RETREAT_DURATION, 0.0, 1.0)
+	var eased_ratio := 1.0 - pow(1.0 - retreat_ratio, 5.0)
+	_cover_watcher_sprite.position.x = lerpf(float(_cover_watcher_state.get("peek_x", 0.82)), float(_cover_watcher_state.get("hidden_x", 0.0)), eased_ratio)
+	var tint := _cover_watcher_sprite.modulate
+	tint.a = 0.92 * (1.0 - smoothstep(0.76, 1.0, retreat_ratio))
+	_cover_watcher_sprite.modulate = tint
+	if retreat_ratio >= 1.0:
+		_cover_watcher_sprite.visible = false
+		_cover_watcher_state["vanished"] = true
+		_cover_watcher_root.set_meta("event_phase", "gone_behind_cover")
+		cover_watcher_vanished.emit(built_floor)
 
 
 func _authored_event_position(event_kind: String) -> Vector3:
@@ -644,6 +766,9 @@ func _clear_floor() -> void:
 	_authored_event_states.clear()
 	_authored_event_origin = Vector3.ZERO
 	_authored_event_day = 1
+	_cover_watcher_root = null
+	_cover_watcher_sprite = null
+	_cover_watcher_state.clear()
 	for child in get_children():
 		remove_child(child)
 		child.free()
@@ -2154,9 +2279,15 @@ func _make_actor(node_name: String, actor_type: String, display_name: String, po
 	sprite.pixel_size = 0.00134
 	sprite.position.y = 1.03
 	sprite.billboard = BaseMaterial3D.BILLBOARD_ENABLED
+	sprite.shaded = false
+	sprite.texture_filter = BaseMaterial3D.TEXTURE_FILTER_NEAREST
+	sprite.cast_shadow = GeometryInstance3D.SHADOW_CASTING_SETTING_OFF
+	sprite.render_priority = 0
 	sprite.alpha_cut = SpriteBase3D.ALPHA_CUT_DISCARD
 	sprite.double_sided = true
 	sprite.modulate = Color.WHITE
+	sprite.set_meta("camera_facing_layer", true)
+	sprite.set_meta("floor_independent_color", true)
 	if actor_type == "merchant":
 		sprite.scale = Vector3(1.05, 1.05, 1.05)
 	actor.add_child(sprite)
@@ -2168,10 +2299,16 @@ func _make_actor(node_name: String, actor_type: String, display_name: String, po
 	scribble_overlay.position = sprite.position
 	scribble_overlay.scale = sprite.scale
 	scribble_overlay.billboard = BaseMaterial3D.BILLBOARD_ENABLED
+	scribble_overlay.shaded = false
+	scribble_overlay.texture_filter = BaseMaterial3D.TEXTURE_FILTER_NEAREST
+	scribble_overlay.cast_shadow = GeometryInstance3D.SHADOW_CASTING_SETTING_OFF
+	scribble_overlay.render_priority = 8
 	scribble_overlay.alpha_cut = SpriteBase3D.ALPHA_CUT_DISCARD
 	scribble_overlay.double_sided = true
 	scribble_overlay.modulate = Color.WHITE
 	scribble_overlay.set_meta("separate_face_effect", true)
+	scribble_overlay.set_meta("camera_facing_layer", true)
+	scribble_overlay.set_meta("always_above_character_layer", true)
 	var scribble_material := ShaderMaterial.new()
 	scribble_material.shader = NPC_FACE_SCRIBBLE_OVERLAY_SHADER
 	scribble_material.render_priority = 8
@@ -2180,6 +2317,8 @@ func _make_actor(node_name: String, actor_type: String, display_name: String, po
 	scribble_material.set_shader_parameter("ink_color", Color("020202"))
 	scribble_material.set_shader_parameter("ink_opacity", 1.0)
 	scribble_material.set_shader_parameter("brush_width_px", 56.0)
+	scribble_material.set_shader_parameter("face_center", Vector2(0.5, 0.17 if actor_type == "merchant" else 0.18))
+	scribble_material.set_shader_parameter("face_size", Vector2(0.16, 0.085 if actor_type == "merchant" else 0.09))
 	scribble_material.set_shader_parameter("variation", float(1 if actor_type == "merchant" else tint_index % 3))
 	scribble_material.set_shader_parameter("seed", float(built_floor * 17 + tint_index * 7 + (3 if actor_type == "merchant" else 0)))
 	scribble_overlay.material_override = scribble_material

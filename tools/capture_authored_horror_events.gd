@@ -81,6 +81,17 @@ func _capture() -> void:
 	_show_only_event(floor_root, mirage_event)
 	_frame_event(camera, mirage_event, Vector3(4.2, 0.25, 17.0), 1.20)
 	await _save_after_frames("current_horror_distant_mirage.png")
+
+	var watcher_event := _find_node_by_name(floor_root, "CoverWatcherEvent") as Node3D
+	var watcher_sprite := _find_node_by_name(floor_root, "CoverWatcherSprite") as Sprite3D
+	if watcher_event == null or watcher_sprite == null:
+		push_error("Unable to locate cover-watcher event")
+		quit(1)
+		return
+	watcher_sprite.visible = true
+	_show_only_event(floor_root, watcher_event)
+	_frame_event(camera, watcher_event, Vector3(0.0, 0.10, 7.0), 1.45)
+	await _save_after_frames("current_horror_cover_watcher.png")
 	quit(0)
 
 

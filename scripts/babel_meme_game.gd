@@ -57,6 +57,7 @@ const REALITY_AMBIENCE_PATH := "res://assets/generated/audio/babel_reality_limin
 const POLLUTION_AMBIENCE_PATH := "res://assets/generated/audio/babel_pollution_rot.wav"
 const FLASHBACK_AUDIO_PATH := "res://assets/generated/audio/pollution_flashback.wav"
 const ACTION_TICK_AUDIO_PATH := "res://assets/generated/audio/action_tick.wav"
+const COVER_WATCHER_STINGER_PATH := "res://assets/generated/audio/cover_watcher_stinger.wav"
 const SOCIAL_POSTER_COLUMNS := 4
 const SOCIAL_POSTER_ROWS := 3
 const SOCIAL_POSTER_COUNT := SOCIAL_POSTER_COLUMNS * SOCIAL_POSTER_ROWS
@@ -405,6 +406,7 @@ var _reality_ambience: AudioStreamPlayer
 var _pollution_ambience: AudioStreamPlayer
 var _flashback_audio: AudioStreamPlayer
 var _action_tick_audio: AudioStreamPlayer
+var _cover_watcher_stinger: AudioStreamPlayer
 var _audio_tween: Tween
 var _action_spend_overlay: Control
 var _action_spend_blackout: ColorRect
@@ -851,6 +853,8 @@ func _build_world() -> void:
 
 	_reality_floor = RealityFloorGeneratorScript.new()
 	_reality_floor.name = "RealityFloor"
+	_reality_floor.cover_watcher_appeared.connect(_on_cover_watcher_appeared)
+	_reality_floor.cover_watcher_vanished.connect(_on_cover_watcher_vanished)
 	add_child(_reality_floor)
 	_rebuild_reality_floor()
 
@@ -968,7 +972,7 @@ func _rebuild_reality_floor() -> void:
 		"merchant": _load_runtime_texture(MERCHANT_CHARACTER_PATH),
 		"npcs": npc_textures,
 	}
-	_reality_floor.rebuild(game.tower_floor, _active_palette(), actor_textures, game.day)
+	_reality_floor.rebuild(game.tower_floor, _active_palette(), actor_textures, game.day, game.has_seen_cover_watcher(game.tower_floor))
 	_reality_floor.sync_collected_items(game.collected_world_item_ids)
 	_reality_built_floor = game.tower_floor
 	_reality_built_day = game.day
@@ -1188,7 +1192,22 @@ func _build_audio_players() -> void:
 	_pollution_ambience = _make_audio_player("PollutionMusicLayer", POLLUTION_AMBIENCE_PATH, true, -60.0)
 	_flashback_audio = _make_audio_player("PollutionFlashbackAudio", FLASHBACK_AUDIO_PATH, false, -8.0)
 	_action_tick_audio = _make_audio_player("ActionTickAudio", ACTION_TICK_AUDIO_PATH, false, -15.0)
+	_cover_watcher_stinger = _make_audio_player("CoverWatcherStinger", COVER_WATCHER_STINGER_PATH, false, -9.0)
 	_sync_audio_state(true)
+
+
+func _on_cover_watcher_appeared(floor_number: int) -> void:
+	if game != null:
+		game.mark_cover_watcher_seen(floor_number)
+	if _cover_watcher_stinger != null and _cover_watcher_stinger.stream != null and is_inside_tree():
+		_cover_watcher_stinger.stop()
+		_cover_watcher_stinger.play()
+
+
+func _on_cover_watcher_vanished(_floor_number: int) -> void:
+	# The stinger is intentionally allowed to finish after the figure has withdrawn.
+	if game != null:
+		game.event_log.push_front("掩体后的人影缩了回去。它没有留下脸。")
 
 
 func _make_audio_player(node_name: String, path: String, looped: bool, volume_db: float) -> AudioStreamPlayer:
@@ -1253,6 +1272,8 @@ func _sync_audio_state(immediate: bool = false) -> void:
 				player.stop()
 			if _flashback_audio != null:
 				_flashback_audio.stop()
+			if _cover_watcher_stinger != null:
+				_cover_watcher_stinger.stop()
 		return
 	_ensure_phone_music_for_floor(int(game.tower_floor))
 	var in_phone: bool = game.view_state == "phone_down"

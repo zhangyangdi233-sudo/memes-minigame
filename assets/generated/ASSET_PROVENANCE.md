@@ -11,13 +11,13 @@ The game keeps ten composition-defining raster assets as curated OpenAI imagegen
 | `social/poster_sheet.png` | `/Users/zhang/.codex/generated_images/019f3588-2c22-7b91-914e-587404e05fbc/ig_076d677daea12b9f016a4cbcafe3c08191937224629c9b05eb.png` | 1448 x 1086 | `76ae2647761ba61c4923f161f49d9e09f142042d26088b37b267a9db1d059594` | Twelve-cell social urban-legend poster atlas |
 | `ui/arcana_sheet.png` | `/Users/zhang/.codex/generated_images/019f3588-2c22-7b91-914e-587404e05fbc/exec-479815ca-02a7-4a9d-b2c9-382b2dc7f426.png` | 1536 x 1024 | `ca52ccc5d003c7a7786fd8f3157fc134a1f7426cf488ef78fc3eb98ece10e7bc` | Six-cell signal-arcana consumable atlas |
 | `characters/protagonist_operator.png` | `/Users/zhang/.codex/generated_images/019f3588-2c22-7b91-914e-587404e05fbc/exec-4ff17ce4-2fbc-41ea-bf9f-6335ec884086.png` | 1024 x 1536 | `d5c0f85474b7f7f59d7e031d81e751eb7e928fe7f105329372d4951fe7d0a1cd` | Identity-preserving protagonist based on the project owner's drawings |
-| `characters/merchant_frame_vendor.png` | `/Users/zhang/.codex/generated_images/019f3588-2c22-7b91-914e-587404e05fbc/exec-babad000-53d2-4006-9576-6654cd08f271.png` | 1029 x 1528 | `3b6df2b26873108bb700b52e4ed0f7f5e5eaaac5f9c84e5e3981a3545277966c` | Cartoon frame vendor whose two eyes disagree through the inspection lens |
-| `characters/npc_late_arrival.png` | `/Users/zhang/.codex/generated_images/019f3588-2c22-7b91-914e-587404e05fbc/exec-1382dc4a-b761-4d0b-a441-25425982458a.png` | 1024 x 1536 | `2d5e0b3d4dfce39e5e5f255c06e28d5af92aaa665d420c20ac5c21332cb5cb79` | Cartoon late arrival with duplicated watches and a directionally wrong shoelace |
-| `characters/npc_echo_tenant.png` | `/Users/zhang/.codex/generated_images/019f3588-2c22-7b91-914e-587404e05fbc/exec-1710614f-6564-4cfc-ac52-0232c15fe033.png` | 1024 x 1536 | `f8d01e19b89862e61f64c5149b7b96493a6938fbb650cc40dc0d844a28a8abaa` | Cartoon echo tenant with split-focus pupils and visible signal rings |
-| `characters/npc_archive_witness.png` | `/Users/zhang/.codex/generated_images/019f3588-2c22-7b91-914e-587404e05fbc/exec-7d16abdc-e9db-450c-ab94-e07a605b6076.png` | 1024 x 1536 | `9f8442907de0e31d689d75b4653bd3c6005f1bdeac2d1e8738600d1ebfb4a1e5` | Cartoon archive witness surrounded by an almost-correct orbit of blank cards |
+| `characters/merchant_frame_vendor.png` | `/Users/zhang/.codex/generated_images/019f3588-2c22-7b91-914e-587404e05fbc/exec-2850a904-9a37-486f-8dd1-f0bd76d5cb79.png` | 1024 x 1536 | `d2971622e77e4534ceae23896b701bdf8bfde6c407c105953f03efde47637ee8` | Eye-level faceless frame vendor with the three-frame tray and utility apron preserved |
+| `characters/npc_late_arrival.png` | `/Users/zhang/.codex/generated_images/019f3588-2c22-7b91-914e-587404e05fbc/exec-b0dbb47d-5045-4faf-b1ea-dfeb93fafbc1.png` | 1024 x 1536 | `6983f6000cf5ee282f27cab1a8edd56c2894cb1dc9efdcba10ebed85f3a4df3e` | Faceless late arrival with duplicate watches, keyboard board, and loose shoelace |
+| `characters/npc_echo_tenant.png` | `/Users/zhang/.codex/generated_images/019f3588-2c22-7b91-914e-587404e05fbc/exec-3e4649c3-899d-470b-a896-fecf13ce8f78.png` | 1024 x 1536 | `bf173484a3feedae21c3a2ce70f88d7135d995d5d5b70001f8522c74335f4f3f` | Faceless echo tenant with keys, patched cardigan, and listening receiver preserved |
+| `characters/npc_archive_witness.png` | `/Users/zhang/.codex/generated_images/019f3588-2c22-7b91-914e-587404e05fbc/exec-8f919064-807e-4a06-b46e-d411ea945b88.png` | 1024 x 1536 | `df351ab9e5373eb07d9e1fd1db56295d3c3bc9622b048a02bc65cbf60ee019c3` | Faceless archive witness with blank evidence cards and chest recorder preserved |
 | `effects/face_scribble_atlas.png` | `/Users/zhang/.codex/generated_images/019f3588-2c22-7b91-914e-587404e05fbc/exec-f1114544-6ff0-49d0-9e6d-53c39cda981b.png` | 1672 x 941 | `781fafe1c5868ca4807cb12a20f6231a9354f1fbd4a09ec725a1ba575631d36a` | Four-frame 40-60 px black marker atlas rendered by a separate transparent face-overlay sprite; source portraits remain untouched |
 
-The curated images use the established five-color International Style direction: deep green, ink black, warm cream, yellow green, and fluorescent pollution green. The character set keeps flat cartoon proportions, limited moss-green values, halftone texture, pixel-stepped contours, and restrained channel offsets. Horror comes from one readable rule error per character rather than realistic distress or grotesque anatomy; the full direction is documented in `docs/design/denpa_cartoon_horror_direction.md`.
+The curated images use the established five-color International Style direction: deep green, ink black, warm cream, yellow green, and fluorescent pollution green. The character set keeps slightly cartoon proportions, limited moss-green values, halftone texture, rough photocopy contours, and restrained channel offsets. NPC and merchant faces are deliberately featureless at source; a separate animated marker layer can still cross out the blank face without altering the character texture. The full direction is documented in `docs/design/denpa_cartoon_horror_direction.md`.
 
 ## User-supplied visual references
 
@@ -34,6 +34,8 @@ The protagonist identity is based on the project owner's `IMG_3060.PNG`, `未命
 `tools/generate_visual_assets.py` may recreate only the small HUD icons and player portrait. It intentionally does not regenerate curated imagegen art or retired road, hand-phone, NPC, or split social-poster files.
 
 `tools/generate_audio_assets.py` deterministically synthesizes the short utility sounds and the two retired eight-second ambience beds from oscillators and seeded noise.
+
+`tools/generate_cover_watcher_stinger.py` deterministically synthesizes the 2.45-second, mono cover-watcher cue from oscillators and seeded noise. Runtime asset `audio/cover_watcher_stinger.wav` has SHA-256 `2f22e21ecb8c217d3115e0dfed55cbc9314ec7248872dd9dfcc180f572024cc1`; it contains no samples or recorded voice.
 
 `tools/generate_music_stems.py` maintains the active original score, `Babel Liminal Score`, and the five-layer phone-floor music set. Every file is a 96-second, 22.05 kHz, 16-bit stereo WAV. The generated compositions use only mathematical oscillators, integer-cycle periodic noise, FM synthesis, and deterministic envelopes. They contain no samples, recordings, extracted melodies, modelled voices, third-party impulse responses, or commercial game music. Reproducibility metadata, exact frame counts, loop-seam measurements, full-loop pairwise correlations, and SHA-256 hashes are stored in `audio/babel_liminal_score.json`.
 
@@ -54,6 +56,7 @@ Run the non-writing integrity check with:
 ```bash
 python3 tools/generate_visual_assets.py --verify
 python3 tools/generate_audio_assets.py --verify
+python3 tools/generate_cover_watcher_stinger.py --verify
 python3 tools/generate_music_stems.py --verify
 ```
 
