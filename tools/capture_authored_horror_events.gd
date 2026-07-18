@@ -92,6 +92,9 @@ func _capture() -> void:
 	_show_only_event(floor_root, watcher_event)
 	_frame_event(camera, watcher_event, Vector3(0.0, 0.10, 7.0), 1.45)
 	await _save_after_frames("current_horror_cover_watcher.png")
+	main.queue_free()
+	await process_frame
+	await process_frame
 	quit(0)
 
 

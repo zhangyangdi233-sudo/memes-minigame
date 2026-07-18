@@ -18,8 +18,8 @@ The local `Milk outside a bag of milk outside a bag of milk` installation was in
 
 These are design inferences from the user-provided images, not claims about their original productions:
 
-- A small, cute silhouette can remain sympathetic while empty eye treatment and low-fidelity surroundings create uncertainty.
-- A mostly monochrome composition becomes tense when one signal color is reserved for eyes, choices, or a contradiction.
+- A small, cute silhouette can remain sympathetic while a completely featureless face and low-fidelity surroundings create uncertainty.
+- A mostly monochrome composition becomes tense when one signal color is reserved for choices, props, or a spatial contradiction.
 - Extreme perspective and a large abstract symbol can express a character's subjective fear without redesigning the character as realistic or grotesque.
 - Repeated interface choices and duplicated visual elements communicate obsession more effectively than adding detail everywhere.
 
@@ -30,6 +30,7 @@ These are design inferences from the user-provided images, not claims about thei
 - Keep linework graphic and slightly pixel-stepped. Avoid realistic skin rendering, painterly pores, mature fashion illustration, and dense cross-hatching.
 - Give each character exactly one persistent contradiction and one optional animated contradiction.
 - Preserve neutral or gentle poses. No lunging, screaming, gore, weapons, or monster anatomy.
+- Draw NPC and merchant source portraits with no eyes, nose, or mouth. Keep them front-facing and let props carry identity; do not restore facial details through lighting, channel offsets, or later floor variants.
 - Let the in-engine face veil, channel offset, and pollution system provide motion. The original character cutout is never recolored, darkened, sampled through a distortion material, or baked together with the veil. A second `FaceScribbleOverlay` sprite sits over it and outputs only transparent pixels or fully opaque 40-60 px black marker strokes. Two adjacent hand-drawn atlas frames, nine overlapping curved strokes, and three diagonal redraws erase the facial identity; quantized path jitter visibly redraws the ink without producing a rectangular mask.
 - The VHS post-process must preserve near-black ink after chromatic sampling so displaced color channels cannot reconstruct eyes or other facial edges through the scribble.
 
@@ -37,9 +38,9 @@ These are design inferences from the user-provided images, not claims about thei
 
 | Character | Persistent contradiction | Optional runtime contradiction |
 | --- | --- | --- |
-| Frame vendor | The square inspection lens shows a second eye that looks in a different direction | One empty frame briefly contains the player's current dialogue glyph |
+| Frame vendor | Three empty frames are presented as if one has already been chosen | One empty frame briefly contains the player's current dialogue glyph |
 | Archive witness | Blank cards repeat around the body in an almost regular orbit | One card changes position only while the camera looks away |
-| Echo tenant | The two pupils never focus on the same distance | Key tags sway while the hand and coat remain still |
+| Echo tenant | The listening receiver points back toward its owner | Key tags sway while the hand and coat remain still |
 | Late arrival | Both wristwatches show the same impossible minute | The loose shoelace points toward the nearest legacy phrase |
 
 ## Writing Rules

@@ -68,6 +68,9 @@ func _capture() -> void:
 		quit(1)
 		return
 	print("saved motion screenshot: %s" % MOTION_OUTPUT_PATH)
+	main.queue_free()
+	await process_frame
+	await process_frame
 	quit(0)
 
 

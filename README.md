@@ -31,11 +31,13 @@ The meme bank is a right-edge radial selector that appears contextually on the s
 - `F`: talk to the nearby NPC or merchant.
 - `Tab`: raise or lower the phone.
 
-The first floor starts with four open street lots along a continuous street at least 230 meters long, five times the original map length. Its central crossing extends 43.2 meters in both horizontal directions, with repeated light bays, false doors, continuous visible walls, and a cross-shaped twelve-segment collision perimeter. Ordinary NPC population falls by floor from four to zero while one merchant remains. Floor two uses nearly continuous terraced housing with a narrow sequence of warm light pools; floor three becomes a 341-meter connected green-gray gallery with a continuous roof, walls, and long column rhythm. Later floors keep a tested central path, perimeter collision, fall recovery, cold fog, and no jump-scare trigger volumes.
+The first floor starts with four open street lots along a continuous street at least 230 meters long, five times the original map length. Its central crossing extends 43.2 meters in both horizontal directions, with repeated light bays, false doors, continuous visible walls, and a cross-shaped twelve-segment collision perimeter. Ordinary NPC population falls by floor from four to zero while one merchant remains. Floor two is a near-black, uneven irregular disc with six houses scattered across both axes; floor three becomes a naturally skylit 341-meter green-gray gallery whose complete ground is covered by one batched meadow. Later floors keep tested collision, fall recovery, fixed-focus distance blur, cold fog, and no jump-scare trigger volumes.
+
+NPCs and the merchant use front-facing faceless source portraits at the player's eye line. A separate animated 56 px black-marker layer redraws over the blank face while preserving the original portrait, color, and billboard transform. Once on every floor, a faceless image watcher briefly appears beside physical cover, plays a 2.45-second non-looping cue, retreats behind the cover when approached, and remains gone on that floor after saving.
 
 ## Adaptive Score
 
-The original 96-second `Babel Liminal Score` runs as three synchronized loop stems. A five-note `E-G-B-F#-A` motif gives the score a recognizable melodic identity: reality states it slowly in glass-like tones, the phone folds it into a compressed FM register, and pollution reverses and displaces its contour. The pollution stem is inaudible below 40%, rises through the middle tiers, and approaches the foreground at 100%. All source audio is deterministic local synthesis with no external samples or transcribed melody.
+The preserved 96-second reality loop is paired with a distinct 96-second phone loop for each tower floor. Floor one restores its pinned historical mix, floor two preserves the later signal mix byte-for-byte, and floors three through five introduce separate original horror arrangements. A five-note `E-G-B-F#-A` motif gives the score a recognizable identity while each floor changes its sound palette and structure. All source audio is deterministic local synthesis with no external samples or transcribed melody.
 
 Regenerate or verify the committed score with NumPy available:
 
@@ -88,6 +90,8 @@ Run the localization audit with `res://tests/test_localization.gd`. It verifies 
 Run `res://tests/test_oldweb_archive.gd` for the optional archive puzzle and `res://tests/test_reality_world.gd` for continuous architecture, descending NPC population, suspense lighting, walkable clearance, and zero jump-scare trigger volumes.
 
 Reality floors two through five also use a deterministic, floor/day-authored horror table. Movement and camera observation drive a finite light failure, a one-letter EXIT-sign absence, and a transparent distant mirage scheduled only on days four and nine. `res://tests/test_authored_horror_events.gd` verifies the state sequences and confirms that no event is an `Area3D` jump-scare trigger.
+
+The full requirement-to-evidence audit, including all 18 automated tests and rendered capture paths, is recorded in `docs/goal_completion_matrix.md`.
 
 ## Third-party Addon
 

@@ -536,6 +536,14 @@ func _assert_actor_face_veil(actor: Area3D, billboard: Sprite3D, actor_label: St
 	_assert_true(billboard != null, "%s should expose its untouched character billboard" % actor_label)
 	if billboard == null:
 		return
+	_assert_eq(str(actor.get_meta("portrait_pose", "")), "front_eye_level", "%s should use the front-facing eye-level portrait composition" % actor_label)
+	_assert_true(bool(billboard.get_meta("front_eye_level", false)), "%s billboard should declare its eye-level staging" % actor_label)
+	var portrait_world_height := float(actor.get_meta("portrait_world_height", 0.0))
+	var camera_eye_height := float(actor.get_meta("camera_eye_height", 0.0))
+	var face_center_world_y := float(actor.get_meta("face_center_world_y", 99.0))
+	_assert_near(portrait_world_height, 1.90, 0.01, "%s should share one compact cartoon portrait height" % actor_label)
+	_assert_near(billboard.position.y - portrait_world_height * 0.5, 0.0, 0.01, "%s portrait should meet the ground instead of floating" % actor_label)
+	_assert_near(face_center_world_y, camera_eye_height, 0.08, "%s blank face should remain level with the first-person camera" % actor_label)
 	_assert_eq(billboard.billboard, BaseMaterial3D.BILLBOARD_ENABLED, "%s character layer should always face the active camera" % actor_label)
 	_assert_true(not billboard.shaded, "%s character colors should remain unlit and floor-independent" % actor_label)
 	_assert_eq(billboard.texture_filter, BaseMaterial3D.TEXTURE_FILTER_NEAREST, "%s character layer should avoid colored mipmap bleed at long distance" % actor_label)

@@ -54,6 +54,9 @@ func _capture() -> void:
 		quit(1)
 		return
 	print("saved screenshot: %s" % output_path)
+	main.queue_free()
+	await process_frame
+	await process_frame
 	quit(0)
 
 

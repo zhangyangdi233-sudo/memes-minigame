@@ -22,16 +22,16 @@ Use `res://assets/generated/characters/protagonist_operator.png` as the master r
 - Restricted olive green, pale cream, and near-black palette. Pollution may shift values but must not introduce a rainbow cast.
 - Clean flat fills with restrained paper grain and minimal soft shading.
 - Dark green line art plus a slightly offset cream/white contour that reads like an imperfect print registration.
-- Neutral or gently readable expressions. Unease comes from one impossible visual rule, not an aged face, generic anguish, or exaggerated posing.
+- NPCs and the merchant have a featureless cream face at source. Their role must remain readable through silhouette, posture, clothing, and props rather than eyes or expressions.
 - Clothing is built from one memorable silhouette and two or three functional props. Avoid ornamental detail that disappears at gameplay scale.
 - Transparent background with generous clear padding around hair, hands, props, and shoes.
 
 ### Cast Roles
 
 - **Operator / protagonist:** long wavy hair, beret, cape-like top, long skirt, phone and notebook. The tired neutral expression is the visual baseline.
-- **Frame vendor / merchant:** compact signal clerk with a rounded face, utility jacket, shoulder strap, and frame samples. The square inspection lens shows an eye looking in a different direction. Calm and practical, never mystical exposition in disguise.
+- **Frame vendor / merchant:** compact signal clerk with a utility jacket, shoulder strap, frame samples, and a completely blank face. Calm and practical, never mystical exposition in disguise.
 - **Late arrival:** small commuter with loose hair, oversized coat, paper ticket, and two watches showing the same impossible minute. Speaks in brief corrections and unfinished time references.
-- **Echo tenant:** soft, rounded resident with a cardigan, old key, and listening horn. The pupils never focus at the same distance. Uses concrete domestic nouns and repeats one changed word when uncertain.
+- **Echo tenant:** soft, rounded resident with a cardigan, old keys, listening receiver, and a completely blank face. Uses concrete domestic nouns and repeats one changed word when uncertain.
 - **Archive witness:** neat archive clerk with a long coat, document folder, and blank cards orbiting in an almost regular pattern. Speaks in measured clauses and avoids declaring what a record means.
 
 New NPCs must differ in body shape, hair silhouette, clothing function, carried object, contradiction, and conversational rhythm while retaining the rendering grammar above. Apparent age may vary, but realistic aging must never be the source of horror.
@@ -52,6 +52,7 @@ New NPCs must differ in body shape, hair silhouette, clothing function, carried 
 - Attach UI to the dramatic composition: NPC speech remains beside the NPC, the protagonist's thought tiles occupy the lower picture, and the phone belongs to the hand-held viewpoint.
 - Give each disturbance one meaning. For example, duplicate outlines indicate inherited language, missing glyphs indicate failed retrieval, and horizontal tearing indicates a pollution threshold crossing.
 - Keep face obstruction as a separate animated handwriting layer. The source character image must remain visually intact underneath; only opaque black stroke pixels may cover it, with no rectangular darkening, multiply blend, or destructive texture edit.
+- Stage every NPC and merchant as a front-facing camera billboard at the same 1.56 m eye line as the player. The character and handwriting layers share one transform so turning the camera can never separate them.
 - Sound should punctuate actions and absences rather than fill every second.
 
 ## Originality Checklist

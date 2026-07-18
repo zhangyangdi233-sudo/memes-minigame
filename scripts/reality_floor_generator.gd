@@ -12,6 +12,10 @@ const COVER_WATCHER_TEXTURE_PATH := "res://assets/generated/world/events/distant
 const COVER_WATCHER_APPEAR_DELAY := 0.72
 const COVER_WATCHER_APPROACH_DISTANCE := 6.4
 const COVER_WATCHER_RETREAT_DURATION := 0.72
+const COVER_WATCHER_SOURCE_CROP := Rect2(300.0, 150.0, 424.0, 1220.0)
+const COVER_WATCHER_PIXEL_SIZE := 0.00155
+const ACTOR_PORTRAIT_WORLD_HEIGHT := 1.90
+const ACTOR_CAMERA_EYE_HEIGHT := 1.56
 
 const BASE_ROOM_COUNT := 4
 const WORLD_LENGTH_SCALE := 5.0
@@ -337,11 +341,15 @@ func _build_cover_watcher_event(palette: Dictionary, already_seen: bool) -> void
 	cap.set_meta("cover_watcher_occluder", true)
 	var sprite := Sprite3D.new()
 	sprite.name = "CoverWatcherSprite"
-	sprite.texture = load(COVER_WATCHER_TEXTURE_PATH) as Texture2D
+	var watcher_source := load(COVER_WATCHER_TEXTURE_PATH) as Texture2D
+	var watcher_crop := AtlasTexture.new()
+	watcher_crop.atlas = watcher_source
+	watcher_crop.region = COVER_WATCHER_SOURCE_CROP
+	sprite.texture = watcher_crop
 	var peek_sign := -1.0 if event_root.position.x >= _authored_event_origin.x else 1.0
-	var peek_x := peek_sign * 0.82
-	sprite.position = Vector3(peek_x, 1.22, -0.42)
-	sprite.pixel_size = 0.00150
+	var peek_x := peek_sign * 0.98
+	sprite.position = Vector3(peek_x, 1.03, -0.42)
+	sprite.pixel_size = COVER_WATCHER_PIXEL_SIZE
 	sprite.billboard = BaseMaterial3D.BILLBOARD_ENABLED
 	sprite.double_sided = true
 	sprite.shaded = false
@@ -355,6 +363,8 @@ func _build_cover_watcher_event(palette: Dictionary, already_seen: bool) -> void
 	sprite.set_meta("faceless_watcher", true)
 	sprite.set_meta("camera_facing_layer", true)
 	sprite.set_meta("side_peek_fraction", 0.46)
+	sprite.set_meta("transparent_canvas_cropped", true)
+	sprite.set_meta("source_crop", COVER_WATCHER_SOURCE_CROP)
 	sprite.set_meta("base_peek_position", sprite.position)
 	event_root.add_child(sprite)
 	_cover_watcher_root = event_root
@@ -2250,6 +2260,7 @@ func _build_actors(actor_textures: Dictionary) -> void:
 
 func _make_actor(node_name: String, actor_type: String, display_name: String, position: Vector3, npc_texture: Texture2D, tint_index: int) -> Area3D:
 	var actor := Area3D.new()
+	var face_center := Vector2(0.5, 0.17 if actor_type == "merchant" else 0.18)
 	actor.name = node_name
 	actor.position = position
 	actor.collision_layer = 2
@@ -2264,6 +2275,10 @@ func _make_actor(node_name: String, actor_type: String, display_name: String, po
 	actor.set_meta("face_identity_readable", false)
 	actor.set_meta("face_effect_separate_layer", true)
 	actor.set_meta("base_character_texture_preserved", true)
+	actor.set_meta("portrait_pose", "front_eye_level")
+	actor.set_meta("portrait_world_height", ACTOR_PORTRAIT_WORLD_HEIGHT)
+	actor.set_meta("camera_eye_height", ACTOR_CAMERA_EYE_HEIGHT)
+	actor.set_meta("face_center_world_y", ACTOR_PORTRAIT_WORLD_HEIGHT * (1.0 - face_center.y))
 	var collision := CollisionShape3D.new()
 	collision.name = "InteractionShape"
 	var capsule := CapsuleShape3D.new()
@@ -2276,8 +2291,9 @@ func _make_actor(node_name: String, actor_type: String, display_name: String, po
 	var sprite := Sprite3D.new()
 	sprite.name = "Billboard"
 	sprite.texture = npc_texture
-	sprite.pixel_size = 0.00134
-	sprite.position.y = 1.03
+	var source_height := float(npc_texture.get_height()) if npc_texture != null else 1536.0
+	sprite.pixel_size = ACTOR_PORTRAIT_WORLD_HEIGHT / maxf(1.0, source_height)
+	sprite.position.y = ACTOR_PORTRAIT_WORLD_HEIGHT * 0.5
 	sprite.billboard = BaseMaterial3D.BILLBOARD_ENABLED
 	sprite.shaded = false
 	sprite.texture_filter = BaseMaterial3D.TEXTURE_FILTER_NEAREST
@@ -2288,8 +2304,7 @@ func _make_actor(node_name: String, actor_type: String, display_name: String, po
 	sprite.modulate = Color.WHITE
 	sprite.set_meta("camera_facing_layer", true)
 	sprite.set_meta("floor_independent_color", true)
-	if actor_type == "merchant":
-		sprite.scale = Vector3(1.05, 1.05, 1.05)
+	sprite.set_meta("front_eye_level", true)
 	actor.add_child(sprite)
 
 	var scribble_overlay := Sprite3D.new()
@@ -2317,7 +2332,7 @@ func _make_actor(node_name: String, actor_type: String, display_name: String, po
 	scribble_material.set_shader_parameter("ink_color", Color("020202"))
 	scribble_material.set_shader_parameter("ink_opacity", 1.0)
 	scribble_material.set_shader_parameter("brush_width_px", 56.0)
-	scribble_material.set_shader_parameter("face_center", Vector2(0.5, 0.17 if actor_type == "merchant" else 0.18))
+	scribble_material.set_shader_parameter("face_center", face_center)
 	scribble_material.set_shader_parameter("face_size", Vector2(0.16, 0.085 if actor_type == "merchant" else 0.09))
 	scribble_material.set_shader_parameter("variation", float(1 if actor_type == "merchant" else tint_index % 3))
 	scribble_material.set_shader_parameter("seed", float(built_floor * 17 + tint_index * 7 + (3 if actor_type == "merchant" else 0)))

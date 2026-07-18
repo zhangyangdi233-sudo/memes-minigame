@@ -51,6 +51,12 @@ func _run() -> void:
 			_assert_true(not sprite.visible, "the watcher should begin fully hidden behind its cover")
 			_assert_eq(sprite.billboard, BaseMaterial3D.BILLBOARD_ENABLED, "the watcher image should always face the camera")
 			_assert_true(not sprite.shaded, "floor lighting must not recolor the watcher image")
+			_assert_true(sprite.texture is AtlasTexture, "the watcher should crop transparent source padding before composing the side peek")
+			_assert_true(bool(sprite.get_meta("transparent_canvas_cropped", false)), "the watcher should expose its cropped-canvas contract")
+			if sprite.texture is AtlasTexture:
+				var crop := sprite.texture as AtlasTexture
+				_assert_eq(crop.region, Rect2(300.0, 150.0, 424.0, 1220.0), "the watcher crop should retain the complete figure without the wide empty canvas")
+				_assert_true(crop.atlas != null and crop.region.size.x < float(crop.atlas.get_width()) * 0.5, "cropping should remove enough empty width for a readable half-body peek")
 
 	var appeared_floors: Array[int] = []
 	var vanished_floors: Array[int] = []
