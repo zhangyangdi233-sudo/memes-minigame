@@ -85,7 +85,6 @@ const SIGNAL_CONTRACTS := [
 const MEME_FRAME_PRICE := 7
 const MEME_FRAME_OFFER_INTERVAL := 3
 const NPC_MEME_FRAME_REWARD_CHANCE_PERCENT := 45
-const NPC_MEME_FRAME_REWARD_PITY_LIMIT := 3
 const ASCENT_REWARDS := [
 	{"id": "star", "tarot_id": "star", "numeral": "XVII", "label": "星星", "description": "命中至少 2 个风向时，整数倍率额外 +1。", "effect": "trend_multiplier_bonus", "value": 1.0},
 	{"id": "sun", "tarot_id": "sun", "numeral": "XIX", "label": "太阳", "description": "每次发布获得额外 14 点传播基础。", "effect": "publish_base", "value": 14.0},
@@ -572,7 +571,9 @@ func load_save_data(save_data: Dictionary) -> bool:
 		if floor_number not in normalized_watcher_floors:
 			normalized_watcher_floors.append(floor_number)
 	cover_watcher_seen_floors = normalized_watcher_floors
-	npc_meme_frame_reward_pity = clampi(npc_meme_frame_reward_pity, 0, NPC_MEME_FRAME_REWARD_PITY_LIMIT - 1)
+	# Older saves may contain pity progress. The current rule is a true 45% roll,
+	# so deprecated progress must never alter the effective reward rate.
+	npc_meme_frame_reward_pity = 0
 	if view_state != "phone_down" and view_state != "npc_up":
 		view_state = "phone_down"
 	reset_typed_reality_conversation()
@@ -1188,9 +1189,10 @@ func _conversation_roll(channel: String, character_index: int, check_index: int)
 func get_npc_meme_frame_reward_rules() -> Dictionary:
 	return {
 		"chance_percent": NPC_MEME_FRAME_REWARD_CHANCE_PERCENT,
-		"pity_limit": NPC_MEME_FRAME_REWARD_PITY_LIMIT,
-		"pity_progress": npc_meme_frame_reward_pity,
-		"successes_until_guarantee": maxi(1, NPC_MEME_FRAME_REWARD_PITY_LIMIT - npc_meme_frame_reward_pity),
+		"pity_enabled": false,
+		"pity_limit": 0,
+		"pity_progress": 0,
+		"successes_until_guarantee": 0,
 		"dedup_scope": "actor_per_day",
 	}
 
@@ -1215,8 +1217,8 @@ func _resolve_npc_meme_frame_reward(actor_id: String) -> Dictionary:
 		"day": day,
 		"chance_percent": NPC_MEME_FRAME_REWARD_CHANCE_PERCENT,
 		"roll": -1,
-		"pity_before": npc_meme_frame_reward_pity,
-		"pity_after": npc_meme_frame_reward_pity,
+		"pity_before": 0,
+		"pity_after": 0,
 		"reason": "none",
 	}
 	if attempt_key in npc_meme_frame_reward_attempt_keys:
@@ -1227,20 +1229,14 @@ func _resolve_npc_meme_frame_reward(actor_id: String) -> Dictionary:
 
 	npc_meme_frame_reward_attempt_keys.append(attempt_key)
 	var roll := _npc_meme_frame_reward_roll(actor_id, day)
-	var guaranteed := npc_meme_frame_reward_pity + 1 >= NPC_MEME_FRAME_REWARD_PITY_LIMIT
-	var awarded := guaranteed or roll < NPC_MEME_FRAME_REWARD_CHANCE_PERCENT
+	var awarded := roll < NPC_MEME_FRAME_REWARD_CHANCE_PERCENT
 	reward["roll"] = roll
-	reward["guaranteed"] = guaranteed
 	reward["awarded"] = awarded
+	npc_meme_frame_reward_pity = 0
 	if awarded:
 		owned_meme_frames += 1
-		npc_meme_frame_reward_pity = 0
-		reward["reason"] = "pity" if guaranteed else "chance"
-		var reason_label := "保底" if guaranteed else "概率命中"
-		event_log.push_front("现实交流奖励：获得一个梗框（%s）。" % reason_label)
-	else:
-		npc_meme_frame_reward_pity += 1
-	reward["pity_after"] = npc_meme_frame_reward_pity
+		reward["reason"] = "chance"
+		event_log.push_front("现实交流奖励：获得一个梗框（%s）。" % "概率命中")
 	last_npc_meme_frame_reward = reward.duplicate(true)
 	return reward
 

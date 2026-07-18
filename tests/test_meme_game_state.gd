@@ -44,8 +44,8 @@ func _run() -> void:
 	test_each_floor_npc_has_unique_dialogue_without_understanding_prompt()
 	test_each_npc_archetype_exposes_three_turn_conversation_arc()
 	test_extended_reality_dialogue_catalog_is_complete()
-	test_multi_turn_conversation_spends_one_action_and_rewards_on_pity()
-	test_npc_meme_frame_reward_chance_pity_and_daily_dedup()
+	test_multi_turn_conversation_spends_one_action_and_rewards_on_chance()
+	test_npc_meme_frame_reward_effective_rate_and_daily_dedup()
 	test_merchant_keeps_trade_flow_and_never_rolls_npc_reward()
 	test_npc_reward_save_fields_are_backward_compatible()
 	test_communication_item_purchase_costs_action_and_has_limited_charges()
@@ -549,11 +549,11 @@ func test_extended_reality_dialogue_catalog_is_complete() -> void:
 		for source_text in authored_values:
 			_assert_true(en.has(source_text) and not str(en.get(source_text, "")).is_empty(), "extended NPC text should have an English catalog entry: %s" % source_text)
 			_assert_true(ja.has(source_text) and not str(ja.get(source_text, "")).is_empty(), "extended NPC text should have a Japanese catalog entry: %s" % source_text)
-	for reward_text in ["对方把一个梗框留在你手边。框沿没有商人的价签。", "保底", "概率命中", "现实交流奖励：获得一个梗框（%s）。"]:
+	for reward_text in ["对方把一个梗框留在你手边。框沿没有商人的价签。", "概率命中", "现实交流奖励：获得一个梗框（%s）。"]:
 		_assert_true(en.has(reward_text) and ja.has(reward_text), "NPC reward feedback should be present in both translated catalogs: %s" % reward_text)
 
 
-func test_multi_turn_conversation_spends_one_action_and_rewards_on_pity() -> void:
+func test_multi_turn_conversation_spends_one_action_and_rewards_on_chance() -> void:
 	var successful_actor_id := ""
 	for candidate_index in 200:
 		var probe: RefCounted = _state_script.new()
@@ -561,7 +561,7 @@ func test_multi_turn_conversation_spends_one_action_and_rewards_on_pity() -> voi
 		var candidate := "reward_probe_%d_npc0" % candidate_index
 		probe.start_typed_reality_conversation(candidate, "npc", "迟到者")
 		_complete_typed_reality_arc(probe)
-		if probe.conversation_completed:
+		if probe.conversation_completed and probe._npc_meme_frame_reward_roll(candidate) < 45:
 			successful_actor_id = candidate
 			break
 	_assert_true(not successful_actor_id.is_empty(), "test should find a deterministic NPC arc whose three responses all resolve")
@@ -570,7 +570,6 @@ func test_multi_turn_conversation_spends_one_action_and_rewards_on_pity() -> voi
 
 	var game: RefCounted = _state_script.new()
 	game.new_run()
-	game.npc_meme_frame_reward_pity = 2
 	var actions_before: int = game.actions_remaining
 	var frames_before: int = game.owned_meme_frames
 	_assert_true(game.start_typed_reality_conversation(successful_actor_id, "npc", "迟到者"), "the selected successful NPC arc should start")
@@ -579,18 +578,18 @@ func test_multi_turn_conversation_spends_one_action_and_rewards_on_pity() -> voi
 	_assert_eq(game.get_typed_reality_history().size(), 3, "completed NPC conversation should retain all three exchanges in history")
 	_assert_true(bool(final_result.get("conversation_completed", false)), "the final typing result should identify whole-conversation completion")
 	_assert_eq(game.actions_remaining, actions_before - 1, "all three exchanges plus reward should consume exactly one action")
-	_assert_eq(game.owned_meme_frames, frames_before + 1, "a pity-guaranteed completion should grant one Meme Frame")
+	_assert_eq(game.owned_meme_frames, frames_before + 1, "a successful 45-percent roll should grant one Meme Frame")
 	var reward: Dictionary = game.get_last_npc_meme_frame_reward()
-	_assert_true(bool(reward.get("awarded", false)) and bool(reward.get("guaranteed", false)), "pity completion should expose a guaranteed awarded reward")
+	_assert_true(bool(reward.get("awarded", false)) and not bool(reward.get("guaranteed", true)), "chance completion should never be mislabeled as guaranteed")
 	_assert_eq(int(game.get_typed_reality_progress().get("total_turns", 0)), 3, "completed progress should retain the total arc length")
 
 
-func test_npc_meme_frame_reward_chance_pity_and_daily_dedup() -> void:
+func test_npc_meme_frame_reward_effective_rate_and_daily_dedup() -> void:
 	var game: RefCounted = _state_script.new()
 	game.new_run()
 	var rules: Dictionary = game.get_npc_meme_frame_reward_rules()
-	_assert_eq(int(rules.get("chance_percent", 0)), 45, "NPC Meme Frame base chance should stay within the requested 40-50 percent range")
-	_assert_eq(int(rules.get("pity_limit", 0)), 3, "the third eligible successful NPC conversation should be guaranteed")
+	_assert_eq(int(rules.get("chance_percent", 0)), 45, "NPC Meme Frame chance should stay at the requested 45 percent")
+	_assert_true(not bool(rules.get("pity_enabled", true)) and int(rules.get("pity_limit", -1)) == 0, "reward rules should not inflate the effective chance with a pity guarantee")
 	_assert_eq(str(rules.get("dedup_scope", "")), "actor_per_day", "reward API should expose same-actor same-day deduplication")
 
 	var miss_actor_ids: Array[String] = []
@@ -610,18 +609,16 @@ func test_npc_meme_frame_reward_chance_pity_and_daily_dedup() -> void:
 		return
 
 	var first: Dictionary = game._resolve_npc_meme_frame_reward(miss_actor_ids[0])
-	_assert_true(not bool(first.get("awarded", false)), "first non-winning roll should advance pity without a frame")
-	_assert_eq(game.npc_meme_frame_reward_pity, 1, "one eligible miss should create one pity progress")
+	_assert_true(not bool(first.get("awarded", false)), "first non-winning roll should not award a frame")
+	_assert_eq(game.npc_meme_frame_reward_pity, 0, "a miss should not create hidden pity progress")
 	var duplicate: Dictionary = game._resolve_npc_meme_frame_reward(miss_actor_ids[0])
 	_assert_true(bool(duplicate.get("duplicate", false)) and not bool(duplicate.get("eligible", true)), "same NPC on the same day should not create another reward roll")
-	_assert_eq(game.npc_meme_frame_reward_pity, 1, "a duplicate completion should not alter pity")
+	_assert_eq(game.npc_meme_frame_reward_pity, 0, "a duplicate completion should not create hidden pity progress")
 	var second: Dictionary = game._resolve_npc_meme_frame_reward(miss_actor_ids[1])
-	_assert_true(not bool(second.get("awarded", false)), "second non-winning roll should still miss before the guarantee")
-	_assert_eq(game.npc_meme_frame_reward_pity, 2, "two eligible misses should leave the next success guaranteed")
+	_assert_true(not bool(second.get("awarded", false)), "second non-winning roll should remain an ordinary miss")
 	var third: Dictionary = game._resolve_npc_meme_frame_reward(miss_actor_ids[2])
-	_assert_true(bool(third.get("awarded", false)) and bool(third.get("guaranteed", false)), "third eligible success should award despite its non-winning probability roll")
-	_assert_eq(game.npc_meme_frame_reward_pity, 0, "awarding a frame should reset pity")
-	_assert_eq(game.owned_meme_frames, 1, "pity sequence should award exactly one frame")
+	_assert_true(not bool(third.get("awarded", false)) and not bool(third.get("guaranteed", true)), "a third non-winning roll must not become a hidden guarantee")
+	_assert_eq(game.owned_meme_frames, 0, "three probability misses should award no frame")
 	game.day = 2
 	var next_day: Dictionary = game._resolve_npc_meme_frame_reward(miss_actor_ids[0])
 	_assert_true(bool(next_day.get("eligible", false)) and not bool(next_day.get("duplicate", true)), "the same NPC should become eligible again on a later day")
@@ -632,11 +629,22 @@ func test_npc_meme_frame_reward_chance_pity_and_daily_dedup() -> void:
 	_assert_true(bool(chance_reward.get("awarded", false)) and not bool(chance_reward.get("guaranteed", false)), "a roll below 45 should award through base probability")
 	_assert_eq(str(chance_reward.get("reason", "")), "chance", "probability award should identify its reason")
 
+	var distribution_game: RefCounted = _state_script.new()
+	distribution_game.new_run()
+	var awarded_count := 0
+	var sample_count := 4000
+	for sample_index in sample_count:
+		var sample_reward: Dictionary = distribution_game._resolve_npc_meme_frame_reward("effective-rate-%d" % sample_index)
+		if bool(sample_reward.get("awarded", false)):
+			awarded_count += 1
+	var effective_rate := float(awarded_count) / float(sample_count)
+	_assert_true(effective_rate >= 0.40 and effective_rate <= 0.50, "resolved NPC rewards should remain within the requested 40-50 percent effective range (got %.4f)" % effective_rate)
+	_assert_true(absf(effective_rate - 0.45) <= 0.025, "resolved NPC rewards should converge near the authored 45 percent target (got %.4f)" % effective_rate)
+
 
 func test_merchant_keeps_trade_flow_and_never_rolls_npc_reward() -> void:
 	var game: RefCounted = _state_script.new()
 	game.new_run()
-	game.npc_meme_frame_reward_pity = 2
 	_assert_true(game.start_typed_reality_conversation("merchant-preserved", "merchant", "信号商人"), "merchant conversation should still start")
 	_assert_eq(int(game.get_typed_reality_progress().get("total_turns", 0)), 1, "merchant should retain its compact trade exchange")
 	var choices: Array = game.get_typed_reality_choices()
@@ -647,7 +655,7 @@ func test_merchant_keeps_trade_flow_and_never_rolls_npc_reward() -> void:
 	_assert_true(game.should_show_merchant_communication_offer(), "merchant trade response should still expose the communication-item offer")
 	_assert_true(game.npc_meme_frame_reward_attempt_keys.is_empty(), "merchant conversation should never enter the ordinary NPC frame reward pool")
 	_assert_eq(game.owned_meme_frames, 0, "merchant dialogue itself should not grant the ordinary NPC completion reward")
-	_assert_eq(game.npc_meme_frame_reward_pity, 2, "merchant dialogue should not consume or reset ordinary NPC pity")
+	_assert_eq(game.npc_meme_frame_reward_pity, 0, "merchant dialogue should not create deprecated pity state")
 
 
 func test_npc_reward_save_fields_are_backward_compatible() -> void:
@@ -659,7 +667,7 @@ func test_npc_reward_save_fields_are_backward_compatible() -> void:
 	var current_save: Dictionary = game.to_save_data()
 	var restored: RefCounted = _state_script.new()
 	_assert_true(restored.load_save_data(current_save), "current save should restore NPC reward state")
-	_assert_eq(restored.npc_meme_frame_reward_pity, 2, "current save should preserve pity progress")
+	_assert_eq(restored.npc_meme_frame_reward_pity, 0, "loading a save should discard deprecated pity progress")
 	_assert_eq(restored.npc_meme_frame_reward_attempt_keys, ["1|npc_saved"], "current save should preserve reward deduplication keys")
 
 	var old_save: Dictionary = current_save.duplicate(true)
@@ -669,7 +677,7 @@ func test_npc_reward_save_fields_are_backward_compatible() -> void:
 	old_state.erase("last_npc_meme_frame_reward")
 	var legacy_loaded: RefCounted = _state_script.new()
 	_assert_true(legacy_loaded.load_save_data(old_save), "version-one save without new reward fields should remain loadable")
-	_assert_eq(legacy_loaded.npc_meme_frame_reward_pity, 0, "older save should default to empty pity progress")
+	_assert_eq(legacy_loaded.npc_meme_frame_reward_pity, 0, "older save should default to no deprecated pity progress")
 	_assert_true(legacy_loaded.npc_meme_frame_reward_attempt_keys.is_empty(), "older save should default to no reward deduplication keys")
 	_assert_true(legacy_loaded.last_npc_meme_frame_reward.is_empty(), "older save should default to no last reward result")
 

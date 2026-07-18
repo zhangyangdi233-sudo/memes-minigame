@@ -57,6 +57,13 @@ func _run() -> void:
 				var crop := sprite.texture as AtlasTexture
 				_assert_eq(crop.region, Rect2(300.0, 150.0, 424.0, 1220.0), "the watcher crop should retain the complete figure without the wide empty canvas")
 				_assert_true(crop.atlas != null and crop.region.size.x < float(crop.atlas.get_width()) * 0.5, "cropping should remove enough empty width for a readable half-body peek")
+				var collision := cover.get_node_or_null("Collision") as CollisionShape3D
+				if collision != null and collision.shape is BoxShape3D:
+					var cover_half_width := (collision.shape as BoxShape3D).size.x * 0.5
+					var sprite_world_width := crop.region.size.x * sprite.pixel_size
+					var visible_width := maxf(0.0, absf(sprite.position.x) + sprite_world_width * 0.5 - cover_half_width)
+					var visible_fraction := visible_width / maxf(0.001, sprite_world_width)
+					_assert_true(visible_fraction >= 0.40 and visible_fraction <= 0.60, "cover geometry should occlude roughly half of the cropped watcher (got %.3f)" % visible_fraction)
 
 	var appeared_floors: Array[int] = []
 	var vanished_floors: Array[int] = []
@@ -66,11 +73,15 @@ func _run() -> void:
 	var event_root := _find_node_by_name(floor_root, "CoverWatcherEvent") as Node3D
 	var sprite := _find_node_by_name(floor_root, "CoverWatcherSprite") as Sprite3D
 	var spawn := floor_root.start_position()
-	floor_root.update_authored_events(0.35, spawn, Vector3(0.0, 0.0, -1.0))
+	var toward_watcher := (event_root.global_position - spawn).normalized() if event_root != null else Vector3(0.0, 0.0, -1.0)
+	floor_root.update_authored_events(0.35, spawn, toward_watcher)
 	_assert_true(sprite != null and not sprite.visible, "the first short pause should preserve the empty cover")
-	floor_root.update_authored_events(0.40, spawn, Vector3(0.0, 0.0, -1.0))
+	floor_root.update_authored_events(0.40, spawn, -toward_watcher)
+	_assert_true(sprite != null and not sprite.visible, "elapsed time alone must not consume the sighting while the player looks away")
+	floor_root.update_authored_events(0.01, spawn, toward_watcher)
 	var watcher_state := floor_root.get_cover_watcher_state()
-	_assert_true(sprite != null and sprite.visible and bool(watcher_state.get("triggered", false)), "the watcher should quietly reveal itself after the authored delay")
+	_assert_true(sprite != null and sprite.visible and bool(watcher_state.get("triggered", false)), "the watcher should quietly reveal itself once delay and actual observation both hold")
+	_assert_true(bool(watcher_state.get("observed_in_view", false)), "the appearance signal should certify that the watcher entered the player's view")
 	_assert_eq(appeared_floors, [3], "the appearance signal should fire once for the current floor")
 	if event_root != null and sprite != null:
 		var initial_x := absf(sprite.position.x)

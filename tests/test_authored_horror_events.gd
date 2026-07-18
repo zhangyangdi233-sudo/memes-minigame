@@ -55,7 +55,16 @@ func _run() -> void:
 	_assert_eq(int(floor_root.get_meta("jump_scare_trigger_count", -1)), 0, "authored events must not add jump-scare trigger volumes")
 	var event_nodes: Array[Node] = []
 	_collect_nodes_with_meta(floor_root, "authored_horror_event", event_nodes)
-	_assert_eq(event_nodes.size(), 2, "event metadata should match the instantiated event roots")
+	var scheduled_event_nodes: Array[Node] = []
+	var cover_watcher_nodes: Array[Node] = []
+	for event_node in event_nodes:
+		if event_node.has_meta("event_kind"):
+			scheduled_event_nodes.append(event_node)
+		if bool(event_node.get_meta("cover_watcher_event", false)):
+			cover_watcher_nodes.append(event_node)
+	_assert_eq(scheduled_event_nodes.size(), 2, "scheduled event metadata should match the instantiated daily event roots")
+	_assert_eq(cover_watcher_nodes.size(), 1, "the once-per-floor cover watcher should be tracked as a separate authored event")
+	_assert_eq(event_nodes.size(), scheduled_event_nodes.size() + cover_watcher_nodes.size(), "all authored horror roots should be classified without hidden duplicates")
 	for event_node in event_nodes:
 		_assert_true(not (event_node is Area3D), "authored slow-burn events should never be collision trigger areas")
 		_assert_true(bool(event_node.get_meta("non_jumpscare", false)), "every authored event should explicitly declare the non-jumpscare rule")

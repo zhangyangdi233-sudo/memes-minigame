@@ -42,6 +42,21 @@ func _run() -> void:
 	}]
 	game_root.set_view_state("npc_up")
 	game_root._ensure_reality_floor_current()
+	var watcher_event := _find_node_by_name(game_root._reality_floor, "CoverWatcherEvent") as Node3D
+	var watcher_sprite := _find_node_by_name(game_root._reality_floor, "CoverWatcherSprite") as Sprite3D
+	_assert_true(watcher_event != null and watcher_sprite != null, "an unseen floor should build its cover watcher before saving")
+	if watcher_event != null and watcher_sprite != null:
+		var watcher_start: Vector3 = game_root._reality_floor.start_position()
+		game_root._reality_player.position = watcher_start
+		var toward_watcher := (watcher_event.global_position - watcher_start).normalized()
+		game_root._reality_floor.update_authored_events(0.80, watcher_start, toward_watcher)
+		_assert_true(watcher_sprite.visible and game_root.game.has_seen_cover_watcher(2), "runtime observation should route through the main-scene signal and record floor two")
+		var stinger := game_root.get_node_or_null("CoverWatcherStinger") as AudioStreamPlayer
+		_assert_true(stinger != null and stinger.playing, "the real watcher appearance signal should start its short horror cue")
+		var near_watcher := watcher_event.global_position + Vector3(0.0, 0.0, 5.7)
+		game_root._reality_floor.update_authored_events(0.08, near_watcher, toward_watcher)
+		game_root._reality_floor.update_authored_events(0.72, near_watcher, toward_watcher)
+		_assert_true(not watcher_sprite.visible and bool(game_root._reality_floor.get_cover_watcher_state().get("vanished", false)), "approaching through the runtime path should fully withdraw the watcher")
 	var saved_position := Vector3(2.25, 0.08, 17.5)
 	game_root._reality_player.position = saved_position
 	game_root._reality_yaw = 38.0
@@ -60,6 +75,8 @@ func _run() -> void:
 	_assert_eq(game_root.game.tower_floor, 2, "Continue should restore tower progress")
 	_assert_eq(game_root.game.actions_remaining, 3, "Continue should restore today's remaining actions")
 	_assert_eq(game_root.game.completed_memes.size(), 1, "Continue should restore crafted memes")
+	_assert_true(game_root.game.has_seen_cover_watcher(2), "Continue should restore the watcher floor history from the actual save file")
+	_assert_true(_find_node_by_name(game_root._reality_floor, "CoverWatcherEvent") == null, "reloading the same floor should not rebuild an already observed watcher")
 	_assert_eq(game_root.game.view_state, "npc_up", "Continue should restore the previous phone or reality view")
 	var restored_position: Vector3 = game_root._reality_player.position
 	var planar_error := Vector2(restored_position.x, restored_position.z).distance_to(Vector2(saved_position.x, saved_position.z))

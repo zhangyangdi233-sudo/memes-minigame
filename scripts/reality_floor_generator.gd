@@ -39,13 +39,29 @@ const NIGHT_TERRACE_END_MARGIN := 8.0
 const NIGHT_TERRACE_GAP := 1.2
 const NIGHT_FACADE_BAY := 7.6
 const FLOOR_TWO_DISC_SEGMENTS := 96
-const FLOOR_TWO_DISC_RADIAL_SEGMENTS := 16
+const FLOOR_TWO_DISC_RADIAL_SEGMENTS := 24
 const FLOOR_TWO_DISC_RADIUS_X := 112.0
 const FLOOR_TWO_DISC_RADIUS_Z := 118.0
 const FLOOR_TWO_DISC_IRREGULARITY := 10.0
 const FLOOR_TWO_DISC_MAP_MARGIN := 4.0
 const FLOOR_TWO_DISC_AIR_WALL_SEGMENTS := 32
-const FLOOR_TWO_PHYSICAL_HOUSE_COUNT := 6
+const FLOOR_TWO_PHYSICAL_HOUSE_COUNT := 9
+const FLOOR_TWO_HILL_MOUNDS := [
+	# x, z, radius, height. Wide smooth domes remain comfortably walkable.
+	Vector4(-72.0, -62.0, 24.0, 2.4),
+	Vector4(-30.0, -72.0, 23.0, 2.8),
+	Vector4(18.0, -68.0, 25.0, 2.6),
+	Vector4(65.0, -54.0, 24.0, 3.0),
+	Vector4(-76.0, -20.0, 25.0, 3.0),
+	Vector4(-28.0, -24.0, 29.0, 3.5),
+	Vector4(25.0, -18.0, 25.0, 2.8),
+	Vector4(72.0, -2.0, 23.0, 2.5),
+	Vector4(-66.0, 34.0, 24.0, 2.6),
+	Vector4(-18.0, 44.0, 29.0, 3.3),
+	Vector4(34.0, 48.0, 26.0, 2.9),
+	Vector4(72.0, 56.0, 22.0, 2.4),
+	Vector4(8.0, 78.0, 21.0, 2.2),
+]
 const GALLERY_END_MARGIN := 7.0
 const GALLERY_COLUMN_TARGET_SPACING := 7.2
 const GALLERY_COLUMN_X := 3.2
@@ -175,6 +191,9 @@ func rebuild(floor_number: int, palette: Dictionary, actor_textures: Dictionary,
 	set_meta("suspense_occlusion_rule", "none")
 	set_meta("night_house_segment_count", 0)
 	set_meta("night_house_coverage_ratio", 0.0)
+	set_meta("night_house_footprint_area", 0.0)
+	set_meta("night_disc_planar_area", 0.0)
+	set_meta("night_house_coverage_method", "none")
 	set_meta("night_house_max_gap", 0.0)
 	set_meta("night_facade_bay_count", 0)
 	set_meta("gallery_continuous", false)
@@ -189,6 +208,7 @@ func rebuild(floor_number: int, palette: Dictionary, actor_textures: Dictionary,
 	set_meta("disc_radius_x", 0.0)
 	set_meta("disc_radius_z", 0.0)
 	set_meta("disc_height_variation", 0.0)
+	set_meta("disc_mound_count", 0)
 	set_meta("physical_house_count", 0)
 	set_meta("physical_house_ratio", 0.0)
 	set_meta("grass_render_mode", "none")
@@ -290,7 +310,7 @@ func update_authored_events(delta: float, player_position: Vector3, camera_forwa
 				_update_dead_sign_event(horizontal_travel, player_position, safe_forward)
 			"distant_mirage":
 				_update_distant_mirage_event(delta, horizontal_travel, player_position)
-	_update_cover_watcher_event(delta, horizontal_travel, player_position)
+	_update_cover_watcher_event(delta, horizontal_travel, player_position, safe_forward)
 
 
 func get_authored_event_state(event_kind: String) -> Dictionary:
@@ -327,6 +347,7 @@ func _build_cover_watcher_event(palette: Dictionary, already_seen: bool) -> void
 	event_root.name = "CoverWatcherEvent"
 	event_root.position = _cover_watcher_position()
 	event_root.set_meta("cover_watcher_event", true)
+	event_root.set_meta("authored_horror_event", true)
 	event_root.set_meta("non_jumpscare", true)
 	event_root.set_meta("half_body_peek", true)
 	event_root.set_meta("retreat_on_approach", true)
@@ -347,7 +368,7 @@ func _build_cover_watcher_event(palette: Dictionary, already_seen: bool) -> void
 	watcher_crop.region = COVER_WATCHER_SOURCE_CROP
 	sprite.texture = watcher_crop
 	var peek_sign := -1.0 if event_root.position.x >= _authored_event_origin.x else 1.0
-	var peek_x := peek_sign * 0.98
+	var peek_x := peek_sign * 0.86
 	sprite.position = Vector3(peek_x, 1.03, -0.42)
 	sprite.pixel_size = COVER_WATCHER_PIXEL_SIZE
 	sprite.billboard = BaseMaterial3D.BILLBOARD_ENABLED
@@ -362,7 +383,7 @@ func _build_cover_watcher_event(palette: Dictionary, already_seen: bool) -> void
 	sprite.visible = false
 	sprite.set_meta("faceless_watcher", true)
 	sprite.set_meta("camera_facing_layer", true)
-	sprite.set_meta("side_peek_fraction", 0.46)
+	sprite.set_meta("side_peek_fraction", 0.50)
 	sprite.set_meta("transparent_canvas_cropped", true)
 	sprite.set_meta("source_crop", COVER_WATCHER_SOURCE_CROP)
 	sprite.set_meta("base_peek_position", sprite.position)
@@ -375,15 +396,21 @@ func _build_cover_watcher_event(palette: Dictionary, already_seen: bool) -> void
 	set_meta("cover_watcher_event_count", 1)
 
 
-func _update_cover_watcher_event(delta: float, horizontal_travel: float, player_position: Vector3) -> void:
+func _update_cover_watcher_event(delta: float, horizontal_travel: float, player_position: Vector3, camera_forward: Vector3) -> void:
 	if _cover_watcher_root == null or _cover_watcher_sprite == null or bool(_cover_watcher_state.get("vanished", false)):
 		return
 	var elapsed := float(_cover_watcher_state.get("elapsed", 0.0)) + delta
 	_cover_watcher_state["elapsed"] = elapsed
+	var planar_forward := Vector3(camera_forward.x, 0.0, camera_forward.z).normalized()
+	var to_watcher := _cover_watcher_root.global_position - player_position
+	to_watcher.y = 0.0
+	var view_dot := planar_forward.dot(to_watcher.normalized()) if planar_forward.length_squared() > 0.0001 and to_watcher.length_squared() > 0.0001 else -1.0
+	_cover_watcher_state["view_dot"] = view_dot
 	if not bool(_cover_watcher_state.get("triggered", false)):
-		if elapsed < COVER_WATCHER_APPEAR_DELAY and horizontal_travel < 0.85:
+		if (elapsed < COVER_WATCHER_APPEAR_DELAY and horizontal_travel < 0.85) or view_dot < 0.62:
 			return
 		_cover_watcher_state["triggered"] = true
+		_cover_watcher_state["observed_in_view"] = true
 		_cover_watcher_sprite.visible = true
 		_cover_watcher_root.set_meta("event_phase", "watching_from_cover")
 		cover_watcher_appeared.emit(built_floor)
@@ -399,7 +426,7 @@ func _update_cover_watcher_event(delta: float, horizontal_travel: float, player_
 	_cover_watcher_state["retreat_elapsed"] = retreat_elapsed
 	var retreat_ratio := clampf(retreat_elapsed / COVER_WATCHER_RETREAT_DURATION, 0.0, 1.0)
 	var eased_ratio := 1.0 - pow(1.0 - retreat_ratio, 5.0)
-	_cover_watcher_sprite.position.x = lerpf(float(_cover_watcher_state.get("peek_x", 0.82)), float(_cover_watcher_state.get("hidden_x", 0.0)), eased_ratio)
+	_cover_watcher_sprite.position.x = lerpf(float(_cover_watcher_state.get("peek_x", 0.86)), float(_cover_watcher_state.get("hidden_x", 0.0)), eased_ratio)
 	var tint := _cover_watcher_sprite.modulate
 	tint.a = 0.92 * (1.0 - smoothstep(0.76, 1.0, retreat_ratio))
 	_cover_watcher_sprite.modulate = tint
@@ -697,10 +724,17 @@ func _floor_two_disc_irregularity(angle: float) -> float:
 
 
 func _floor_two_disc_height(x: float, z: float, radial_ratio: float) -> float:
-	var broad_swell := sin(x * 0.052 + cos(z * 0.028)) * 0.46
-	var crossing_swell := cos(z * 0.047 - x * 0.019) * 0.34
-	var shallow_ripple := sin((x + z) * 0.024 + radial_ratio * 3.0) * 0.18
-	return -0.28 + broad_swell + crossing_swell + shallow_ripple
+	var height := -0.62
+	height += sin(x * 0.045 + cos(z * 0.026)) * 0.24
+	height += cos(z * 0.041 - x * 0.018) * 0.18
+	height += sin((x + z) * 0.022 + radial_ratio * 3.0) * 0.12
+	for mound_data in FLOOR_TWO_HILL_MOUNDS:
+		var mound: Vector4 = mound_data
+		var distance := Vector2(x - mound.x, z - mound.y).length()
+		var inward := clampf(1.0 - distance / mound.z, 0.0, 1.0)
+		var smooth_dome := inward * inward * (3.0 - 2.0 * inward)
+		height += smooth_dome * mound.w
+	return height
 
 
 func _floor_two_disc_point(angle: float, radial_ratio: float = 1.0) -> Vector3:
@@ -726,6 +760,15 @@ func _floor_two_disc_angle(position: Vector3) -> float:
 func _floor_two_disc_boundary_distance(angle: float) -> float:
 	var boundary := _floor_two_disc_point(angle, 1.0)
 	return Vector2(boundary.x, boundary.z).length()
+
+
+func _floor_two_disc_planar_area() -> float:
+	var doubled_area := 0.0
+	for segment_index in FLOOR_TWO_DISC_SEGMENTS:
+		var point_a := _floor_two_disc_point(TAU * float(segment_index) / float(FLOOR_TWO_DISC_SEGMENTS), 1.0)
+		var point_b := _floor_two_disc_point(TAU * float(segment_index + 1) / float(FLOOR_TWO_DISC_SEGMENTS), 1.0)
+		doubled_area += point_a.x * point_b.z - point_b.x * point_a.z
+	return absf(doubled_area) * 0.5
 
 
 func _floor_two_disc_contains(position: Vector3, inset: float) -> bool:
@@ -957,6 +1000,7 @@ func _build_floor_two_disc_ground(parent: Node3D, palette: Dictionary) -> void:
 	set_meta("disc_radius_x", FLOOR_TWO_DISC_RADIUS_X)
 	set_meta("disc_radius_z", FLOOR_TWO_DISC_RADIUS_Z)
 	set_meta("disc_height_variation", max_height - min_height)
+	set_meta("disc_mound_count", FLOOR_TWO_HILL_MOUNDS.size())
 
 
 func _add_disc_surface_triangle(surface_tool: SurfaceTool, a: Vector3, b: Vector3, c: Vector3) -> void:
@@ -966,28 +1010,44 @@ func _add_disc_surface_triangle(surface_tool: SurfaceTool, a: Vector3, b: Vector
 
 
 func _build_floor_two_scattered_district(parent: Node3D, palette: Dictionary) -> void:
-	var house_angles := [0.34, 1.18, 2.12, 2.96, 4.14, 5.32]
-	var house_radii := [0.58, 0.48, 0.69, 0.41, 0.64, 0.52]
-	var physical_house_count := mini(FLOOR_TWO_PHYSICAL_HOUSE_COUNT, room_count)
-	for room_index in room_count:
-		var angle := float(house_angles[room_index % house_angles.size()])
-		var radial_ratio := float(house_radii[room_index % house_radii.size()])
-		var room := _new_room(parent, room_index)
+	var house_angles := [0.20, 0.91, 1.55, 2.20, 2.84, 3.55, 4.17, 4.92, 5.66]
+	var house_radii := [0.60, 0.46, 0.61, 0.52, 0.68, 0.43, 0.65, 0.54, 0.70]
+	var physical_house_count := FLOOR_TWO_PHYSICAL_HOUSE_COUNT
+	var house_footprint_area := 0.0
+	for house_index in physical_house_count:
+		var angle := float(house_angles[house_index % house_angles.size()])
+		var radial_ratio := float(house_radii[house_index % house_radii.size()])
+		var room := _new_room(parent, house_index) if house_index < room_count else _new_floor_two_scenery_anchor(parent, house_index)
 		room.position = _floor_two_disc_point(angle, radial_ratio)
-		room.rotation.y = -angle + PI * 0.5 + sin(float(room_index) * 1.7) * 0.28
+		room.rotation.y = -angle + PI * 0.5 + sin(float(house_index) * 1.7) * 0.28
 		room.set_meta("scattered_disc_room", true)
 		room.set_meta("disc_angle", angle)
 		room.set_meta("disc_radius_ratio", radial_ratio)
-		_build_floor_two_sparse_house(room, room_index, palette)
-		_place_room_reward(room, room_index, Vector3(0.0, 0.0, 4.2), palette)
+		house_footprint_area += _build_floor_two_sparse_house(room, house_index, palette)
+		if house_index < room_count:
+			_place_room_reward(room, house_index, Vector3(0.0, 0.0, 4.2), palette)
 	set_meta("physical_house_count", physical_house_count)
 	set_meta("physical_house_ratio", float(physical_house_count) / float(room_count))
 	set_meta("night_house_segment_count", physical_house_count)
-	set_meta("night_house_coverage_ratio", 0.14)
+	var disc_planar_area := _floor_two_disc_planar_area()
+	set_meta("night_house_footprint_area", house_footprint_area)
+	set_meta("night_disc_planar_area", disc_planar_area)
+	set_meta("night_house_coverage_ratio", house_footprint_area / maxf(1.0, disc_planar_area))
+	set_meta("night_house_coverage_method", "procedural_footprints_over_boundary_polygon")
 	set_meta("night_house_max_gap", 42.0)
 
 
-func _build_floor_two_sparse_house(room: Node3D, room_index: int, palette: Dictionary) -> void:
+func _new_floor_two_scenery_anchor(parent: Node3D, house_index: int) -> Node3D:
+	var anchor := Node3D.new()
+	anchor.name = "SceneryHouseAnchor%02d" % house_index
+	anchor.set_meta("house_index", house_index)
+	anchor.set_meta("scenery_only", true)
+	anchor.set_meta("district_style", district_style)
+	parent.add_child(anchor)
+	return anchor
+
+
+func _build_floor_two_sparse_house(room: Node3D, room_index: int, palette: Dictionary) -> float:
 	var height := 3.5 + float(room_index % 2) * 0.8
 	var width := 4.4 + float(room_index % 3) * 0.6
 	var depth := 5.0 + float((room_index + 1) % 3) * 0.7
@@ -998,6 +1058,7 @@ func _build_floor_two_sparse_house(room: Node3D, room_index: int, palette: Dicti
 	_add_box(room, "HouseDoor", Vector3(1.05, 2.05, 0.08), Vector3(0.0, 1.025, depth * 0.5 + 0.045), "window", palette, false)
 	for window_index in 2:
 		_add_box(room, "HouseWindow%d" % window_index, Vector3(0.72, 0.72, 0.07), Vector3(-1.15 + float(window_index) * 2.3, 2.65, depth * 0.5 + 0.05), "lamp_light", palette, false)
+	return width * depth
 
 
 func _build_sunlit_brick_street(parent: Node3D, palette: Dictionary) -> void:

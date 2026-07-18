@@ -14,7 +14,7 @@ Three pillars govern new work:
 
 - The social feed uses stable image cards and language-aware word collection so browsing remains readable in all three languages.
 - Ordinary NPCs now carry three-turn conversations. Each turn reveals one concrete fragment of the district, while misunderstanding can interrupt the exchange before the explanation is complete.
-- Completing an NPC conversation can award a Meme Frame. The deterministic 45% roll and third-attempt guarantee make conversation mechanically valuable without turning NPCs into vending machines.
+- Completing an NPC conversation can award a Meme Frame. The pure deterministic 45% roll has no pity or hidden guarantee, so the effective reward rate remains inside the requested 40-50% band without turning NPCs into vending machines.
 - Floor two onward removes people, extends connected architecture, darkens the environmental hierarchy, and reserves stronger suspense cues for deeper floors.
 - Floors two through five now rotate a deterministic authored event table: a light remembers the wrong brightness, an EXIT sign loses one letter after the player looks away, and a transparent distant mirage appears on only two authored days. These events never use collision-triggered jump scares.
 - The profile now contains an in-world `BABEL-LINK 98` cache. Its guestbook, mirrors, broken link, and source-code cache puzzle are optional, cost no action, and reveal original lore through investigation.

@@ -133,8 +133,9 @@ func _test_audited_localization_copy() -> void:
 	var ui_ja: Dictionary = ui_catalog.entries("ja")
 	var state_en: Dictionary = state_catalog.entries("en")
 	var state_ja: Dictionary = state_catalog.entries("ja")
-	var restock_source := "今天货架是空的。梗框每隔两天才补一次。"
+	var restock_source := "今天货架是空的。梗框每三天补一次。"
 	_assert_eq(StateScript.MEME_FRAME_OFFER_INTERVAL, 3, "audited restock copy should stay aligned with the three-day offer interval")
+	_assert_true(restock_source.contains("每三天"), "the source-language shop copy should describe the actual three-day interval")
 	_assert_eq(ui_en[restock_source], "The shelf is empty today. Meme Frames are restocked every three days.", "English restock copy should describe the actual interval")
 	_assert_eq(ui_ja[restock_source], "今日は棚が空だ。ミーム枠は3日ごとに補充される。", "Japanese restock copy should describe the actual interval")
 	_assert_eq(state_en["我想要一个只装一个字的框，它不需要替我解释。"], "I want a frame that holds one word. It doesn't need to speak for me.", "English merchant dialogue should use natural wording")

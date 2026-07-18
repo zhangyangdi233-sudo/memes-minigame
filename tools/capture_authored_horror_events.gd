@@ -20,6 +20,7 @@ func _capture() -> void:
 		return
 	var main := scene.instantiate()
 	root.add_child(main)
+	main._locale.set_locale("zh")
 	main.new_game()
 	main._skip_prologue()
 	main.game.tower_floor = 3
@@ -88,10 +89,21 @@ func _capture() -> void:
 		push_error("Unable to locate cover-watcher event")
 		quit(1)
 		return
-	watcher_sprite.visible = true
 	_show_only_event(floor_root, watcher_event)
+	var watcher_player: Vector3 = floor_root.start_position()
+	var toward_watcher: Vector3 = (watcher_event.global_position - watcher_player).normalized()
+	floor_root.update_authored_events(0.80, watcher_player, toward_watcher)
+	if not watcher_sprite.visible or not bool(floor_root.get_cover_watcher_state().get("observed_in_view", false)):
+		push_error("Cover watcher did not appear through the runtime observation path")
+		quit(1)
+		return
 	_frame_event(camera, watcher_event, Vector3(0.0, 0.10, 7.0), 1.45)
 	await _save_after_frames("current_horror_cover_watcher.png")
+	var near_watcher := watcher_event.global_position + Vector3(0.0, 0.0, 5.7)
+	floor_root.update_authored_events(0.01, near_watcher, toward_watcher)
+	await _save_after_frames("current_horror_cover_watcher_retreat.png")
+	floor_root.update_authored_events(0.71, near_watcher, toward_watcher)
+	await _save_after_frames("current_horror_cover_watcher_gone.png")
 	main.queue_free()
 	await process_frame
 	await process_frame

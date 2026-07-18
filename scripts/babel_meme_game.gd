@@ -3023,27 +3023,47 @@ func _render_social_home_page(parent: VBoxContainer) -> void:
 	feed_scroll.gui_input.connect(_on_social_feed_scroll_gui_input.bind(feed_scroll))
 	feed_frame.add_child(feed_scroll)
 
-	var masonry := GridContainer.new()
+	var feed_content := VBoxContainer.new()
+	feed_content.name = "SocialFeedContent"
+	feed_content.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+	feed_content.add_theme_constant_override("separation", 10)
+	feed_scroll.add_child(feed_content)
+
+	var masonry := HBoxContainer.new()
 	masonry.name = "SocialFeedMasonry"
-	masonry.columns = 2
-	masonry.add_theme_constant_override("h_separation", 12)
-	masonry.add_theme_constant_override("v_separation", 10)
+	masonry.add_theme_constant_override("separation", 12)
 	masonry.size_flags_horizontal = Control.SIZE_EXPAND_FILL
-	feed_scroll.add_child(masonry)
+	masonry.set_meta("layout_mode", "independent_equal_width_columns")
+	feed_content.add_child(masonry)
+	var masonry_columns: Array[VBoxContainer] = []
+	var masonry_heights := [0.0, 0.0]
+	for column_index in 2:
+		var column := VBoxContainer.new()
+		column.name = "SocialMasonryColumn%d" % column_index
+		column.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+		column.size_flags_stretch_ratio = 1.0
+		column.add_theme_constant_override("separation", 10)
+		column.set_meta("masonry_column_index", column_index)
+		masonry.add_child(column)
+		masonry_columns.append(column)
 	for visible_index in visible_post_indices.size():
 		var post_index: int = int(visible_post_indices[visible_index])
 		var post := _social_post_for_index(post_index)
+		var card_height := _social_feed_card_height(post_index)
+		var column_index := 0 if float(masonry_heights[0]) <= float(masonry_heights[1]) else 1
 		var card_panel := _panel()
 		card_panel.name = "SocialPostCard%d" % post_index
 		card_panel.set_meta("social_card", true)
-		card_panel.custom_minimum_size = Vector2(0, _social_feed_card_height(post_index))
+		card_panel.set_meta("masonry_column_index", column_index)
+		card_panel.custom_minimum_size = Vector2(0, card_height)
 		card_panel.size_flags_horizontal = Control.SIZE_EXPAND_FILL
 		card_panel.size_flags_vertical = Control.SIZE_SHRINK_BEGIN
 		card_panel.clip_contents = true
 		card_panel.mouse_filter = Control.MOUSE_FILTER_STOP
 		card_panel.gui_input.connect(_on_social_card_gui_input.bind(post_index))
 		card_panel.mouse_default_cursor_shape = Control.CURSOR_POINTING_HAND
-		masonry.add_child(card_panel)
+		masonry_columns[column_index].add_child(card_panel)
+		masonry_heights[column_index] = float(masonry_heights[column_index]) + card_height + 10.0
 		var card_clip := Control.new()
 		card_clip.name = "SocialPostClip%d" % post_index
 		card_clip.size_flags_horizontal = Control.SIZE_EXPAND_FILL
@@ -3102,7 +3122,7 @@ func _render_social_home_page(parent: VBoxContainer) -> void:
 	hint_slot.custom_minimum_size.y = 32
 	hint_slot.size_flags_horizontal = Control.SIZE_EXPAND_FILL
 	hint_slot.clip_contents = true
-	masonry.add_child(hint_slot)
+	feed_content.add_child(hint_slot)
 	var scroll_hint := _label("继续下滑浏览更多信号", 13, _theme_color("accent"))
 	scroll_hint.name = "SocialScrollHint"
 	scroll_hint.set_anchors_and_offsets_preset(Control.PRESET_FULL_RECT)
@@ -3111,7 +3131,7 @@ func _render_social_home_page(parent: VBoxContainer) -> void:
 	var hint_spacer := Control.new()
 	hint_spacer.name = "SocialScrollHintSpacer"
 	hint_spacer.custom_minimum_size.y = 32
-	masonry.add_child(hint_spacer)
+	feed_content.add_child(hint_spacer)
 
 
 func _render_social_channel_empty_state(parent: VBoxContainer, node_name: String, title: String, body: String) -> void:
@@ -3775,7 +3795,7 @@ func _render_shop_app() -> void:
 	heading.add_child(_label("持有 %d" % game.owned_meme_frames, 15, _theme_color("accent")))
 	var offer := game.get_daily_meme_frame_offer()
 	if offer.is_empty():
-		var absent := _label("今天货架是空的。梗框每隔两天才补一次。", 16, _theme_color("accent"))
+		var absent := _label("今天货架是空的。梗框每三天补一次。", 16, _theme_color("accent"))
 		absent.name = "MemeFrameUnavailableLabel"
 		absent.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
 		shop_content.add_child(absent)
@@ -4372,7 +4392,7 @@ func _animate_world(delta: float) -> void:
 	current_rotation.y = rad_to_deg(lerp_angle(deg_to_rad(current_rotation.y), deg_to_rad(camera_target_rot.y), camera_lerp))
 	current_rotation.z = lerpf(current_rotation.z, 0.0, camera_lerp)
 	_camera.rotation_degrees = current_rotation
-	_camera.fov = lerpf(_camera.fov, 52.0 if _reality_interaction_active else 58.0, minf(1.0, delta * 4.0))
+	_camera.fov = 58.0
 	if _phone_rig != null:
 		_phone_rig.position = _phone_rig.position.lerp(phone_target, minf(1.0, delta * 6.0))
 		_phone_rig.rotation_degrees = Vector3(68.0, 0.0, 0.0)

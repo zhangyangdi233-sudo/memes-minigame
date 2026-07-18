@@ -57,6 +57,11 @@ func _run() -> void:
 			_assert_near(camera_attributes.dof_blur_far_transition, 12.0, 0.01, "far focus should soften gradually instead of popping")
 			_assert_near(camera_attributes.dof_blur_amount, 0.08, 0.001, "far blur should obscure silhouettes without erasing navigation")
 		_assert_eq(str(camera.get_meta("fixed_focus_profile", "")), "near_clear_far_soft", "camera should expose its fixed-focus art direction")
+		_assert_near(camera.fov, 58.0, 0.01, "the shared first-person camera should start at the fixed authored FOV")
+		game_root._reality_interaction_active = true
+		game_root._animate_world(0.5)
+		_assert_near(camera.fov, 58.0, 0.01, "starting an NPC interaction must not alter the fixed focal length")
+		game_root._reality_interaction_active = false
 	_assert_true(top_bar != null and bottom_bar != null, "gameplay should expose fixed cinematic bars")
 	if top_bar != null and bottom_bar != null:
 		_assert_true(not top_bar.visible and not bottom_bar.visible, "phone view should not be squeezed by the reality-only cinematic bars")
@@ -363,18 +368,24 @@ func _run() -> void:
 	_assert_true(float(floor_root.get_meta("minimum_clear_path_width", 0.0)) >= 5.6, "occluders should preserve a generous continuous walking lane")
 	_assert_true(float(floor_root.get_meta("map_width", 0.0)) >= 245.0 and float(floor_root.get_meta("map_length", 0.0)) >= 255.0, "second-floor clearing diameter should be comparable to the full first-floor journey")
 	_assert_true(int(floor_root.get_meta("disc_angular_segment_count", 0)) >= 96, "second-floor clearing should use enough boundary segments for an irregular circular silhouette")
-	_assert_true(int(floor_root.get_meta("disc_radial_segment_count", 0)) >= 16, "second-floor clearing should tessellate its filled interior instead of leaving a central hole")
+	_assert_true(int(floor_root.get_meta("disc_radial_segment_count", 0)) >= 24, "second-floor clearing should tessellate its filled interior densely enough to shape walkable mounds")
 	_assert_true(float(floor_root.get_meta("disc_radius_x", 0.0)) >= 110.0 and float(floor_root.get_meta("disc_radius_z", 0.0)) >= 115.0, "second-floor clearing should expose its large unequal radii")
-	_assert_true(float(floor_root.get_meta("disc_height_variation", 0.0)) >= 1.0, "second-floor procedural surface should include visible walkable elevation changes")
+	_assert_true(float(floor_root.get_meta("disc_height_variation", 0.0)) >= 4.0, "second-floor procedural surface should include player-visible hill elevation changes")
+	_assert_eq(int(floor_root.get_meta("disc_mound_count", 0)), 13, "second-floor terrain should distribute a field of small authored hill mounds")
 	var disc_ground := _find_node_by_name(floor_root, "IrregularDiscGround") as StaticBody3D
+	var disc_surface: MeshInstance3D = null
 	_assert_true(disc_ground != null and bool(disc_ground.get_meta("irregular_disc", false)), "second floor should build one metadata-tagged filled procedural ground body")
 	if disc_ground != null:
-		var disc_surface := disc_ground.get_node_or_null("DiscSurface") as MeshInstance3D
+		disc_surface = disc_ground.get_node_or_null("DiscSurface") as MeshInstance3D
 		var disc_collision := disc_ground.get_node_or_null("Collision") as CollisionShape3D
 		_assert_true(disc_surface != null and disc_surface.mesh is ArrayMesh, "disc terrain should be generated as an original low-poly ArrayMesh")
 		if disc_surface != null:
 			var disc_material := disc_surface.material_override as StandardMaterial3D
 			_assert_true(disc_material != null and disc_material.cull_mode == BaseMaterial3D.CULL_DISABLED, "second-floor terrain should remain visible from the playable side even when procedural winding flips")
+			var height_profile := _mesh_height_profile(disc_surface)
+			_assert_true(float(height_profile.get("range", 0.0)) >= 4.0, "actual terrain vertices should span at least four metres vertically")
+			for quadrant_peak in height_profile.get("quadrant_peaks", []):
+				_assert_true(float(quadrant_peak) >= 1.2, "each map quadrant should contain a clearly raised hill crest")
 		_assert_true(disc_collision != null and disc_collision.shape is ConcavePolygonShape3D, "disc elevation should be backed by matching trimesh collision")
 	var logical_rooms: Array[Node3D] = []
 	_collect_nodes_with_meta(floor_root, "logical_room", logical_rooms)
@@ -382,18 +393,37 @@ func _run() -> void:
 	var physical_houses: Array[Node3D] = []
 	_collect_nodes_with_meta(floor_root, "physical_house", physical_houses)
 	_assert_eq(physical_houses.size(), int(floor_root.get_meta("physical_house_count", -1)), "physical-house metadata should match generated second-floor buildings")
-	_assert_eq(physical_houses.size(), 6, "six houses should be sparse at this map scale without collapsing into a facade row")
+	_assert_eq(physical_houses.size(), 9, "nine houses should populate the broad map while remaining sparse and disconnected")
+	var scenery_houses: Array[Node3D] = []
+	_collect_nodes_with_meta(floor_root, "scenery_only", scenery_houses)
+	_assert_eq(scenery_houses.size(), 3, "three extra scenery houses should add density without adding gameplay rewards")
 	var house_min_x := INF
 	var house_max_x := -INF
+	var house_min_y := INF
+	var house_max_y := -INF
 	var house_min_z := INF
 	var house_max_z := -INF
 	for house in physical_houses:
 		house_min_x = minf(house_min_x, house.global_position.x)
 		house_max_x = maxf(house_max_x, house.global_position.x)
+		house_min_y = minf(house_min_y, house.global_position.y)
+		house_max_y = maxf(house_max_y, house.global_position.y)
 		house_min_z = minf(house_min_z, house.global_position.z)
 		house_max_z = maxf(house_max_z, house.global_position.z)
 	_assert_true(house_max_x - house_min_x >= 100.0 and house_max_z - house_min_z >= 100.0, "second-floor houses should scatter across both axes instead of forming two straight rows")
-	_assert_true(float(floor_root.get_meta("night_house_coverage_ratio", 1.0)) <= 0.16, "houses should occupy only a small share of the broad clearing")
+	_assert_true(house_max_y - house_min_y >= 1.4, "scattered houses should visibly sit at different elevations across the hill field")
+	var measured_house_area := 0.0
+	for house in physical_houses:
+		var house_mesh := house.get_node_or_null("Mesh") as MeshInstance3D
+		if house_mesh != null and house_mesh.mesh is BoxMesh:
+			var house_size := (house_mesh.mesh as BoxMesh).size
+			measured_house_area += house_size.x * house_size.z
+	var measured_disc_area := _projected_mesh_area(disc_surface)
+	var measured_coverage := measured_house_area / maxf(1.0, measured_disc_area)
+	_assert_true(measured_disc_area > 35000.0, "the filled irregular disc should expose a broad independently measured planar area")
+	_assert_true(measured_coverage > 0.0 and measured_coverage <= 0.01, "nine houses should still occupy less than one percent of the broad clearing (got %.5f)" % measured_coverage)
+	_assert_near(float(floor_root.get_meta("night_house_coverage_ratio", -1.0)), measured_coverage, 0.0001, "coverage metadata should derive from actual house footprints and disc geometry")
+	_assert_eq(str(floor_root.get_meta("night_house_coverage_method", "")), "procedural_footprints_over_boundary_polygon", "coverage metadata should name its geometry-based calculation")
 	var floor_two_spawn: Vector3 = floor_root.call("start_position")
 	_assert_true(bool(floor_root.call("contains_playable_position", floor_two_spawn)), "second-floor spawn should remain inside the playable clearing")
 	_assert_near(float(floor_root.call("start_yaw_degrees")), 0.0, 0.01, "second-floor spawn should face inward across the scattered settlement")
@@ -597,6 +627,48 @@ func _vertical_ground_collision(floor_root: Node3D, point: Vector3, player: Char
 	if player != null:
 		query.exclude = [player.get_rid()]
 	return floor_root.get_world_3d().direct_space_state.intersect_ray(query)
+
+
+func _projected_mesh_area(mesh_instance: MeshInstance3D) -> float:
+	if mesh_instance == null or mesh_instance.mesh == null or mesh_instance.mesh.get_surface_count() == 0:
+		return 0.0
+	var arrays := mesh_instance.mesh.surface_get_arrays(0)
+	var vertices: PackedVector3Array = arrays[Mesh.ARRAY_VERTEX]
+	var indices := PackedInt32Array()
+	var raw_indices: Variant = arrays[Mesh.ARRAY_INDEX]
+	if raw_indices is PackedInt32Array:
+		indices = raw_indices
+	var area := 0.0
+	if indices.is_empty():
+		for vertex_index in range(0, vertices.size() - 2, 3):
+			area += _projected_triangle_area(vertices[vertex_index], vertices[vertex_index + 1], vertices[vertex_index + 2])
+	else:
+		for index_offset in range(0, indices.size() - 2, 3):
+			area += _projected_triangle_area(vertices[indices[index_offset]], vertices[indices[index_offset + 1]], vertices[indices[index_offset + 2]])
+	return area
+
+
+func _mesh_height_profile(mesh_instance: MeshInstance3D) -> Dictionary:
+	if mesh_instance == null or mesh_instance.mesh == null or mesh_instance.mesh.get_surface_count() == 0:
+		return {"range": 0.0, "quadrant_peaks": []}
+	var arrays := mesh_instance.mesh.surface_get_arrays(0)
+	var vertices: PackedVector3Array = arrays[Mesh.ARRAY_VERTEX]
+	var min_height := INF
+	var max_height := -INF
+	var quadrant_peaks := [-INF, -INF, -INF, -INF]
+	for vertex in vertices:
+		min_height = minf(min_height, vertex.y)
+		max_height = maxf(max_height, vertex.y)
+		var quadrant := (1 if vertex.x >= 0.0 else 0) + (2 if vertex.z >= 0.0 else 0)
+		quadrant_peaks[quadrant] = maxf(float(quadrant_peaks[quadrant]), vertex.y)
+	return {
+		"range": max_height - min_height,
+		"quadrant_peaks": quadrant_peaks,
+	}
+
+
+func _projected_triangle_area(a: Vector3, b: Vector3, c: Vector3) -> float:
+	return absf((b.x - a.x) * (c.z - a.z) - (b.z - a.z) * (c.x - a.x)) * 0.5
 
 
 func _centerline_collision(floor_root: Node3D, player: CharacterBody3D) -> Dictionary:

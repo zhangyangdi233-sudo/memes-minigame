@@ -224,7 +224,7 @@ const EN: Dictionary = {
 	# Shop and notebook.
 	"梗框 / MEME FRAME": "MEME FRAME",
 	"持有 %d": "OWNED %d",
-	"今天货架是空的。梗框每隔两天才补一次。": "The shelf is empty today. Meme Frames are restocked every three days.",
+	"今天货架是空的。梗框每三天补一次。": "The shelf is empty today. Meme Frames are restocked every three days.",
 	"一个空框。只够装下一个字。": "An empty frame with room for just one word.",
 	"购买后去笔记本，把拾到的单字拖进去。": "After buying it, open the Notebook and drag a collected word into it.",
 	"已售出": "Sold",
@@ -641,7 +641,7 @@ const JA: Dictionary = {
 	# Shop and notebook.
 	"梗框 / MEME FRAME": "ミーム枠 / MEME FRAME",
 	"持有 %d": "所持数 %d",
-	"今天货架是空的。梗框每隔两天才补一次。": "今日は棚が空だ。ミーム枠は3日ごとに補充される。",
+	"今天货架是空的。梗框每三天补一次。": "今日は棚が空だ。ミーム枠は3日ごとに補充される。",
 	"一个空框。只够装下一个字。": "空の枠。単語を一つだけ入れられる。",
 	"购买后去笔记本，把拾到的单字拖进去。": "購入後、ノートを開いて拾った単語をドラッグしてください。",
 	"已售出": "売り切れ",

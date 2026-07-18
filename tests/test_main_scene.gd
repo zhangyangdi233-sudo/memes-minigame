@@ -189,7 +189,7 @@ func _run() -> void:
 		var social_channel_tab_underline_discover := _find_node_by_name(root, "SocialChannelTabUnderlinediscover") as ColorRect
 		var social_home_page := _find_node_by_name(root, "SocialHomePage") as VBoxContainer
 		var social_feed_scroll := _find_node_by_name(root, "SocialFeedScroll") as ScrollContainer
-		var social_feed_masonry := _find_node_by_name(root, "SocialFeedMasonry") as GridContainer
+		var social_feed_masonry := _find_node_by_name(root, "SocialFeedMasonry") as HBoxContainer
 		var social_masonry_column_0 := _find_node_by_name(root, "SocialMasonryColumn0") as VBoxContainer
 		var social_masonry_column_1 := _find_node_by_name(root, "SocialMasonryColumn1") as VBoxContainer
 		var social_publish_page := _find_node_by_name(root, "SocialPublishPage") as VBoxContainer
@@ -406,7 +406,7 @@ func _run() -> void:
 					social_channel_tab_underline_discover = _find_node_by_name(root, "SocialChannelTabUnderlinediscover") as ColorRect
 					social_home_page = _find_node_by_name(root, "SocialHomePage") as VBoxContainer
 					social_feed_scroll = _find_node_by_name(root, "SocialFeedScroll") as ScrollContainer
-					social_feed_masonry = _find_node_by_name(root, "SocialFeedMasonry") as GridContainer
+					social_feed_masonry = _find_node_by_name(root, "SocialFeedMasonry") as HBoxContainer
 					social_masonry_column_0 = _find_node_by_name(root, "SocialMasonryColumn0") as VBoxContainer
 					social_masonry_column_1 = _find_node_by_name(root, "SocialMasonryColumn1") as VBoxContainer
 					social_publish_page = _find_node_by_name(root, "SocialPublishPage") as VBoxContainer
@@ -501,7 +501,7 @@ func _run() -> void:
 			social_channel_tab_underline_discover = _find_node_by_name(root, "SocialChannelTabUnderlinediscover") as ColorRect
 			social_home_page = _find_node_by_name(root, "SocialHomePage") as VBoxContainer
 			social_feed_scroll = _find_node_by_name(root, "SocialFeedScroll") as ScrollContainer
-			social_feed_masonry = _find_node_by_name(root, "SocialFeedMasonry") as GridContainer
+			social_feed_masonry = _find_node_by_name(root, "SocialFeedMasonry") as HBoxContainer
 			social_masonry_column_0 = _find_node_by_name(root, "SocialMasonryColumn0") as VBoxContainer
 			social_masonry_column_1 = _find_node_by_name(root, "SocialMasonryColumn1") as VBoxContainer
 			social_publish_page = _find_node_by_name(root, "SocialPublishPage") as VBoxContainer
@@ -585,9 +585,11 @@ func _run() -> void:
 			_assert_true(social_home_page != null, "social app should default to a home page")
 			_assert_true(social_feed_scroll != null, "social app should include an internal feed scroll area")
 			_assert_true(social_feed_masonry != null, "social app should render a Xiaohongshu/Pinterest-like masonry feed")
-			_assert_true(social_masonry_column_0 == null and social_masonry_column_1 == null, "uniform feed should not use independent columns that drift out of alignment")
+			_assert_true(social_masonry_column_0 != null and social_masonry_column_1 != null, "masonry feed should use independent columns so short cards do not create row-height holes")
 			if social_feed_masonry != null:
-				_assert_eq(social_feed_masonry.columns, 2, "social feed should use one strict two-column grid")
+				_assert_eq(str(social_feed_masonry.get_meta("layout_mode", "")), "independent_equal_width_columns", "social feed should publish its true masonry layout contract")
+			if social_masonry_column_0 != null and social_masonry_column_1 != null:
+				_assert_true(absf(social_masonry_column_0.size.x - social_masonry_column_1.size.x) <= 0.5, "independent social columns should still render at equal width")
 			_assert_true(social_publish_page == null, "social app should not show publish page on home")
 			_assert_true(social_publish_composer == null, "social app should not put the publish composer on home")
 			_assert_true(social_post_detail_page == null, "default social view should not show a detail page until Tower or a post is opened")
@@ -613,7 +615,7 @@ func _run() -> void:
 			if social_channel_tab_tower != null and social_app_window != null:
 				social_channel_tab_tower.pressed.emit()
 				var tower_detail_page := _find_node_by_name(root, "SocialPostDetailPage") as VBoxContainer
-				var tower_feed := _find_node_by_name(root, "SocialFeedMasonry") as GridContainer
+				var tower_feed := _find_node_by_name(root, "SocialFeedMasonry") as HBoxContainer
 				var tower_detail_window := _find_node_by_name(root, "SocialDetailWindow") as PanelContainer
 				_assert_true(tower_detail_page != null, "pressing Tower should open the secondary detail page")
 				_assert_true(tower_feed != null, "opening the Tower companion should preserve the phone feed underneath")
@@ -708,7 +710,7 @@ func _run() -> void:
 			if social_app_window != null and social_feed_masonry != null:
 				var social_width := social_app_window.offset_right - social_app_window.offset_left
 				var social_height := social_app_window.offset_bottom - social_app_window.offset_top
-				var current_social_feed_masonry := _find_node_by_name(root, "SocialFeedMasonry") as GridContainer
+				var current_social_feed_masonry := _find_node_by_name(root, "SocialFeedMasonry") as HBoxContainer
 				_assert_true(social_width >= 410.0, "social app window should leave two readable masonry columns")
 				_assert_true(social_width <= 445.0, "social app window should match the wider reference phone width without crowding")
 				_assert_true(social_height >= 840.0, "social app window should use the available vertical phone space")
@@ -735,7 +737,7 @@ func _run() -> void:
 			_assert_true(social_feed_scroll.scroll_vertical <= 2, "one pan gesture unit should use the same slow phone-feed step")
 			_assert_eq(root.game.actions_remaining, actions_before_pan, "touchpad-style social feed browsing should not spend an action")
 			if social_feed_masonry != null:
-				_assert_eq(social_feed_masonry.columns, 2, "mobile social feed should keep a strict two-column discovery grid")
+				_assert_eq(social_feed_masonry.get_child_count(), 2, "mobile social feed should keep exactly two independent discovery columns")
 		if social_post_card != null and social_post_card_1 != null:
 			_assert_true(is_equal_approx(social_post_card.size.x, social_post_card_1.size.x), "localized social post cards should keep equal column widths while allowing staggered heights")
 			_assert_true(social_post_card.clip_contents and social_post_card_1.clip_contents, "localized cards should clip overflow instead of growing with Japanese copy")
@@ -784,7 +786,7 @@ func _run() -> void:
 			var publish_contract_after_nav := _find_node_by_name(root, "SocialPublishContractPanel") as PanelContainer
 			var publish_contract_title_after_nav := _find_node_by_name(root, "SocialPublishContractTitle") as Label
 			var publish_contract_text_after_nav := _find_node_by_name(root, "SocialPublishContractText") as Label
-			var feed_after_nav := _find_node_by_name(root, "SocialFeedMasonry") as GridContainer
+			var feed_after_nav := _find_node_by_name(root, "SocialFeedMasonry") as HBoxContainer
 			var inline_close_after_publish := _find_node_by_name(root, "SocialAppInlineCloseButton") as Button
 			var bottom_nav_after_publish := _find_node_by_name(root, "SocialBottomNav") as HBoxContainer
 			_assert_true(publish_page_after_nav != null, "publish nav should open a dedicated publish page")
@@ -835,7 +837,7 @@ func _run() -> void:
 				root._open_social_post(0)
 				var detail_after_card := _find_node_by_name(root, "SocialPostDetailPage") as VBoxContainer
 				var back_from_detail := _find_node_by_name(root, "SocialBackToHome") as Button
-				var feed_on_detail := _find_node_by_name(root, "SocialFeedMasonry") as GridContainer
+				var feed_on_detail := _find_node_by_name(root, "SocialFeedMasonry") as HBoxContainer
 				var detail_floor := _find_node_by_name(root, "SocialDetailWindowHandle") as Label
 				var detail_media_texture := _find_node_by_name(root, "SocialDetailPostTexture") as TextureRect
 				var detail_signal_profile := _find_node_by_name(root, "SocialCardSignalProfile") as Label
@@ -871,7 +873,7 @@ func _run() -> void:
 			if follow_tab_initial != null:
 				follow_tab_initial.pressed.emit()
 			var following_empty := _find_node_by_name(root, "SocialFollowingEmptyState") as PanelContainer
-			var following_feed_empty := _find_node_by_name(root, "SocialFeedMasonry") as GridContainer
+			var following_feed_empty := _find_node_by_name(root, "SocialFeedMasonry") as HBoxContainer
 			_assert_true(following_empty != null, "Follow should begin with an explicit empty state")
 			_assert_true(following_feed_empty == null, "Follow should not show discovery posts before the player follows anyone")
 			var discover_for_engagement := _find_node_by_name(root, "SocialChannelTabdiscover") as Button
@@ -896,7 +898,7 @@ func _run() -> void:
 			var follow_tab_after_follow := _find_node_by_name(root, "SocialChannelTabfollowing") as Button
 			if follow_tab_after_follow != null:
 				follow_tab_after_follow.pressed.emit()
-			var following_feed := _find_node_by_name(root, "SocialFeedMasonry") as GridContainer
+			var following_feed := _find_node_by_name(root, "SocialFeedMasonry") as HBoxContainer
 			_assert_true(_find_node_by_name(root, "SocialFollowingEmptyState") == null, "Follow empty state should disappear after following an account")
 			_assert_true(following_feed != null, "Follow should render a masonry feed after an account is followed")
 			_assert_eq(_count_nodes_named_prefix(root, "SocialPostCard"), 1, "Follow should contain only posts from followed accounts")

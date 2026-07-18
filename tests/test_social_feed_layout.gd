@@ -24,8 +24,14 @@ func _run() -> void:
 	for _frame in 8:
 		await process_frame
 
-	var grid := _find_node_by_name(game_root, "SocialFeedMasonry") as GridContainer
-	_assert_true(grid != null and grid.columns == 2, "Japanese feed should use one strict two-column grid")
+	var masonry := _find_node_by_name(game_root, "SocialFeedMasonry") as HBoxContainer
+	var column_0 := _find_node_by_name(game_root, "SocialMasonryColumn0") as VBoxContainer
+	var column_1 := _find_node_by_name(game_root, "SocialMasonryColumn1") as VBoxContainer
+	_assert_true(masonry != null and column_0 != null and column_1 != null, "Japanese feed should use two independent masonry columns")
+	if column_0 != null and column_1 != null:
+		_assert_near(column_0.size.x, column_1.size.x, 0.5, "masonry columns must receive identical rendered width")
+		_assert_column_continuity(column_0)
+		_assert_column_continuity(column_1)
 	var cards: Array[PanelContainer] = []
 	_collect_social_cards(game_root, cards)
 	_assert_true(cards.size() >= 4, "Japanese feed should lay out enough cards to compare both columns")
@@ -65,6 +71,19 @@ func _run() -> void:
 	game_root.queue_free()
 	await process_frame
 	_finish()
+
+
+func _assert_column_continuity(column: VBoxContainer) -> void:
+	var column_cards: Array[Control] = []
+	for child in column.get_children():
+		if child is Control and bool(child.get_meta("social_card", false)):
+			column_cards.append(child as Control)
+	_assert_true(column_cards.size() >= 2, "%s should contain enough cards to demonstrate independent stacking" % column.name)
+	for index in range(1, column_cards.size()):
+		var previous := column_cards[index - 1]
+		var current := column_cards[index]
+		var gap := current.position.y - (previous.position.y + previous.size.y)
+		_assert_near(gap, 10.0, 0.75, "%s cards should stack continuously without row-height holes" % column.name)
 
 
 func _collect_social_cards(node: Node, result: Array[PanelContainer]) -> void:
