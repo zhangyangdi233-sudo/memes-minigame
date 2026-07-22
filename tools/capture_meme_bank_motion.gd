@@ -35,8 +35,8 @@ func _capture() -> void:
 	main._render()
 	for frame in 6:
 		await process_frame
-	var started_at := Time.get_ticks_msec()
-	_record_sample("closed", main, started_at)
+	var capture_started_at := Time.get_ticks_msec()
+	_record_sample("closed", main, capture_started_at, false)
 	if not await _save_viewport(CLOSED_OUTPUT):
 		main.queue_free()
 		await process_frame
@@ -44,16 +44,30 @@ func _capture() -> void:
 		return
 
 	main._toggle_meme_bank()
-	await create_timer(0.07).timeout
-	_record_sample("opening", main, started_at)
+	var motion_tween: Tween = main._meme_bank_tween
+	if motion_tween == null:
+		push_error("Meme-bank tween was not created")
+		main.queue_free()
+		await process_frame
+		quit(1)
+		return
+	motion_tween.pause()
+	motion_tween.custom_step(0.07)
+	await process_frame
+	_record_sample("opening", main, capture_started_at, true)
 	if not await _save_viewport(MID_OUTPUT):
 		main.queue_free()
 		await process_frame
 		quit(1)
 		return
 
-	await create_timer(0.38).timeout
-	_record_sample("open", main, started_at)
+	motion_tween.play()
+	if not await _wait_for_motion_phase(main, "open"):
+		main.queue_free()
+		await process_frame
+		quit(1)
+		return
+	_record_sample("open", main, capture_started_at, true)
 	if not await _save_viewport(OPEN_OUTPUT) or not _save_trace(main):
 		main.queue_free()
 		await process_frame
@@ -102,18 +116,33 @@ func _capture_memes() -> Array[Dictionary]:
 	}]
 
 
-func _record_sample(phase: String, main: Node, started_at: int) -> void:
+func _record_sample(phase: String, main: Node, capture_started_at: int, motion_started: bool) -> void:
 	var bank := main.find_child("MemeBankPopup", true, false) as Control
 	if bank == null:
 		return
+	var motion_elapsed_ms := -1
+	var motion_tween: Tween = main._meme_bank_tween
+	if motion_started and motion_tween != null:
+		motion_elapsed_ms = roundi(motion_tween.get_total_elapsed_time() * 1000.0)
 	_samples.append({
 		"phase": phase,
-		"elapsed_ms": Time.get_ticks_msec() - started_at,
+		"capture_elapsed_ms": Time.get_ticks_msec() - capture_started_at,
+		"motion_elapsed_ms": motion_elapsed_ms,
 		"scale_x": snappedf(bank.scale.x, 0.001),
 		"alpha": snappedf(bank.modulate.a, 0.001),
 		"visible": bank.visible,
 		"motion_phase": str(bank.get_meta("motion_phase", "idle")),
 	})
+
+
+func _wait_for_motion_phase(main: Node, target_phase: String) -> bool:
+	for frame_index in 240:
+		var bank := main.find_child("MemeBankPopup", true, false) as Control
+		if bank != null and str(bank.get_meta("motion_phase", "")) == target_phase:
+			return true
+		await process_frame
+	push_error("Meme-bank tween did not settle into phase: %s" % target_phase)
+	return false
 
 
 func _save_viewport(path: String) -> bool:
@@ -138,6 +167,7 @@ func _save_trace(main: Node) -> bool:
 	var profile: Dictionary = main._meme_bank_motion_profile(true)
 	var payload := {
 		"implementation": "Godot Tween",
+		"timing_basis": "Tween.get_total_elapsed_time",
 		"transition": "TRANS_QUINT",
 		"ease": "EASE_OUT",
 		"scale_duration_seconds": profile.get("scale_duration", 0.0),

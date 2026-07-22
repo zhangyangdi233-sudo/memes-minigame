@@ -4612,11 +4612,21 @@ func _play_meme_bank_motion(opening: bool) -> void:
 	_meme_bank_window.set_meta("motion_phase", profile["phase"])
 	_meme_bank_window.set_meta("motion_transition", profile["transition"])
 	_meme_bank_window.set_meta("motion_ease", profile["ease"])
-	_meme_bank_tween = create_tween().set_parallel(true)
-	_meme_bank_tween.tween_property(_meme_bank_window, "scale", profile["target_scale"], float(profile["scale_duration"])) \
+	var motion_tween := create_tween().set_parallel(true)
+	_meme_bank_tween = motion_tween
+	motion_tween.tween_property(_meme_bank_window, "scale", profile["target_scale"], float(profile["scale_duration"])) \
 		.set_trans(int(profile["transition"])).set_ease(int(profile["ease"]))
-	_meme_bank_tween.tween_property(_meme_bank_window, "modulate", Color(1.0, 1.0, 1.0, float(profile["target_alpha"])), float(profile["alpha_duration"])) \
+	motion_tween.tween_property(_meme_bank_window, "modulate", Color(1.0, 1.0, 1.0, float(profile["target_alpha"])), float(profile["alpha_duration"])) \
 		.set_trans(int(profile["transition"])).set_ease(int(profile["ease"]))
+	motion_tween.finished.connect(_finish_meme_bank_motion.bind(opening, motion_tween), CONNECT_ONE_SHOT)
+
+
+func _finish_meme_bank_motion(opening: bool, completed_tween: Tween) -> void:
+	if completed_tween != _meme_bank_tween or _meme_bank_window == null:
+		return
+	_meme_bank_window.scale = Vector2.ONE
+	_meme_bank_window.modulate.a = 1.0
+	_meme_bank_window.set_meta("motion_phase", "open" if opening else "closed")
 
 
 func _meme_bank_motion_profile(opening: bool) -> Dictionary:

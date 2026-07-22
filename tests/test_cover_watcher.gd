@@ -74,7 +74,12 @@ func _run() -> void:
 	var sprite := _find_node_by_name(floor_root, "CoverWatcherSprite") as Sprite3D
 	var spawn := floor_root.start_position()
 	var toward_watcher := (event_root.global_position - spawn).normalized() if event_root != null else Vector3(0.0, 0.0, -1.0)
-	floor_root.update_authored_events(0.35, spawn, toward_watcher)
+	var fast_position := spawn + Vector3(1.0, 0.0, 0.0)
+	var fast_toward_watcher := (event_root.global_position - fast_position).normalized() if event_root != null else toward_watcher
+	floor_root.update_authored_events(0.10, fast_position, fast_toward_watcher)
+	_assert_true(sprite != null and not sprite.visible, "moving beyond the old travel shortcut must not bypass the authored appearance delay")
+	_assert_true(appeared_floors.is_empty(), "the appearance signal must remain silent during a fast move inside the delay window")
+	floor_root.update_authored_events(0.25, spawn, toward_watcher)
 	_assert_true(sprite != null and not sprite.visible, "the first short pause should preserve the empty cover")
 	floor_root.update_authored_events(0.40, spawn, -toward_watcher)
 	_assert_true(sprite != null and not sprite.visible, "elapsed time alone must not consume the sighting while the player looks away")

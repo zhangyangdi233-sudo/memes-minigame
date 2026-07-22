@@ -92,6 +92,10 @@ func _run() -> void:
 	_assert_true(game_root._meme_bank_tween != opening_tween, "closing the bank should create a fresh tween")
 	_assert_eq(game_root.game.actions_remaining, actions_before_bank_motion, "opening and closing the meme bank should not spend an action")
 	game_root._toggle_meme_bank()
+	await create_timer(float(opening_profile.get("scale_duration", 0.28)) + 0.08).timeout
+	_assert_eq(str(meme_bank.get_meta("motion_phase", "")), "open", "a completed opening tween should expose its settled phase")
+	_assert_true(meme_bank.scale.is_equal_approx(Vector2.ONE), "a completed meme-bank tween should settle at its exact authored scale")
+	_assert_true(is_equal_approx(meme_bank.modulate.a, 1.0), "a completed meme-bank tween should settle at full authored alpha")
 	game_root.game.set_active_app("notebook")
 	game_root._open_app_windows["social"] = false
 	game_root._render()

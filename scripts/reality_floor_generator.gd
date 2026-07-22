@@ -310,7 +310,7 @@ func update_authored_events(delta: float, player_position: Vector3, camera_forwa
 				_update_dead_sign_event(horizontal_travel, player_position, safe_forward)
 			"distant_mirage":
 				_update_distant_mirage_event(delta, horizontal_travel, player_position)
-	_update_cover_watcher_event(delta, horizontal_travel, player_position, safe_forward)
+	_update_cover_watcher_event(delta, player_position, safe_forward)
 
 
 func get_authored_event_state(event_kind: String) -> Dictionary:
@@ -396,7 +396,7 @@ func _build_cover_watcher_event(palette: Dictionary, already_seen: bool) -> void
 	set_meta("cover_watcher_event_count", 1)
 
 
-func _update_cover_watcher_event(delta: float, horizontal_travel: float, player_position: Vector3, camera_forward: Vector3) -> void:
+func _update_cover_watcher_event(delta: float, player_position: Vector3, camera_forward: Vector3) -> void:
 	if _cover_watcher_root == null or _cover_watcher_sprite == null or bool(_cover_watcher_state.get("vanished", false)):
 		return
 	var elapsed := float(_cover_watcher_state.get("elapsed", 0.0)) + delta
@@ -407,7 +407,7 @@ func _update_cover_watcher_event(delta: float, horizontal_travel: float, player_
 	var view_dot := planar_forward.dot(to_watcher.normalized()) if planar_forward.length_squared() > 0.0001 and to_watcher.length_squared() > 0.0001 else -1.0
 	_cover_watcher_state["view_dot"] = view_dot
 	if not bool(_cover_watcher_state.get("triggered", false)):
-		if (elapsed < COVER_WATCHER_APPEAR_DELAY and horizontal_travel < 0.85) or view_dot < 0.62:
+		if elapsed < COVER_WATCHER_APPEAR_DELAY or view_dot < 0.62:
 			return
 		_cover_watcher_state["triggered"] = true
 		_cover_watcher_state["observed_in_view"] = true
