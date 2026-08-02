@@ -2,7 +2,15 @@ class_name MemeGameState
 extends RefCounted
 
 const GameLocaleScript = preload("res://scripts/localization/game_locale.gd")
-const MAX_TOWER_FLOOR := 5
+const MAX_TOWER_FLOOR := 4
+const POLLUTION_FLOOR_THRESHOLDS := {1: 25, 2: 60, 3: 80}
+const ECHO_FRAGMENT_IDS := ["echo_room_name", "echo_safe_place", "echo_blank_voice"]
+const REQUIRED_DIALOGUE_KEY_IDS := ["dialogue_key_name", "dialogue_key_source", "dialogue_key_voice"]
+const DIALOGUE_KEY_BY_CHOICE_ID := {
+	"f1n1_name": "dialogue_key_name",
+	"copy_refuse_source": "dialogue_key_source",
+	"believer_question": "dialogue_key_voice",
+}
 const TOWER_THRESHOLDS := [0, 144, 256, 376, 480, 600]
 const MAX_THRESHOLD_DISCOUNT := 280
 const POLLUTION_LOCK_THRESHOLD := 70
@@ -322,6 +330,7 @@ const MERCHANT_CHOICES_BY_FLOOR := {
 	],
 }
 const REALITY_CORRUPTION_GLYPHS := ["■", "▦", "∴", "//", "哈", "吉", "米", "空位"]
+const PROTECTED_PUNCTUATION := ["，", "。", "！", "？", "；", "：", "、", "…", ",", ".", "!", "?", ";", ":", "\"", "'", "（", "）", "(", ")"]
 const COMMUNICATION_ITEMS := {
 	"silence_patch": {
 		"id": "silence_patch", "label": "静音贴", "price": 6, "charges": 2, "clarity_bonus": 18,
@@ -359,16 +368,18 @@ const EPILOGUE_LINES := [
 	"你把耳朵贴近外壳。里面传来整座城市的声音，每个人都在准确重复别人。",
 	"你想说一句普通的话。每一层却先替你开口。",
 ]
-const SAVE_DATA_VERSION := 1
+const SAVE_DATA_VERSION := 2
 const SAVE_FIELD_NAMES := [
 	"day", "heat", "pollution", "clarity", "tower_floor", "threshold_discount", "next_threshold",
-	"ending_unlocked", "ending_language_choice", "money", "actions_remaining", "max_actions_per_day",
+	"ending_unlocked", "ending_language_choice", "ending_route", "formal_floor_three_complete",
+	"pending_floor_transition", "money", "actions_remaining", "max_actions_per_day",
 	"needs_day_settlement", "day_ended_reason", "pollution_flashback_seen", "pollution_flashback_pending",
 	"view_state", "phone_visible", "phone_open", "active_app", "active_app_window",
 	"notebook_tokens", "draft_slots", "completed_memes", "owned_meme_frames", "daily_meme_frame_bought",
 	"fusion_slots", "fused_meme_pairs", "dialogue_blanks", "published_memes", "last_publish_breakdown",
 	"event_log", "social_followed_handles", "social_liked_post_ids", "collected_world_item_ids",
 	"cover_watcher_seen_floors",
+	"collected_echo_fragment_ids", "completed_dialogue_key_ids",
 	"pending_world_item_effects", "permanent_modifiers", "owned_tarot_ids", "pending_ascent_reward_choices",
 	"pending_ascent_reward_floor", "queued_ascent_reward_floors", "rewarded_ascent_floors",
 	"reality_sentence_slots", "legacy_rules", "last_clean_sentence", "last_polluted_sentence",
@@ -387,6 +398,9 @@ var threshold_discount: int = 0
 var next_threshold: int = 36
 var ending_unlocked: bool = false
 var ending_language_choice: String = ""
+var ending_route: String = ""
+var formal_floor_three_complete: bool = false
+var pending_floor_transition: int = 0
 var money: int = 18
 var actions_remaining: int = 5
 var max_actions_per_day: int = 5
@@ -418,6 +432,8 @@ var social_liked_post_ids: Array[String] = []
 var collected_world_item_ids: Array[String] = []
 var cover_watcher_seen_floors: Array[int] = []
 var pending_world_item_effects: Dictionary = {}
+var collected_echo_fragment_ids: Array[String] = []
+var completed_dialogue_key_ids: Array[String] = []
 
 var permanent_modifiers: Array = []
 var owned_tarot_ids: Array[String] = []
@@ -482,6 +498,9 @@ func new_run() -> void:
 	next_threshold = _tower_threshold(tower_floor)
 	ending_unlocked = false
 	ending_language_choice = ""
+	ending_route = ""
+	formal_floor_three_complete = false
+	pending_floor_transition = 0
 	money = 18
 	max_actions_per_day = BASE_ACTIONS_PER_DAY
 	actions_remaining = max_actions_per_day
@@ -510,6 +529,8 @@ func new_run() -> void:
 	collected_world_item_ids = []
 	cover_watcher_seen_floors = []
 	pending_world_item_effects = {}
+	collected_echo_fragment_ids = []
+	completed_dialogue_key_ids = []
 	permanent_modifiers = []
 	owned_tarot_ids = []
 	pending_ascent_reward_choices = []
@@ -548,11 +569,13 @@ func to_save_data() -> Dictionary:
 
 
 func load_save_data(save_data: Dictionary) -> bool:
-	if int(save_data.get("version", -1)) != SAVE_DATA_VERSION:
+	var loaded_version := int(save_data.get("version", -1))
+	if loaded_version not in [1, SAVE_DATA_VERSION]:
 		return false
 	var state_data: Variant = save_data.get("state", {})
 	if not state_data is Dictionary:
 		return false
+	var saved_floor := int((state_data as Dictionary).get("tower_floor", 1))
 	new_run()
 	for field_name in SAVE_FIELD_NAMES:
 		if not state_data.has(field_name):
@@ -565,6 +588,15 @@ func load_save_data(save_data: Dictionary) -> bool:
 	actions_remaining = clampi(actions_remaining, 0, max_actions_per_day)
 	pollution = clampi(pollution, 0, 100)
 	clarity = clampi(clarity, 0, 100)
+	if loaded_version == 1 and saved_floor >= 4:
+		tower_floor = 3
+		ending_unlocked = false
+		ending_route = ""
+		formal_floor_three_complete = false
+		pending_floor_transition = 0
+		collected_echo_fragment_ids.clear()
+		completed_dialogue_key_ids.clear()
+		owned_communication_items.clear()
 	var normalized_watcher_floors: Array[int] = []
 	for floor_value in cover_watcher_seen_floors:
 		var floor_number := clampi(int(floor_value), 1, MAX_TOWER_FLOOR)
@@ -606,6 +638,72 @@ func set_view_state(value: String) -> bool:
 
 func is_world_item_collected(item_id: String) -> bool:
 	return item_id in collected_world_item_ids
+
+
+func get_echo_fragment_ids() -> Array:
+	return ECHO_FRAGMENT_IDS.duplicate()
+
+
+func collect_echo_fragment(fragment_id: String) -> bool:
+	var normalized_id := fragment_id.strip_edges()
+	if normalized_id not in ECHO_FRAGMENT_IDS or normalized_id in collected_echo_fragment_ids:
+		return false
+	collected_echo_fragment_ids.append(normalized_id)
+	event_log.push_front("你听见了一句已经被删掉的话。")
+	return true
+
+
+func register_dialogue_key_for_choice(choice_id: String) -> bool:
+	var key_id := str(DIALOGUE_KEY_BY_CHOICE_ID.get(choice_id, ""))
+	if key_id.is_empty() or key_id in completed_dialogue_key_ids:
+		return false
+	completed_dialogue_key_ids.append(key_id)
+	return true
+
+
+func is_hidden_layer_unlocked() -> bool:
+	return _contains_all_ids(collected_echo_fragment_ids, ECHO_FRAGMENT_IDS) \
+		or _contains_all_ids(completed_dialogue_key_ids, REQUIRED_DIALOGUE_KEY_IDS)
+
+
+func complete_floor_three() -> String:
+	if tower_floor != 3:
+		return ""
+	formal_floor_three_complete = true
+	if pollution >= int(POLLUTION_FLOOR_THRESHOLDS[3]) and is_hidden_layer_unlocked():
+		tower_floor = 4
+		pending_floor_transition = 0
+		ending_route = "hidden"
+		ending_unlocked = false
+		event_log.push_front("区域：未记录。")
+		return "hidden-floor"
+	ending_route = "normal"
+	ending_unlocked = true
+	pending_floor_transition = 0
+	return "normal-ending"
+
+
+func request_floor_transition_for_pollution() -> int:
+	if pending_floor_transition > tower_floor:
+		return pending_floor_transition
+	if tower_floor == 1 and pollution >= int(POLLUTION_FLOOR_THRESHOLDS[1]):
+		pending_floor_transition = 2
+	elif tower_floor == 2 and pollution >= int(POLLUTION_FLOOR_THRESHOLDS[2]):
+		pending_floor_transition = 3
+	return pending_floor_transition
+
+
+func resolve_floor_transition_at_boundary() -> int:
+	request_floor_transition_for_pollution()
+	if pending_floor_transition != tower_floor + 1 or pending_floor_transition > 3:
+		return tower_floor
+	var previous_floor := tower_floor
+	tower_floor = pending_floor_transition
+	pending_floor_transition = 0
+	register_legacy_rule_for_ascent(previous_floor)
+	event_log.push_front("语言把你带到第 %d 层。" % tower_floor)
+	next_threshold = _tower_threshold(tower_floor)
+	return tower_floor
 
 
 func has_seen_cover_watcher(floor_number: int) -> bool:
@@ -734,6 +832,14 @@ func check_pollution_flashback(previous_pollution: int) -> bool:
 	needs_day_settlement = true
 	day_ended_reason = "pollution-flashback"
 	return true
+
+
+func change_pollution(amount: int) -> int:
+	var previous_pollution := pollution
+	pollution = clampi(pollution + amount, 0, 100)
+	request_floor_transition_for_pollution()
+	check_pollution_flashback(previous_pollution)
+	return pollution - previous_pollution
 
 
 func consume_pollution_flashback() -> bool:
@@ -1000,7 +1106,8 @@ func advance_typed_reality_character() -> Dictionary:
 		return result
 	var clean_character := conversation_clean_units[conversation_reveal_index]
 	var roll := _conversation_roll("character", conversation_reveal_index, 0)
-	var corrupted := roll < pollution
+	var garble_percent := mini(pollution, 65)
+	var corrupted := roll < garble_percent and clean_character not in PROTECTED_PUNCTUATION
 	var display_character := clean_character
 	if corrupted:
 		display_character = _conversation_corruption_text(roll, conversation_reveal_index)
@@ -1028,6 +1135,7 @@ func advance_typed_reality_character() -> Dictionary:
 		result["action_spent"] = true
 		reality_dialogue_count += 1
 	conversation_attempts += 1
+	register_dialogue_key_for_choice(conversation_selected_choice_id)
 	last_clean_sentence = conversation_clean_sentence
 	last_polluted_sentence = get_typed_reality_spoken_sentence()
 	var understood := _resolve_typed_reality_understanding()
@@ -1288,9 +1396,7 @@ func pick_token(post_id: String, token: Dictionary) -> bool:
 	if not spend_action("pick-token"):
 		return false
 	notebook_tokens.append(note)
-	var previous_pollution := pollution
-	pollution = clampi(pollution + maxi(0, int(note["rarity"]) - 1), 0, 100)
-	check_pollution_flashback(previous_pollution)
+	change_pollution(maxi(0, int(note["rarity"]) - 1))
 	return true
 
 
@@ -1439,9 +1545,7 @@ func confirm_meme_fusion() -> bool:
 	completed_memes.push_front(meme)
 	fused_meme_pairs.append(pair_key)
 	fusion_slots.clear()
-	var previous_pollution := pollution
-	pollution = clampi(pollution + 3 + fusion_level * 2, 0, 100)
-	check_pollution_flashback(previous_pollution)
+	change_pollution(3 + fusion_level * 2)
 	event_log.push_front("两个旧梗粘在一起。新梗更响，也更脏。")
 	return true
 
@@ -1473,9 +1577,7 @@ func confirm_dialogue() -> bool:
 	if not world_item_labels.is_empty():
 		event_log.push_front("街区遗物结算：%s。" % " / ".join(world_item_labels))
 	heat = clampi(heat + heat_gain, 0, 999)
-	var previous_pollution := pollution
-	pollution = clampi(pollution + pollution_gain, 0, 100)
-	check_pollution_flashback(previous_pollution)
+	change_pollution(pollution_gain)
 	var clarity_loss := maxi(1, int(round(float(pollution_gain) * 0.35))) + maxi(0, -int(meme.get("clarity_bias", 0)))
 	clarity = clampi(clarity - clarity_loss, 0, 100)
 	money += maxi(3, int(floor(float(heat_gain) * 0.22)))
@@ -1919,33 +2021,7 @@ func _reality_tile_text(tile_id: String) -> String:
 
 
 func _resolve_tower_step() -> void:
-	var previous_floor := tower_floor
-	var threshold := _tower_threshold(tower_floor)
-	var progress := _progress_score()
-	if progress >= threshold:
-		tower_floor = clampi(tower_floor + 1, 1, MAX_TOWER_FLOOR)
-		if tower_floor > previous_floor:
-			register_legacy_rule_for_ascent(previous_floor)
-			_queue_ascent_reward(previous_floor)
-		threshold_discount = maxi(0, threshold_discount - 32)
-		event_log.push_front("第二天，巴别塔把你标记到第 %d 层。" % tower_floor)
-	elif tower_floor > 1 and progress < int(float(threshold) * 0.62):
-		tower_floor = clampi(tower_floor - 1, 1, MAX_TOWER_FLOOR)
-		threshold_discount = clampi(threshold_discount + 64, 0, MAX_THRESHOLD_DISCOUNT)
-		event_log.push_front("第二天，楼层退回第 %d 层，但遗产规则没有消失。" % tower_floor)
-	else:
-		threshold_discount = clampi(threshold_discount + 24, 0, MAX_THRESHOLD_DISCOUNT)
-		event_log.push_front("第二天，塔没有移动，只是把门槛悄悄放低。")
-	var guaranteed_floor := _minimum_floor_for_day(day)
-	while tower_floor < guaranteed_floor:
-		var catchup_floor := tower_floor
-		tower_floor += 1
-		register_legacy_rule_for_ascent(catchup_floor)
-		_queue_ascent_reward(catchup_floor)
-		event_log.push_front("第 %d 天，塔强制收录你到第 %d 层。" % [day, tower_floor])
-	next_threshold = _tower_threshold(tower_floor)
-	if tower_floor >= MAX_TOWER_FLOOR:
-		ending_unlocked = true
+	resolve_floor_transition_at_boundary()
 
 
 func _queue_ascent_reward(previous_floor: int) -> void:
@@ -1997,12 +2073,11 @@ func _tarot_combo_total(effect_id: String) -> float:
 
 
 func _tower_threshold(floor: int) -> int:
-	var index := clampi(floor, 1, MAX_TOWER_FLOOR)
-	return maxi(72, int(TOWER_THRESHOLDS[index]) - threshold_discount)
+	return int(POLLUTION_FLOOR_THRESHOLDS.get(clampi(floor, 1, 3), 100))
 
 
 func _progress_score() -> int:
-	return int(round(float(heat) + float(pollution) * 0.55 + float(100 - clarity) * 0.18))
+	return pollution
 
 
 func _minimum_floor_for_day(current_day: int) -> int:
@@ -2030,6 +2105,13 @@ func _intersect(left: Array, right: Array) -> Array:
 		if value in right and value not in result:
 			result.append(value)
 	return result
+
+
+func _contains_all_ids(values: Array, required_ids: Array) -> bool:
+	for required_id in required_ids:
+		if required_id not in values:
+			return false
+	return true
 
 
 func _unique(values: Array) -> Array:
