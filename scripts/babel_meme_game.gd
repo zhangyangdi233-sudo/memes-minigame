@@ -2,6 +2,7 @@ extends Node3D
 
 const MemeGameStateScript = preload("res://scripts/meme_game_state.gd")
 const GameLocaleScript = preload("res://scripts/localization/game_locale.gd")
+const LanguageCorruptionContentScript = preload("res://scripts/narrative/language_corruption_content.gd")
 const DraggableButtonScript = preload("res://scripts/ui/draggable_button.gd")
 const DropButtonScript = preload("res://scripts/ui/drop_button.gd")
 const RadialMemeRingScript = preload("res://scripts/ui/radial_meme_ring.gd")
@@ -98,7 +99,7 @@ const SOCIAL_CHANNELS := [
 const SOCIAL_POST_CARDS := [
 	{
 		"id": "floor_13", "poster_cell": 0, "caption": "旧教学楼昨晚多出一层", "handle": "塔下施工档案",
-		"text": "实拍：封闭的教学楼昨晚多出一层，末班电梯停在那里。", "tags": ["巴别塔", "空位"], "rarity": 2, "passive": {"id": "floor_draft", "label": "空层底稿", "description": "传播基础 +4", "effect": "base_bonus", "value": 4.0},
+		"text": "实拍：封闭的教学楼昨晚多出一层，末班电梯停在那里。", "tags": ["巴别塔", "空位"], "rarity": 2,
 		"tokens": [
 			{"id": "floor", "text": "不存在的十三层", "tags": ["巴别塔", "空位"], "rarity": 2},
 			{"id": "last_lift", "text": "末班电梯", "tags": ["日常", "巴别塔"], "rarity": 1},
@@ -107,7 +108,7 @@ const SOCIAL_POST_CARDS := [
 	},
 	{
 		"id": "self_call", "poster_cell": 1, "caption": "无信号时收到明天短信", "handle": "无信号通勤",
-		"text": "求证：断网后，我收到明天的自己发来的哈吉米。", "tags": ["哈吉米", "刷新", "追问"], "rarity": 3, "passive": {"id": "callback_resonance", "label": "回拨共鸣", "description": "命中风向时传播基础 +10", "effect": "trend_base", "value": 10},
+		"text": "求证：断网后，我收到明天的自己发来的哈吉米。", "tags": ["哈吉米", "刷新", "追问"], "rarity": 3,
 		"tokens": [
 			{"id": "no_signal", "text": "无信号", "tags": ["沉默", "空位"], "rarity": 1},
 			{"id": "self_call", "text": "自己发来的", "tags": ["追问", "反问"], "rarity": 2},
@@ -116,7 +117,7 @@ const SOCIAL_POST_CARDS := [
 	},
 	{
 		"id": "missing_window", "poster_cell": 2, "caption": "塔下每晚少一个窗口", "handle": "塔下夜巡",
-		"text": "记录：塔下每到午夜，就少一扇亮着的窗。", "tags": ["巴别塔", "沉默"], "rarity": 2, "passive": {"id": "blackout_dividend", "label": "熄灯增益", "description": "污染达到 40% 时基础 +8", "effect": "pollution_base", "value": 8},
+		"text": "记录：塔下每到午夜，就少一扇亮着的窗。", "tags": ["巴别塔", "沉默"], "rarity": 2,
 		"tokens": [
 			{"id": "midnight", "text": "每到午夜", "tags": ["日常", "刷新"], "rarity": 1},
 			{"id": "one_less", "text": "少一扇窗", "tags": ["沉默", "空位"], "rarity": 2},
@@ -125,7 +126,7 @@ const SOCIAL_POST_CARDS := [
 	},
 	{
 		"id": "extra_moon", "poster_cell": 3, "caption": "照片里月亮多了一颗", "handle": "夜空误差簿",
-		"text": "对照：昨晚的照片里，月亮比现实多一颗。", "tags": ["信徒", "圣歌", "追问"], "rarity": 2, "passive": {"id": "moon_buffer", "label": "月相缓冲", "description": "忽略 1 次复读扣减", "effect": "repeat_grace", "value": 1},
+		"text": "对照：昨晚的照片里，月亮比现实多一颗。", "tags": ["信徒", "圣歌", "追问"], "rarity": 2,
 		"tokens": [
 			{"id": "extra_moon", "text": "多一颗月亮", "tags": ["圣歌", "信徒"], "rarity": 2},
 			{"id": "than_reality", "text": "比现实更多", "tags": ["追问", "反问"], "rarity": 2},
@@ -134,7 +135,7 @@ const SOCIAL_POST_CARDS := [
 	},
 	{
 		"id": "last_bus", "poster_cell": 4, "caption": "最后一班车没有终点", "handle": "末班路线图",
-		"text": "旧帖：最后一班车从来没有终点站。", "tags": ["日常", "空位"], "rarity": 2, "passive": {"id": "last_bus_draft", "label": "末班底稿", "description": "传播基础 +5", "effect": "base_bonus", "value": 5.0},
+		"text": "旧帖：最后一班车从来没有终点站。", "tags": ["日常", "空位"], "rarity": 2,
 		"tokens": [
 			{"id": "last_bus", "text": "最后一班车", "tags": ["日常"], "rarity": 1},
 			{"id": "no_terminal", "text": "没有终点", "tags": ["空位", "沉默"], "rarity": 2},
@@ -143,7 +144,7 @@ const SOCIAL_POST_CARDS := [
 	},
 	{
 		"id": "blackout_broadcast", "poster_cell": 5, "caption": "停电后广播喊了我名字", "handle": "废站收音机",
-		"text": "录音：停电以后，废站广播准时报站，然后叫了我的名字。", "tags": ["圣歌", "刷新", "沉默"], "rarity": 3, "passive": {"id": "broadcast_resonance", "label": "广播共鸣", "description": "命中风向时传播基础 +8", "effect": "trend_base", "value": 8},
+		"text": "录音：停电以后，废站广播准时报站，然后叫了我的名字。", "tags": ["圣歌", "刷新", "沉默"], "rarity": 3,
 		"tokens": [
 			{"id": "blackout", "text": "停电以后", "tags": ["沉默", "空位"], "rarity": 1},
 			{"id": "broadcast", "text": "广播喊我名字", "tags": ["圣歌", "刷新"], "rarity": 2},
@@ -152,7 +153,7 @@ const SOCIAL_POST_CARDS := [
 	},
 	{
 		"id": "station_lit", "poster_cell": 6, "caption": "废站台昨晚重新亮灯", "handle": "封站观察员",
-		"text": "目击：封了十年的站台，昨晚重新亮灯。", "tags": ["巴别塔", "刷新"], "rarity": 2, "passive": {"id": "restart_dividend", "label": "重启增益", "description": "污染达到 40% 时基础 +10", "effect": "pollution_base", "value": 10},
+		"text": "目击：封了十年的站台，昨晚重新亮灯。", "tags": ["巴别塔", "刷新"], "rarity": 2,
 		"tokens": [
 			{"id": "ten_years", "text": "封了十年", "tags": ["禁问", "沉默"], "rarity": 2},
 			{"id": "lit_again", "text": "重新亮灯", "tags": ["刷新", "巴别塔"], "rarity": 2},
@@ -161,7 +162,7 @@ const SOCIAL_POST_CARDS := [
 	},
 	{
 		"id": "no_shadow", "poster_cell": 7, "caption": "便利店店员没有影子", "handle": "凌晨便利店",
-		"text": "路过：店整夜开着，店员却没有影子。", "tags": ["日常", "沉默", "追问"], "rarity": 2, "passive": {"id": "shadow_buffer", "label": "无影缓冲", "description": "忽略 1 次复读扣减", "effect": "repeat_grace", "value": 1},
+		"text": "路过：店整夜开着，店员却没有影子。", "tags": ["日常", "沉默", "追问"], "rarity": 2,
 		"tokens": [
 			{"id": "all_night", "text": "整夜开着", "tags": ["日常"], "rarity": 1},
 			{"id": "no_shadow", "text": "没有影子", "tags": ["沉默", "空位"], "rarity": 2},
@@ -170,7 +171,7 @@ const SOCIAL_POST_CARDS := [
 	},
 	{
 		"id": "future_notice", "poster_cell": 8, "caption": "小区群里出现不存在的住户", "handle": "明日群公告",
-		"text": "截图：小区群凌晨多出一个查不到门牌的住户，还发来明天的失踪通知。", "tags": ["刷新", "禁问", "反问"], "rarity": 3, "passive": {"id": "tomorrow_draft", "label": "明日底稿", "description": "传播基础 +6", "effect": "base_bonus", "value": 6.0},
+		"text": "截图：小区群凌晨多出一个查不到门牌的住户，还发来明天的失踪通知。", "tags": ["刷新", "禁问", "反问"], "rarity": 3,
 		"tokens": [
 			{"id": "tomorrow", "text": "明天的通知", "tags": ["刷新", "反问"], "rarity": 2},
 			{"id": "missing", "text": "失踪", "tags": ["禁问", "沉默"], "rarity": 3},
@@ -179,7 +180,7 @@ const SOCIAL_POST_CARDS := [
 	},
 	{
 		"id": "old_post_today", "poster_cell": 9, "caption": "十年前旧帖今天回复我", "handle": "旧帖考古队",
-		"text": "考古：十年前的旧帖今天突然回复我，头像是现在的我。", "tags": ["刷新", "哈吉米", "反问"], "rarity": 3, "passive": {"id": "archive_resonance", "label": "旧帖共鸣", "description": "命中风向时传播基础 +12", "effect": "trend_base", "value": 12},
+		"text": "考古：十年前的旧帖今天突然回复我，头像是现在的我。", "tags": ["刷新", "哈吉米", "反问"], "rarity": 3,
 		"tokens": [
 			{"id": "ten_year_post", "text": "十年前的旧帖", "tags": ["刷新", "哈吉米"], "rarity": 2},
 			{"id": "today_me", "text": "今天的我", "tags": ["日常", "追问"], "rarity": 2},
@@ -188,7 +189,7 @@ const SOCIAL_POST_CARDS := [
 	},
 	{
 		"id": "deleted_road", "poster_cell": 10, "caption": "地图上少了一条回家路", "handle": "绿色路线图",
-		"text": "更新：地图删掉了我每天回家的那条路。", "tags": ["空位", "日常", "刷新"], "rarity": 2, "passive": {"id": "lost_road_dividend", "label": "迷路增益", "description": "污染达到 40% 时基础 +8", "effect": "pollution_base", "value": 8},
+		"text": "更新：地图删掉了我每天回家的那条路。", "tags": ["空位", "日常", "刷新"], "rarity": 2,
 		"tokens": [
 			{"id": "deleted", "text": "地图删掉了", "tags": ["刷新", "空位"], "rarity": 2},
 			{"id": "way_home", "text": "回家的路", "tags": ["日常"], "rarity": 1},
@@ -197,7 +198,7 @@ const SOCIAL_POST_CARDS := [
 	},
 	{
 		"id": "access_record", "poster_cell": 11, "caption": "门禁说我没回家我却在屋里", "handle": "门禁空号",
-		"text": "记录：门禁说我没回来，可我一直在屋里。", "tags": ["禁问", "追问", "日常"], "rarity": 2, "passive": {"id": "access_buffer", "label": "门禁缓冲", "description": "忽略 1 次复读扣减", "effect": "repeat_grace", "value": 1},
+		"text": "记录：门禁说我没回来，可我一直在屋里。", "tags": ["禁问", "追问", "日常"], "rarity": 2,
 		"tokens": [
 			{"id": "not_home", "text": "我没回来", "tags": ["禁问", "追问"], "rarity": 2},
 			{"id": "inside", "text": "一直在屋里", "tags": ["日常", "反问"], "rarity": 1},
@@ -352,10 +353,18 @@ var _prologue_continue_button: Button
 var _prologue_index := 0
 var _settings_window: PanelContainer
 var _settings_content: VBoxContainer
+var _settings_title_label: Label
+var _settings_save_button: Button
+var _settings_autoplay_button: CheckButton
+var _settings_history_button: Button
 var _volume_slider: HSlider
 var _vhs_toggle: CheckButton
 var _settings_language_option: OptionButton
 var _settings_save_status: Label
+var _exit_confirmation_overlay: Control
+var _history_window: PanelContainer
+var _history_content: VBoxContainer
+var _history_open := false
 var _language_overlay: Control
 var _language_overlay_first_run := false
 var _view_toggle_button: Button
@@ -417,6 +426,7 @@ var _action_spend_should_settle := false
 var _day_transition_overlay: Control
 var _day_transition_day_label: Label
 var _day_transition_meta_label: Label
+var _day_transition_hint_label: Label
 var _day_transition_rule: ColorRect
 var _day_transition_tween: Tween
 var _day_transition_settled := false
@@ -429,10 +439,6 @@ var _social_screen := "home"
 var _social_channel := "discover"
 var _social_detail_post_index := 0
 var _social_detail_open := false
-var _oldweb_page := "index"
-var _oldweb_archive_unlocked := false
-var _oldweb_status_text := ""
-var _oldweb_code_input: LineEdit
 var _notebook_crafting_tab := "frame"
 var _social_detail_window: PanelContainer
 var _social_detail_body: VBoxContainer
@@ -624,9 +630,6 @@ func _begin_game_session(session_state: MemeGameState, world_data: Dictionary, s
 	_social_channel = "discover"
 	_social_detail_post_index = 0
 	_social_detail_open = false
-	_oldweb_page = "index"
-	_oldweb_archive_unlocked = false
-	_oldweb_status_text = ""
 	_notebook_crafting_tab = "frame"
 	_app_windows = {}
 	_app_titles = {}
@@ -690,8 +693,6 @@ func _save_progress() -> bool:
 		"social_screen": _social_screen,
 		"social_channel": _social_channel,
 		"social_detail_post_index": _social_detail_post_index,
-		"oldweb_page": _oldweb_page,
-		"oldweb_archive_unlocked": _oldweb_archive_unlocked,
 	}
 	var payload := {
 		"version": SAVE_FILE_VERSION,
@@ -736,12 +737,10 @@ func _restore_saved_world(world_data: Dictionary) -> void:
 	_reality_yaw = wrapf(float(world_data.get("yaw", 0.0)), -180.0, 180.0)
 	_reality_pitch = clampf(float(world_data.get("pitch", 0.0)), -68.0, 72.0)
 	_social_screen = str(world_data.get("social_screen", "home"))
+	if _social_screen not in ["home", "detail", "publish", "profile"]:
+		_social_screen = "home"
 	_social_channel = _normalize_social_channel(str(world_data.get("social_channel", "discover")))
 	_social_detail_post_index = clampi(int(world_data.get("social_detail_post_index", 0)), 0, maxi(0, SOCIAL_POST_CARDS.size() - 1))
-	_oldweb_page = str(world_data.get("oldweb_page", "index"))
-	if _oldweb_page not in ["index", "guestbook", "mirror", "source"]:
-		_oldweb_page = "index"
-	_oldweb_archive_unlocked = bool(world_data.get("oldweb_archive_unlocked", false))
 
 
 func _normalize_social_channel(channel: String) -> String:
@@ -1427,8 +1426,9 @@ func _build_main_menu() -> void:
 	var exit_button := Button.new()
 	exit_button.name = "MainMenuExitButton"
 	exit_button.text = "退出游戏"
+	exit_button.set_meta("skip_localization", true)
 	exit_button.custom_minimum_size = Vector2(168, 54)
-	exit_button.pressed.connect(_quit_game)
+	exit_button.pressed.connect(_request_quit_game)
 	buttons.add_child(exit_button)
 
 	var language_button := Button.new()
@@ -1474,6 +1474,7 @@ func _build_main_menu() -> void:
 
 	_apply_ui_theme()
 	_refresh_localized_ui()
+	_build_exit_confirmation_overlay()
 
 
 func _build_language_selection_overlay(first_run: bool = false) -> void:
@@ -1976,6 +1977,8 @@ func _build_ui() -> void:
 
 	_build_action_spend_overlay()
 	_build_settings_window()
+	_build_history_window()
+	_build_exit_confirmation_overlay()
 	_build_day_transition_overlay()
 	_build_flashback_overlay()
 	_build_prologue_overlay()
@@ -2092,9 +2095,7 @@ func _build_apple_hud() -> void:
 	box.add_theme_constant_override("separation", 14)
 	center.add_child(box)
 
-	_add_hud_icon(box, "HUDDayIcon", "day", HUD_DAY_ICON_PATH)
 	_add_hud_icon(box, "HUDPollutionIcon", "pollution", HUD_POLLUTION_ICON_PATH)
-	_add_hud_icon(box, "HUDMoneyIcon", "money", HUD_MONEY_ICON_PATH)
 
 	var action_divider := ColorRect.new()
 	action_divider.color = _theme_color("muted")
@@ -2121,6 +2122,15 @@ func _build_apple_hud() -> void:
 	box.add_child(settings_spacer)
 	_hud_settings_icon = _add_hud_icon(box, "HUDSettingsIcon", "settings", HUD_SETTINGS_ICON_PATH)
 	_hud_settings_icon.pressed.connect(_toggle_settings_window)
+
+	var exit_button := Button.new()
+	exit_button.name = "ExitGameButton"
+	exit_button.text = "退出游戏"
+	exit_button.set_meta("skip_localization", true)
+	exit_button.custom_minimum_size = Vector2(118, 46)
+	exit_button.size_flags_horizontal = Control.SIZE_SHRINK_CENTER
+	exit_button.pressed.connect(_request_quit_game)
+	box.add_child(exit_button)
 
 	_hud_tooltip = _panel()
 	_hud_tooltip.name = "HUDTooltip"
@@ -2303,11 +2313,11 @@ func _build_settings_window() -> void:
 	_settings_content.add_child(title_bar)
 	_make_draggable_window(_settings_window, "settings", title_bar)
 
-	var title := _label("设置", 24, _theme_color("accent"))
-	title.name = "SettingsWindowHandle"
-	title.size_flags_horizontal = Control.SIZE_EXPAND_FILL
-	title_bar.add_child(title)
-	_make_draggable_window(_settings_window, "settings", title)
+	_settings_title_label = _label("设置", 24, _theme_color("accent"))
+	_settings_title_label.name = "SettingsWindowHandle"
+	_settings_title_label.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+	title_bar.add_child(_settings_title_label)
+	_make_draggable_window(_settings_window, "settings", _settings_title_label)
 	var close := Button.new()
 	close.name = "SettingsCloseButton"
 	close.text = "X"
@@ -2349,15 +2359,33 @@ func _build_settings_window() -> void:
 	_settings_language_option.item_selected.connect(_on_settings_language_selected)
 	_settings_content.add_child(_settings_language_option)
 
-	var manual_save_button := Button.new()
-	manual_save_button.name = "SettingsManualSaveButton"
-	manual_save_button.text = "手动保存"
-	manual_save_button.custom_minimum_size.y = 50
-	manual_save_button.pressed.connect(_on_manual_save_pressed)
-	_settings_content.add_child(manual_save_button)
+	_settings_save_button = Button.new()
+	_settings_save_button.name = "SettingsManualSaveButton"
+	_settings_save_button.text = "保存"
+	_settings_save_button.set_meta("skip_localization", true)
+	_settings_save_button.custom_minimum_size.y = 50
+	_settings_save_button.pressed.connect(_on_manual_save_pressed)
+	_settings_content.add_child(_settings_save_button)
 	_settings_save_status = _label("", 14, _theme_color("accent"))
 	_settings_save_status.name = "SettingsSaveStatus"
 	_settings_content.add_child(_settings_save_status)
+
+	_settings_autoplay_button = CheckButton.new()
+	_settings_autoplay_button.name = "SettingsAutoplayButton"
+	_settings_autoplay_button.text = "自动播放"
+	_settings_autoplay_button.set_meta("skip_localization", true)
+	_settings_autoplay_button.button_pressed = game.autoplay_enabled
+	_settings_autoplay_button.custom_minimum_size.y = 50
+	_settings_autoplay_button.toggled.connect(_on_autoplay_toggled)
+	_settings_content.add_child(_settings_autoplay_button)
+
+	_settings_history_button = Button.new()
+	_settings_history_button.name = "SettingsHistoryButton"
+	_settings_history_button.text = "历史记录"
+	_settings_history_button.set_meta("skip_localization", true)
+	_settings_history_button.custom_minimum_size.y = 50
+	_settings_history_button.pressed.connect(_toggle_history_window)
+	_settings_content.add_child(_settings_history_button)
 
 	var main_menu_button := Button.new()
 	main_menu_button.name = "SettingsReturnMainButton"
@@ -2365,6 +2393,138 @@ func _build_settings_window() -> void:
 	main_menu_button.custom_minimum_size.y = 50
 	main_menu_button.pressed.connect(_on_return_main_menu_pressed)
 	_settings_content.add_child(main_menu_button)
+	_refresh_language_menu_labels()
+
+
+func _build_history_window() -> void:
+	_history_window = _panel()
+	_history_window.name = "HistoryWindow"
+	_history_window.set_anchors_preset(Control.PRESET_TOP_LEFT)
+	_history_window.offset_left = 570
+	_history_window.offset_top = 110
+	_history_window.offset_right = 1160
+	_history_window.offset_bottom = 760
+	_history_window.z_index = 32
+	_history_window.visible = false
+	_ui_root.add_child(_history_window)
+
+	var outer := VBoxContainer.new()
+	outer.add_theme_constant_override("separation", 10)
+	_history_window.add_child(outer)
+	var title_bar := HBoxContainer.new()
+	title_bar.name = "HistoryTitleBar"
+	title_bar.custom_minimum_size.y = 54
+	outer.add_child(title_bar)
+	_make_draggable_window(_history_window, "history", title_bar)
+	var title := _label("历史记录", 23, _theme_color("accent"))
+	title.name = "HistoryWindowHandle"
+	title.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+	title.set_meta("skip_localization", true)
+	title_bar.add_child(title)
+	_make_draggable_window(_history_window, "history", title)
+	var close := Button.new()
+	close.name = "HistoryCloseButton"
+	close.text = "X"
+	close.custom_minimum_size = Vector2(56, 56)
+	close.pressed.connect(_close_history_window)
+	title_bar.add_child(close)
+
+	var scroll := ScrollContainer.new()
+	scroll.name = "HistoryScroll"
+	scroll.size_flags_vertical = Control.SIZE_EXPAND_FILL
+	outer.add_child(scroll)
+	_history_content = VBoxContainer.new()
+	_history_content.name = "HistoryContent"
+	_history_content.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+	_history_content.add_theme_constant_override("separation", 10)
+	scroll.add_child(_history_content)
+	_render_history_window()
+
+
+func _toggle_history_window() -> void:
+	if _history_window == null:
+		return
+	_history_open = not _history_open
+	_history_window.visible = _history_open
+	if _history_open:
+		_render_history_window()
+		_history_window.move_to_front()
+
+
+func _close_history_window() -> void:
+	_history_open = false
+	if _history_window != null:
+		_history_window.visible = false
+
+
+func _render_history_window() -> void:
+	if _history_content == null:
+		return
+	for child in _history_content.get_children():
+		child.queue_free()
+	var entries := game.get_history_entries()
+	if entries.is_empty():
+		var empty := _label("还没有能被记住的话。", 17, _theme_color("ink"))
+		empty.name = "HistoryEmptyState"
+		_history_content.add_child(empty)
+		return
+	for index in entries.size():
+		var entry: Dictionary = entries[index]
+		var line := RichTextLabel.new()
+		line.name = "HistoryEntry%d" % index
+		line.bbcode_enabled = true
+		line.fit_content = true
+		line.scroll_active = false
+		line.custom_minimum_size = Vector2(500, 70)
+		line.add_theme_font_size_override("normal_font_size", 17)
+		line.add_theme_color_override("default_color", _theme_color("ink"))
+		var speaker := str(entry.get("currentSpeaker", entry.get("originalSpeaker", "")))
+		var display_text := str(entry.get("displayText", entry.get("originalText", "")))
+		line.text = "[b]%s[/b]\n%s" % [_escape_history_bbcode(speaker), _history_markup_to_bbcode(display_text)]
+		_history_content.add_child(line)
+
+
+func _escape_history_bbcode(value: String) -> String:
+	return value.replace("[", "[lb]").replace("]", "[rb]")
+
+
+func _history_markup_to_bbcode(value: String) -> String:
+	var escaped := _escape_history_bbcode(value)
+	return escaped.replace("{del}", "[s]").replace("{/del}", "[/s]").replace("{ins}", "[u]").replace("{/ins}", "[/u]")
+
+
+func _menu_display_label(kind: String) -> String:
+	if game.pollution < 25:
+		return {"save": "保存", "autoplay": "自动播放", "history": "历史记录", "settings": "设置"}.get(kind, kind)
+	if game.pollution < 60:
+		return {
+			"save": "留住这一段",
+			"autoplay": "让我替你继续说",
+			"history": "他们说你说过",
+			"settings": "调整记录方式",
+		}.get(kind, kind)
+	return {
+		"save": "留住这■■",
+		"autoplay": "让我替你继续■■",
+		"history": "他们说你■■过",
+		"settings": "调整你能接受的部分",
+	}.get(kind, kind)
+
+
+func _refresh_language_menu_labels() -> void:
+	if _settings_title_label != null:
+		_settings_title_label.text = _menu_display_label("settings")
+	if _settings_save_button != null:
+		_settings_save_button.text = _menu_display_label("save")
+	if _settings_autoplay_button != null:
+		_settings_autoplay_button.text = _menu_display_label("autoplay")
+		_settings_autoplay_button.set_pressed_no_signal(game.autoplay_enabled)
+	if _settings_history_button != null:
+		_settings_history_button.text = _menu_display_label("history")
+
+
+func _on_autoplay_toggled(value: bool) -> void:
+	game.autoplay_enabled = value
 
 
 func _toggle_settings_window() -> void:
@@ -2425,11 +2585,84 @@ func _on_vhs_toggled(value: bool) -> void:
 		_vhs_overlay.visible = value
 
 
-func _quit_game() -> void:
+func _build_exit_confirmation_overlay() -> void:
+	if _ui_root == null:
+		return
+	if _exit_confirmation_overlay != null and is_instance_valid(_exit_confirmation_overlay):
+		_exit_confirmation_overlay.queue_free()
+	_exit_confirmation_overlay = Control.new()
+	_exit_confirmation_overlay.name = "ExitConfirmationOverlay"
+	_exit_confirmation_overlay.set_anchors_preset(Control.PRESET_FULL_RECT)
+	_exit_confirmation_overlay.visible = false
+	_exit_confirmation_overlay.z_index = 220
+	_ui_root.add_child(_exit_confirmation_overlay)
+
+	var blackout := ColorRect.new()
+	blackout.name = "ExitConfirmationBackdrop"
+	blackout.color = Color(_theme_color("ink"), 0.88)
+	blackout.set_anchors_preset(Control.PRESET_FULL_RECT)
+	_exit_confirmation_overlay.add_child(blackout)
+
+	var center := CenterContainer.new()
+	center.set_anchors_preset(Control.PRESET_FULL_RECT)
+	_exit_confirmation_overlay.add_child(center)
+	var panel := PanelContainer.new()
+	panel.name = "ExitConfirmationPanel"
+	panel.custom_minimum_size = Vector2(520, 230)
+	panel.add_theme_stylebox_override("panel", _soft_style(_theme_color("surface"), _theme_color("accent")))
+	center.add_child(panel)
+	var box := VBoxContainer.new()
+	box.add_theme_constant_override("separation", 24)
+	panel.add_child(box)
+	var message := _label("别把我一个人留在这里。", 25, _theme_color("ink"))
+	message.name = "ExitConfirmationMessage"
+	message.set_meta("skip_localization", true)
+	message.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
+	box.add_child(message)
+	var actions := HBoxContainer.new()
+	actions.alignment = BoxContainer.ALIGNMENT_CENTER
+	actions.add_theme_constant_override("separation", 12)
+	box.add_child(actions)
+	var return_button := Button.new()
+	return_button.name = "ExitConfirmationReturnButton"
+	return_button.text = "返回"
+	return_button.set_meta("skip_localization", true)
+	return_button.custom_minimum_size = Vector2(180, 54)
+	return_button.pressed.connect(_cancel_quit_game)
+	actions.add_child(return_button)
+	var confirm_button := Button.new()
+	confirm_button.name = "ExitConfirmationConfirmButton"
+	confirm_button.text = "仍然退出"
+	confirm_button.set_meta("skip_localization", true)
+	confirm_button.custom_minimum_size = Vector2(180, 54)
+	confirm_button.pressed.connect(_confirm_quit_game)
+	actions.add_child(confirm_button)
+
+
+func _request_quit_game() -> void:
+	if game.exit_prompt_seen:
+		_confirm_quit_game()
+		return
+	game.exit_prompt_seen = true
+	if _exit_confirmation_overlay != null:
+		_exit_confirmation_overlay.visible = true
+		_exit_confirmation_overlay.move_to_front()
+
+
+func _cancel_quit_game() -> void:
+	if _exit_confirmation_overlay != null:
+		_exit_confirmation_overlay.visible = false
+
+
+func _confirm_quit_game() -> void:
 	if _game_started:
 		_save_progress()
 	_locale.save_preferences(_master_volume, _vhs_enabled)
 	get_tree().quit()
+
+
+func _quit_game() -> void:
+	_request_quit_game()
 
 
 func _build_app_window(app_id: String, title: String, node_name: String, left: float, top: float, right: float, bottom: float) -> void:
@@ -2516,7 +2749,7 @@ func _build_social_detail_window() -> void:
 	header.add_theme_constant_override("separation", 8)
 	shell.add_child(header)
 
-	_social_detail_title = _label("塔层 1/5", 18, _theme_color("surface"))
+	_social_detail_title = _label("第 1 层 / 3", 18, _theme_color("surface"))
 	_social_detail_title.name = "SocialDetailWindowHandle"
 	_social_detail_title.set_meta("on_dark", true)
 	_social_detail_title.mouse_filter = Control.MOUSE_FILTER_STOP
@@ -2778,6 +3011,9 @@ func _render_status() -> void:
 		_hud_actions_label.text = _action_text(game.actions_remaining)
 	if _desk_log != null:
 		_desk_log.text = log_text
+	_refresh_language_menu_labels()
+	if _history_open:
+		_render_history_window()
 
 
 func _action_text(actions: int) -> String:
@@ -2835,33 +3071,29 @@ func _render_app() -> void:
 
 func _render_babel_app() -> void:
 	_clear(_app_body)
-	_app_body.add_child(_label("第 %d 层 / %d" % [game.tower_floor, MemeGameStateScript.MAX_TOWER_FLOOR], 24, _theme_color("ink")))
-	_app_body.add_child(_label("下一门槛：%d" % game.next_threshold, 17, _theme_color("accent")))
-	var reward_choices: Array = game.get_pending_ascent_reward_choices()
-	if not reward_choices.is_empty():
-		_app_body.add_child(_label("第 %d 层塔罗 / 三选一" % game.pending_ascent_reward_floor, 18, _theme_color("accent")))
-		for index in reward_choices.size():
-			var reward: Dictionary = reward_choices[index]
-			var choice := Button.new()
-			choice.name = "AscentRewardChoice%d" % index
-			choice.text = "%s  /  %s\n%s" % [str(reward.get("numeral", "—")), str(reward.get("label", "未命名塔罗")), str(reward.get("description", ""))]
-			choice.set_meta("ascent_reward_card", true)
-			choice.custom_minimum_size.y = 84
-			choice.size_flags_horizontal = Control.SIZE_EXPAND_FILL
-			choice.alignment = HORIZONTAL_ALIGNMENT_LEFT
-			choice.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
-			choice.pressed.connect(_on_ascent_reward_pressed.bind(str(reward.get("id", ""))))
-			_app_body.add_child(choice)
-		_app_body.add_child(_label("选择塔罗不消耗今日行动；特定牌组会自动形成组合被动。", 14, _theme_color("accent")))
-	if not game.permanent_modifiers.is_empty():
-		_app_body.add_child(_label("已保留塔罗", 18, _theme_color("accent")))
-		for modifier in game.permanent_modifiers:
-			_app_body.add_child(_label("%s  %s  /  %s" % [str(modifier.get("numeral", "")), str(modifier.get("label", "塔罗")), str(modifier.get("description", ""))], 15, _theme_color("ink")))
-	var tarot_combos: Array = game.get_active_tarot_combos()
-	if not tarot_combos.is_empty():
-		_app_body.add_child(_label("组合被动", 18, _theme_color("accent")))
-		for combo in tarot_combos:
-			_app_body.add_child(_label("%s  /  %s" % [str(combo.get("label", "组合")), str(combo.get("description", ""))], 15, _theme_color("ink")))
+	var displayed_floor := clampi(game.tower_floor, 1, 4)
+	var floor_heading := "区域：未记录" if displayed_floor == 4 else "第 %d 层 / 3" % displayed_floor
+	var heading := _label(floor_heading, 24, _theme_color("ink"))
+	heading.name = "BabelFloorHeading"
+	_app_body.add_child(heading)
+	var floor_card: Dictionary = LanguageCorruptionContentScript.get_floor_card_display(displayed_floor)
+	var floor_field_names := {"区域": "Area", "危险": "Danger", "提示": "Hint"}
+	for field_name in ["区域", "危险", "提示"]:
+		var card_line := _label("%s：%s" % [field_name, str(floor_card.get(field_name, ""))], 16, _theme_color("ink"))
+		card_line.name = "BabelFloor%sLabel" % floor_field_names[field_name]
+		card_line.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
+		_app_body.add_child(card_line)
+	_app_body.add_child(_label("资金 %d  /  通过发布完整表达获得" % game.money, 16, _theme_color("accent")))
+	_app_body.add_child(_label("污染 %d%%  /  拾词、合成、融合与发布会明确增加" % game.pollution, 16, _theme_color("accent")))
+	var found_count := game.collected_prerequisite_item_ids.size()
+	_app_body.add_child(_label("已找到的异物 %d / 3" % found_count, 17, _theme_color("ink")))
+	for floor_number in [1, 2, 3]:
+		var item: Dictionary = game.get_prerequisite_item_for_floor(floor_number)
+		var item_id := str(item.get("id", ""))
+		if item_id in game.collected_prerequisite_item_ids:
+			_app_body.add_child(_label("%d  %s" % [floor_number, str(item.get("label", "未命名物件"))], 14, _theme_color("ink")))
+		elif game.is_prerequisite_item_revealed(item_id):
+			_app_body.add_child(_label("%d  地点已被说出" % floor_number, 14, _theme_color("accent")))
 	_app_body.add_child(_label("遗产规则", 18, _theme_color("accent")))
 	if game.legacy_rules.is_empty():
 		_app_body.add_child(_label("还没有上一层语言留下来。", 16, _theme_color("accent")))
@@ -2975,8 +3207,6 @@ func _render_social_app() -> void:
 			_render_social_publish_page(page_host)
 		"profile":
 			_render_social_profile_page(page_host)
-		"archive":
-			_render_oldweb_archive_page(page_host)
 		_:
 			_render_social_home_page(page_host)
 
@@ -3236,6 +3466,13 @@ func _social_fragment(post: Dictionary) -> String:
 	return _locale.translate(str(post.get("text", "")))
 
 
+func _social_floor_label() -> String:
+	if game != null and game.tower_floor >= 4:
+		return "区域：未记录"
+	var floor_number := 1 if game == null else clampi(game.tower_floor, 1, 3)
+	return "第 %d 层 / 3" % floor_number
+
+
 func _social_caption(post: Dictionary, _post_index: int) -> String:
 	return _locale.translate(str(post.get("caption", "未命名信号")))
 
@@ -3247,7 +3484,7 @@ func _render_social_detail_companion() -> void:
 	if not _social_detail_open:
 		return
 	if _social_detail_title != null:
-		_social_detail_title.text = "塔层 %d/%d" % [game.tower_floor, MemeGameStateScript.MAX_TOWER_FLOOR]
+		_social_detail_title.text = _social_floor_label()
 	_render_social_detail_page(_social_detail_body, true)
 
 
@@ -3285,7 +3522,7 @@ func _render_social_detail_page(parent: VBoxContainer, companion: bool = false) 
 		var title := _label("@%s" % _locale.translate(str(post["handle"])), 18, _theme_color("accent"))
 		title.size_flags_horizontal = Control.SIZE_EXPAND_FILL
 		top_row.add_child(title)
-		var floor_label := _label("塔层 %d/%d" % [game.tower_floor, MemeGameStateScript.MAX_TOWER_FLOOR], 16, _theme_color("ink"))
+		var floor_label := _label(_social_floor_label(), 16, _theme_color("ink"))
 		floor_label.name = "SocialDetailTowerFloor"
 		top_row.add_child(floor_label)
 
@@ -3335,8 +3572,7 @@ func _render_social_detail_page(parent: VBoxContainer, companion: bool = false) 
 	detail_follow.size_flags_horizontal = Control.SIZE_EXPAND_FILL
 	detail_follow.pressed.connect(_on_social_follow_pressed.bind(_social_author_id(post)))
 	engagement.add_child(detail_follow)
-	var passive: Dictionary = post.get("passive", {})
-	var signal_profile := _label("信号偏向 / %s · %s   稀有度 %d" % [str(passive.get("label", "无")), str(passive.get("description", "")), int(post.get("rarity", 1))], 13, _theme_color("muted"))
+	var signal_profile := _label("拾取污染 / %d%%" % maxi(0, int(post.get("rarity", 1)) - 1), 13, _theme_color("muted"))
 	signal_profile.name = "SocialCardSignalProfile"
 	signal_profile.set_meta("on_dark", true)
 	signal_profile.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
@@ -3395,8 +3631,7 @@ func _render_social_publish_page(parent: VBoxContainer) -> void:
 	publish_scroll.add_child(publish_content)
 
 	var placed_meme := _placed_meme()
-	var breakdown: Dictionary = game.get_publish_breakdown(placed_meme) if not placed_meme.is_empty() else game.last_publish_breakdown
-	var contract: Dictionary = game.get_daily_signal_contract()
+	var publish_result: Dictionary = game.get_publish_result(placed_meme) if not placed_meme.is_empty() else game.last_publish_result
 
 	var composer := _panel()
 	composer.name = "SocialPublishComposer"
@@ -3421,54 +3656,27 @@ func _render_social_publish_page(parent: VBoxContainer) -> void:
 	_publish_blank.pressed.connect(_on_dialogue_blank_pressed)
 	composer_box.add_child(_publish_blank)
 
-	var score_breakdown := _panel()
-	score_breakdown.name = "SocialPublishScoreBreakdown"
-	score_breakdown.set_meta("signal_contract_panel", true)
-	publish_content.add_child(score_breakdown)
-	var score_box := VBoxContainer.new()
-	score_box.add_theme_constant_override("separation", 5)
-	score_breakdown.add_child(score_box)
-	var score_header := HBoxContainer.new()
-	score_header.add_theme_constant_override("separation", 8)
-	score_box.add_child(score_header)
-	var score_heading := _label("02  /  传播预估", 13, _theme_color("muted"))
-	score_heading.set_meta("on_dark", true)
-	score_heading.size_flags_horizontal = Control.SIZE_EXPAND_FILL
-	score_header.add_child(score_heading)
-	var score_hero := _label("%d" % int(breakdown.get("score", 0)) if not breakdown.is_empty() else "--", 30, _theme_color("surface"))
-	score_hero.name = "SocialPublishScoreHero"
-	score_hero.set_meta("on_dark", true)
-	score_header.add_child(score_hero)
-	var score_text := _label("", 14, _theme_color("surface"))
-	score_text.name = "SocialPublishScoreText"
-	score_text.set_meta("on_dark", true)
-	score_text.text = _publish_breakdown_text(breakdown, not placed_meme.is_empty())
-	score_text.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
-	score_box.add_child(score_text)
-
-	var contract_panel := _panel()
-	contract_panel.name = "SocialPublishContractPanel"
-	contract_panel.set_meta("soft_panel", true)
-	publish_content.add_child(contract_panel)
-	var contract_box := VBoxContainer.new()
-	contract_box.add_theme_constant_override("separation", 4)
-	contract_panel.add_child(contract_box)
-	var contract_eyebrow := _label("03  /  今日牌型", 13, _theme_color("accent"))
-	contract_box.add_child(contract_eyebrow)
-	var contract_header := HBoxContainer.new()
-	contract_header.add_theme_constant_override("separation", 8)
-	contract_box.add_child(contract_header)
-	var contract_title := _label(str(contract.get("label", "未命名牌型")), 19, _theme_color("ink"))
-	contract_title.name = "SocialPublishContractTitle"
-	contract_title.size_flags_horizontal = Control.SIZE_EXPAND_FILL
-	contract_header.add_child(contract_title)
-	var contract_status := _label(_signal_contract_status(breakdown), 13, _theme_color("accent"))
-	contract_status.name = "SocialPublishContractStatus"
-	contract_header.add_child(contract_status)
-	var contract_text := _label(_signal_contract_text(contract, breakdown), 13, _theme_color("ink"))
-	contract_text.name = "SocialPublishContractText"
-	contract_text.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
-	contract_box.add_child(contract_text)
+	var result_panel := _panel()
+	result_panel.name = "SocialPublishOutcomePanel"
+	result_panel.set_meta("soft_panel", true)
+	publish_content.add_child(result_panel)
+	var result_box := VBoxContainer.new()
+	result_box.add_theme_constant_override("separation", 8)
+	result_panel.add_child(result_box)
+	result_box.add_child(_label("02  /  本次变化", 13, _theme_color("accent")))
+	var outcome_row := HBoxContainer.new()
+	outcome_row.add_theme_constant_override("separation", 12)
+	result_box.add_child(outcome_row)
+	var money_text := "+%d" % int(publish_result.get("money_gain", 0)) if not publish_result.is_empty() else "--"
+	var money_outcome := _label("资金  %s" % money_text, 22, _theme_color("ink"))
+	money_outcome.name = "SocialPublishMoneyOutcome"
+	money_outcome.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+	outcome_row.add_child(money_outcome)
+	var pollution_text := "+%d%%" % int(publish_result.get("pollution_gain", 0)) if not publish_result.is_empty() else "--"
+	var pollution_outcome := _label("污染  %s" % pollution_text, 22, _theme_color("ink"))
+	pollution_outcome.name = "SocialPublishPollutionOutcome"
+	pollution_outcome.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+	outcome_row.add_child(pollution_outcome)
 
 	var hint := _label("确认发布消耗 1 次行动；预览与拖拽不扣行动。", 13, _theme_color("accent"))
 	hint.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
@@ -3515,153 +3723,6 @@ func _render_social_profile_page(parent: VBoxContainer) -> void:
 	var note := _label("你的语言档案会随着塔层上升变窄。", 16, _theme_color("accent"))
 	note.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
 	profile_page.add_child(note)
-	var archive_button := Button.new()
-	archive_button.name = "OldWebArchiveButton"
-	archive_button.text = "旧站镜像 / CACHE_%02d" % game.day
-	archive_button.custom_minimum_size.y = 64
-	archive_button.pressed.connect(_set_social_screen.bind("archive"))
-	profile_page.add_child(archive_button)
-
-
-func _render_oldweb_archive_page(parent: VBoxContainer) -> void:
-	var archive_page := VBoxContainer.new()
-	archive_page.name = "OldWebArchivePage"
-	archive_page.size_flags_vertical = Control.SIZE_EXPAND_FILL
-	archive_page.add_theme_constant_override("separation", 6)
-	parent.add_child(archive_page)
-
-	var header := PanelContainer.new()
-	header.name = "OldWebArchiveHeader"
-	header.set_meta("oldweb_dark_panel", true)
-	header.add_theme_stylebox_override("panel", _oldweb_style(_theme_color("ink"), _theme_color("muted")))
-	archive_page.add_child(header)
-	var header_box := VBoxContainer.new()
-	header_box.add_theme_constant_override("separation", 3)
-	header.add_child(header_box)
-	var title := _label("BABEL-LINK 98", 22, _theme_color("flash_text"))
-	title.set_meta("on_dark", true)
-	header_box.add_child(title)
-	var marquee := _label("[UNDER CONSTRUCTION / 请勿在午夜刷新]", 13, _theme_color("surface"))
-	marquee.set_meta("on_dark", true)
-	header_box.add_child(marquee)
-	var counter := _label("访客 %s  ·  最后更新 1998-13-05" % str(13 + game.day).pad_zeros(6), 12, _theme_color("muted"))
-	counter.set_meta("on_dark", true)
-	header_box.add_child(counter)
-
-	var nav := HBoxContainer.new()
-	nav.name = "OldWebArchiveNav"
-	nav.add_theme_constant_override("separation", 3)
-	archive_page.add_child(nav)
-	for nav_data in [
-		{"id": "index", "label": "首页"},
-		{"id": "guestbook", "label": "访客簿"},
-		{"id": "mirror", "label": "镜像"},
-		{"id": "source", "label": "源码"},
-	]:
-		var nav_button := Button.new()
-		nav_button.name = "OldWebNav%s" % str(nav_data["id"]).capitalize()
-		nav_button.set_meta("oldweb_button", true)
-		nav_button.text = str(nav_data["label"])
-		nav_button.custom_minimum_size = Vector2(82, 44)
-		nav_button.size_flags_horizontal = Control.SIZE_EXPAND_FILL
-		nav_button.disabled = str(nav_data["id"]) == _oldweb_page
-		nav_button.pressed.connect(_on_oldweb_page_pressed.bind(str(nav_data["id"])))
-		nav.add_child(nav_button)
-
-	var body_frame := PanelContainer.new()
-	body_frame.name = "OldWebArchiveBodyFrame"
-	body_frame.set_meta("oldweb_light_panel", true)
-	body_frame.size_flags_vertical = Control.SIZE_EXPAND_FILL
-	body_frame.add_theme_stylebox_override("panel", _oldweb_style(_theme_color("surface"), _theme_color("accent")))
-	archive_page.add_child(body_frame)
-	var scroll := ScrollContainer.new()
-	scroll.name = "OldWebArchiveScroll"
-	scroll.horizontal_scroll_mode = ScrollContainer.SCROLL_MODE_SHOW_NEVER
-	scroll.size_flags_vertical = Control.SIZE_EXPAND_FILL
-	body_frame.add_child(scroll)
-	var content := VBoxContainer.new()
-	content.name = "OldWebArchiveContent"
-	content.size_flags_horizontal = Control.SIZE_EXPAND_FILL
-	content.add_theme_constant_override("separation", 9)
-	scroll.add_child(content)
-	match _oldweb_page:
-		"guestbook":
-			_add_oldweb_copy(content, "访客 013：我没有留下名字，但名字已经显示在上面。", 16)
-			_add_oldweb_copy(content, "访客 005：第五层没有页面，只有返回上一页。", 16)
-			_add_oldweb_copy(content, "站长留言：如果你能看见这行，说明你的楼层已经被缓存。", 16)
-		"mirror":
-			_add_oldweb_copy(content, "镜像 A / 校舍十三层 / 状态：仍在施工", 15)
-			_add_oldweb_copy(content, "镜像 B / 无信号短信 / 时间戳：明日", 15)
-			_add_oldweb_copy(content, "镜像 C / 塔顶直播 / 观众：0", 15)
-		"source":
-			_render_oldweb_source_page(content)
-		_:
-			_add_oldweb_copy(content, "这个网站比巴别塔早七年上线。所有日期都写着明天。", 17)
-			_add_oldweb_copy(content, "站长留言：如果你能看见这行，说明你的楼层已经被缓存。", 15)
-			_add_oldweb_copy(content, "断链：/tower/floor/13/index.htm", 14)
-	var free_note := _label("浏览旧站不消耗今日行动。", 12, _theme_color("accent"))
-	free_note.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
-	archive_page.add_child(free_note)
-
-
-func _render_oldweb_source_page(content: VBoxContainer) -> void:
-	_add_oldweb_copy(content, "查看网页源代码", 18)
-	if _oldweb_archive_unlocked:
-		var unlocked := PanelContainer.new()
-		unlocked.name = "OldWebArchiveUnlocked"
-		unlocked.set_meta("oldweb_dark_panel", true)
-		unlocked.add_theme_stylebox_override("panel", _oldweb_style(_theme_color("ink"), _theme_color("flash_text")))
-		content.add_child(unlocked)
-		var unlocked_copy := _label("缓存 1305 已解锁\n\n原始记录：塔并不是向上建造的。每次有人重复一句话，地面就向下退一层。所谓登顶，只是所有旧页面都停止回应。", 15, _theme_color("flash_text"))
-		unlocked_copy.set_meta("on_dark", true)
-		unlocked_copy.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
-		unlocked.add_child(unlocked_copy)
-		return
-	_oldweb_code_input = LineEdit.new()
-	_oldweb_code_input.name = "OldWebArchiveCodeInput"
-	_oldweb_code_input.set_meta("oldweb_input", true)
-	_oldweb_code_input.placeholder_text = "输入四位缓存编号"
-	_oldweb_code_input.max_length = 4
-	_oldweb_code_input.custom_minimum_size.y = 48
-	content.add_child(_oldweb_code_input)
-	var verify := Button.new()
-	verify.name = "OldWebArchiveVerifyButton"
-	verify.set_meta("oldweb_button", true)
-	verify.text = "校验"
-	verify.custom_minimum_size.y = 48
-	verify.pressed.connect(_on_oldweb_archive_verify)
-	content.add_child(verify)
-	if not _oldweb_status_text.is_empty():
-		var status := _label(_oldweb_status_text, 13, _theme_color("accent"))
-		status.name = "OldWebArchiveStatus"
-		status.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
-		content.add_child(status)
-
-
-func _add_oldweb_copy(parent: VBoxContainer, text: String, font_size: int) -> void:
-	var line := _label(text, font_size, _theme_color("ink"))
-	line.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
-	parent.add_child(line)
-
-
-func _on_oldweb_page_pressed(page_id: String) -> void:
-	if _input_locked or page_id not in ["index", "guestbook", "mirror", "source"]:
-		return
-	_oldweb_page = page_id
-	_oldweb_status_text = ""
-	_render()
-
-
-func _on_oldweb_archive_verify() -> void:
-	if _input_locked or _oldweb_code_input == null:
-		return
-	var code := _oldweb_code_input.text.strip_edges()
-	if code == "1305":
-		_oldweb_archive_unlocked = true
-		_oldweb_status_text = "缓存 1305 已解锁"
-	else:
-		_oldweb_status_text = "缓存编号错误。服务器把你的输入记成了访客名。"
-	_render()
 
 
 func _render_social_bottom_nav(phone_box: VBoxContainer) -> void:
@@ -3906,10 +3967,7 @@ func _render_notebook_frame_tab(notebook_content: VBoxContainer) -> void:
 	for token in game.notebook_tokens:
 		var btn_token = DraggableButtonScript.new()
 		btn_token.name = "NotebookToken_%s" % str(token.get("id", "token"))
-		var source_passive: Dictionary = token.get("source_passive", {})
 		btn_token.text = str(token["text"])
-		if not source_passive.is_empty():
-			btn_token.text = "%s\n%s" % [btn_token.text, str(source_passive.get("label", "来源被动"))]
 		btn_token.clip_text = true
 		btn_token.custom_minimum_size = Vector2(72, 56)
 		btn_token.set_drag_payload("token", str(token["id"]), str(token["text"]))
@@ -3927,16 +3985,6 @@ func _render_notebook_frame_tab(notebook_content: VBoxContainer) -> void:
 		btn_slot.dropped.connect(_on_slot_token_dropped)
 		btn_slot.pressed.connect(_on_slot_pressed.bind(slot_id))
 		notebook_content.add_child(btn_slot)
-	var draft_passives: Array = game.get_draft_source_passives()
-	if not draft_passives.is_empty():
-		var passive_labels: Array[String] = []
-		for passive in draft_passives:
-			passive_labels.append("%s · %s" % [str(passive.get("label", "来源被动")), str(passive.get("description", ""))])
-		var passive_strip := _label("来源被动 / %s" % "  +  ".join(passive_labels), 14, _theme_color("accent"))
-		passive_strip.name = "NotebookSourcePassiveStrip"
-		passive_strip.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
-		notebook_content.add_child(passive_strip)
-
 	var preview := _label("预览：%s" % _craft_preview_text(), 15, _theme_color("accent"))
 	preview.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
 	notebook_content.add_child(preview)
@@ -3962,7 +4010,7 @@ func _render_notebook_fusion_tab(notebook_content: VBoxContainer) -> void:
 		fusion_slot.dropped.connect(_on_fusion_meme_dropped)
 		fusion_slot.pressed.connect(_on_fusion_slot_pressed.bind(fusion_slot_id))
 		fusion_row.add_child(fusion_slot)
-	var warning := _label("融合会保留两侧隐藏标签，并提高污染与传播倍率。", 14, _theme_color("accent"))
+	var warning := _label("融合会保留两侧文字，并立即增加污染。发布前会显示资金与污染变化。", 14, _theme_color("accent"))
 	warning.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
 	notebook_content.add_child(warning)
 
@@ -3982,78 +4030,6 @@ func _render_publish() -> void:
 	var meme := _placed_meme()
 	_publish_blank.text = "发布空格：%s" % (meme.get("title", "等待完整梗") if not meme.is_empty() else "等待完整梗")
 	_confirm_publish_button.disabled = meme.is_empty() or not game.can_spend_action()
-
-
-func _publish_breakdown_text(breakdown: Dictionary, is_preview: bool) -> String:
-	if breakdown.is_empty():
-		return "传播基础  --\n整数倍率  ×--\n倍率来源  --\n预计传播  --"
-	var prefix := "预计传播" if is_preview else "本次传播"
-	var active_modifiers: Array = breakdown.get("active_modifier_labels", [])
-	var source_passives: Array = breakdown.get("active_source_passive_labels", [])
-	var contract_bonus := int(breakdown.get("contract_base_bonus", 0))
-	var world_item_bonus := int(breakdown.get("world_item_base_bonus", 0))
-	var fusion_base_bonus := int(breakdown.get("fusion_base_bonus", 0))
-	var base_parts: Array[String] = []
-	if contract_bonus > 0:
-		base_parts.append("牌型 +%d" % contract_bonus)
-	if fusion_base_bonus > 0:
-		base_parts.append("融合 +%d" % fusion_base_bonus)
-	if world_item_bonus > 0:
-		base_parts.append("遗物 +%d" % world_item_bonus)
-	var base_note := "（%s）" % " / ".join(base_parts) if not base_parts.is_empty() else ""
-	var multiplier_parts: Array[String] = []
-	var trend_bonus := int(breakdown.get("trend_multiplier_bonus", 0))
-	var pollution_bonus := int(breakdown.get("pollution_multiplier_bonus", 0))
-	var contract_multiplier_bonus := int(breakdown.get("contract_multiplier_bonus", 0))
-	var fusion_multiplier_bonus := int(breakdown.get("fusion_multiplier_bonus", 0))
-	var world_multiplier_bonus := int(breakdown.get("world_item_multiplier_bonus", 0))
-	var repeat_penalty := int(breakdown.get("repeat_penalty", 0))
-	if trend_bonus > 0:
-		multiplier_parts.append("风向 +%d" % trend_bonus)
-	if pollution_bonus > 0:
-		multiplier_parts.append("污染 +%d" % pollution_bonus)
-	if contract_multiplier_bonus > 0:
-		multiplier_parts.append("牌型 +%d" % contract_multiplier_bonus)
-	if fusion_multiplier_bonus > 0:
-		multiplier_parts.append("融合 +%d" % fusion_multiplier_bonus)
-	if world_multiplier_bonus > 0:
-		multiplier_parts.append("遗物 +%d" % world_multiplier_bonus)
-	if repeat_penalty > 0:
-		multiplier_parts.append("复读 -%d" % repeat_penalty)
-	var multiplier_note := "无" if multiplier_parts.is_empty() else " / ".join(multiplier_parts)
-	var rule_labels: Array[String] = []
-	rule_labels.append_array(active_modifiers)
-	rule_labels.append_array(source_passives)
-	var rule_note := "\n附加规则  %s" % " / ".join(rule_labels) if not rule_labels.is_empty() else ""
-	var world_item_labels: Array = breakdown.get("active_world_item_labels", [])
-	var world_item_note := "\n街区遗物  %s" % " / ".join(world_item_labels) if not world_item_labels.is_empty() else ""
-	return "传播基础  %d%s\n整数倍率  ×%d\n倍率来源  %s%s%s\n%s  %d" % [
-		int(breakdown.get("base_value", 0)),
-		base_note,
-		int(breakdown.get("total_multiplier", 1)),
-		multiplier_note,
-		rule_note,
-		world_item_note,
-		prefix,
-		int(breakdown.get("score", 0)),
-	]
-
-
-func _signal_contract_status(breakdown: Dictionary) -> String:
-	if breakdown.is_empty():
-		return "等待组牌"
-	return "牌型成立" if bool(breakdown.get("contract_matched", false)) else "尚未成立"
-
-
-func _signal_contract_text(contract: Dictionary, breakdown: Dictionary) -> String:
-	var progress := str(breakdown.get("contract_progress", "尚未放入完整梗")) if not breakdown.is_empty() else "尚未放入完整梗"
-	return "%s\n%s  /  奖励：基础 +%d  ·  倍率 +%d  ·  污染 +%d" % [
-		str(contract.get("description", "等待今日信号")),
-		progress,
-		int(contract.get("base_bonus", 0)),
-		int(contract.get("multiplier_bonus", 0)),
-		int(contract.get("pollution_risk", 0)),
-	]
 
 
 func _render_bank() -> void:
@@ -4506,7 +4482,6 @@ func _social_post_for_index(post_index: int) -> Dictionary:
 	var card_index := posmod(post_index + day_offset, SOCIAL_POST_CARDS.size())
 	var post: Dictionary = (SOCIAL_POST_CARDS[card_index] as Dictionary).duplicate(true)
 	post["card_index"] = card_index
-	var source_passive: Dictionary = post.get("passive", {})
 	var candidate_tokens: Array = []
 	for token_data in post.get("tokens", []):
 		var source_token: Dictionary = (token_data as Dictionary).duplicate(true)
@@ -4521,7 +4496,6 @@ func _social_post_for_index(post_index: int) -> Dictionary:
 			token["source_text"] = source_text
 			token["content_locale"] = _locale.current_locale
 			token["source_card_id"] = str(post.get("id", ""))
-			token["source_passive"] = source_passive.duplicate(true)
 			candidate_tokens.append(token)
 	var prepared_tokens: Array = []
 	var current_day := 1 if game == null else game.day
@@ -4963,13 +4937,6 @@ func _apply_ui_theme(node: Node = null) -> void:
 			button.add_theme_stylebox_override("normal", _circle_style(Color(_theme_color("ink"), 0.92), _theme_color("muted")))
 			button.add_theme_stylebox_override("hover", _circle_style(_theme_color("muted"), _theme_color("ink")))
 			button.add_theme_stylebox_override("pressed", _circle_style(_theme_color("accent"), _theme_color("surface")))
-		elif button.has_meta("ascent_reward_card"):
-			button.add_theme_color_override("font_color", _theme_color("surface"))
-			button.add_theme_color_override("font_hover_color", _theme_color("ink"))
-			button.add_theme_color_override("font_pressed_color", _theme_color("ink"))
-			button.add_theme_stylebox_override("normal", _reward_card_style(_theme_color("ink"), _theme_color("muted")))
-			button.add_theme_stylebox_override("hover", _reward_card_style(_theme_color("muted"), _theme_color("ink")))
-			button.add_theme_stylebox_override("pressed", _reward_card_style(_theme_color("accent"), _theme_color("ink")))
 		elif button.has_meta("meme_bank_tab") and bool(button.get_meta("meme_bank_peek", false)):
 			button.add_theme_color_override("font_color", _theme_color("muted"))
 			button.add_theme_color_override("font_hover_color", _theme_color("surface"))
@@ -4992,14 +4959,6 @@ func _apply_ui_theme(node: Node = null) -> void:
 			button.add_theme_stylebox_override("normal", flat)
 			button.add_theme_stylebox_override("hover", _flat_button_state_style(Color(_theme_color("muted"), 0.24)))
 			button.add_theme_stylebox_override("pressed", _flat_button_state_style(Color(_theme_color("muted"), 0.40)))
-		elif button.has_meta("oldweb_button"):
-			button.add_theme_color_override("font_color", _theme_color("ink"))
-			button.add_theme_color_override("font_hover_color", _theme_color("surface"))
-			button.add_theme_color_override("font_pressed_color", _theme_color("flash_text"))
-			button.add_theme_stylebox_override("normal", _oldweb_style(_theme_color("surface"), _theme_color("accent")))
-			button.add_theme_stylebox_override("hover", _oldweb_style(_theme_color("ink"), _theme_color("ink")))
-			button.add_theme_stylebox_override("pressed", _oldweb_style(_theme_color("ink"), _theme_color("flash_text")))
-			button.add_theme_stylebox_override("disabled", _oldweb_style(_theme_color("surface").darkened(0.10), _theme_color("accent")))
 		else:
 			button.add_theme_color_override("font_color", _theme_color("ink"))
 			button.add_theme_color_override("font_hover_color", _theme_color("ink"))
@@ -5022,10 +4981,6 @@ func _apply_ui_theme(node: Node = null) -> void:
 			(node as PanelContainer).add_theme_stylebox_override("panel", _social_card_style())
 		elif node.has_meta("poster_frame"):
 			(node as PanelContainer).add_theme_stylebox_override("panel", _poster_frame_style())
-		elif node.has_meta("oldweb_dark_panel"):
-			(node as PanelContainer).add_theme_stylebox_override("panel", _oldweb_style(_theme_color("ink"), _theme_color("muted")))
-		elif node.has_meta("oldweb_light_panel"):
-			(node as PanelContainer).add_theme_stylebox_override("panel", _oldweb_style(_theme_color("surface"), _theme_color("accent")))
 		elif node.has_meta("detail_dark_panel"):
 			(node as PanelContainer).add_theme_stylebox_override("panel", _detail_dark_style())
 		elif node.has_meta("social_feed_dark"):
@@ -5036,8 +4991,6 @@ func _apply_ui_theme(node: Node = null) -> void:
 			(node as PanelContainer).add_theme_stylebox_override("panel", _style(_theme_color("ink"), Color(_theme_color("muted"), 0.22)))
 		elif node.has_meta("tooltip_panel"):
 			(node as PanelContainer).add_theme_stylebox_override("panel", _style(_theme_color("muted"), _theme_color("accent")))
-		elif node.has_meta("signal_contract_panel"):
-			(node as PanelContainer).add_theme_stylebox_override("panel", _style(_theme_color("ink"), _theme_color("muted")))
 		elif node.has_meta("soft_panel"):
 			(node as PanelContainer).add_theme_stylebox_override("panel", _soft_style(_theme_color("surface"), _theme_color("accent")))
 		else:
@@ -5046,10 +4999,7 @@ func _apply_ui_theme(node: Node = null) -> void:
 		var edit := node as LineEdit
 		edit.add_theme_color_override("font_color", _theme_color("ink"))
 		edit.add_theme_color_override("font_placeholder_color", _theme_color("accent"))
-		if edit.has_meta("oldweb_input"):
-			edit.add_theme_stylebox_override("normal", _oldweb_style(_theme_color("surface"), _theme_color("accent")))
-		else:
-			edit.add_theme_stylebox_override("normal", _style(_theme_color("surface"), _theme_color("accent")))
+		edit.add_theme_stylebox_override("normal", _style(_theme_color("surface"), _theme_color("accent")))
 	for child in node.get_children():
 		_apply_ui_theme(child)
 
@@ -5171,30 +5121,51 @@ func _build_day_transition_overlay() -> void:
 	_day_transition_rule.rotation = deg_to_rad(-5.0)
 	_day_transition_overlay.add_child(_day_transition_rule)
 
-	_day_transition_day_label = _label("DAY 01", 96, _theme_color("surface"))
-	_day_transition_day_label.name = "DayTransitionDayLabel"
+	_day_transition_day_label = _label("区域：被保存的儿童□", 58, _theme_color("surface"))
+	_day_transition_day_label.name = "FloorTransitionAreaLabel"
 	_day_transition_day_label.set_meta("on_dark", true)
 	_day_transition_day_label.set_anchors_preset(Control.PRESET_CENTER)
 	_day_transition_day_label.offset_left = -520
-	_day_transition_day_label.offset_top = -168
+	_day_transition_day_label.offset_top = -190
 	_day_transition_day_label.offset_right = 520
-	_day_transition_day_label.offset_bottom = -28
+	_day_transition_day_label.offset_bottom = -70
 	_day_transition_day_label.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
 	_day_transition_day_label.vertical_alignment = VERTICAL_ALIGNMENT_CENTER
 	_day_transition_day_label.pivot_offset = Vector2(520, 70)
 	_day_transition_overlay.add_child(_day_transition_day_label)
 
-	_day_transition_meta_label = _label("", 20, _theme_color("muted"))
-	_day_transition_meta_label.name = "DayTransitionMetaLabel"
+	_day_transition_meta_label = _label("危险：B", 28, _theme_color("flash_text"))
+	_day_transition_meta_label.name = "FloorTransitionDangerLabel"
 	_day_transition_meta_label.set_meta("on_dark", true)
 	_day_transition_meta_label.set_anchors_preset(Control.PRESET_CENTER)
 	_day_transition_meta_label.offset_left = -440
-	_day_transition_meta_label.offset_top = 44
+	_day_transition_meta_label.offset_top = -16
 	_day_transition_meta_label.offset_right = 440
-	_day_transition_meta_label.offset_bottom = 112
+	_day_transition_meta_label.offset_bottom = 42
 	_day_transition_meta_label.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
 	_day_transition_meta_label.vertical_alignment = VERTICAL_ALIGNMENT_CENTER
 	_day_transition_overlay.add_child(_day_transition_meta_label)
+
+	_day_transition_hint_label = _label("提示：《游戏与现实》", 22, _theme_color("muted"))
+	_day_transition_hint_label.name = "FloorTransitionHintLabel"
+	_day_transition_hint_label.set_meta("on_dark", true)
+	_day_transition_hint_label.set_anchors_preset(Control.PRESET_CENTER)
+	_day_transition_hint_label.offset_left = -520
+	_day_transition_hint_label.offset_top = 62
+	_day_transition_hint_label.offset_right = 520
+	_day_transition_hint_label.offset_bottom = 132
+	_day_transition_hint_label.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
+	_day_transition_hint_label.vertical_alignment = VERTICAL_ALIGNMENT_CENTER
+	_day_transition_hint_label.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
+	_day_transition_overlay.add_child(_day_transition_hint_label)
+
+
+func _update_floor_transition_card(floor_number: int) -> void:
+	var displayed_floor := clampi(floor_number, 1, 4)
+	var card: Dictionary = LanguageCorruptionContentScript.get_floor_card_display(displayed_floor)
+	_day_transition_day_label.text = "区域：%s" % str(card.get("区域", ""))
+	_day_transition_meta_label.text = "危险：%s" % str(card.get("危险", ""))
+	_day_transition_hint_label.text = "提示：%s" % str(card.get("提示", ""))
 
 
 func _play_day_transition() -> void:
@@ -5209,9 +5180,8 @@ func _play_day_transition() -> void:
 	_set_input_locked(true)
 	_day_transition_overlay.visible = true
 	_day_transition_overlay.modulate = Color(1, 1, 1, 0)
-	_day_transition_day_label.text = "DAY %02d" % game.day
+	_update_floor_transition_card(game.tower_floor)
 	_day_transition_day_label.scale = Vector2(0.86, 0.86)
-	_day_transition_meta_label.text = "TODAY'S ACTIONS DEPLETED  /  楼层 %d" % game.tower_floor
 	_day_transition_rule.scale = Vector2(0.04, 1.0)
 	if not is_inside_tree():
 		return
@@ -5237,8 +5207,7 @@ func _commit_day_transition_settlement() -> void:
 		selected_meme_id = ""
 		if not game.event_log.is_empty():
 			log_text = game.event_log[0]
-	_day_transition_day_label.text = "DAY %02d" % game.day
-	_day_transition_meta_label.text = "NEXT SIGNAL ACQUIRED  /  楼层 %d" % game.tower_floor
+	_update_floor_transition_card(game.tower_floor)
 
 
 func _finish_day_transition() -> void:
@@ -5555,16 +5524,6 @@ func _on_buy_meme_frame_pressed() -> void:
 		_render()
 
 
-func _on_ascent_reward_pressed(reward_id: String) -> void:
-	if _input_locked:
-		return
-	if game.choose_ascent_reward(reward_id):
-		log_text = "塔罗已写入本层。组合条件会自动结算。"
-	else:
-		log_text = "这项许可已经关闭。"
-	_render()
-
-
 func _on_note_token_pressed(token_id: String) -> void:
 	if _input_locked:
 		return
@@ -5718,12 +5677,6 @@ func _settle_day_and_present_rewards() -> bool:
 	_reality_hover_choice_id = ""
 	selected_token_id = ""
 	selected_meme_id = ""
-	if not game.pending_ascent_reward_choices.is_empty():
-		game.set_view_state("phone_down")
-		_set_reality_mouse_look(false)
-		game.set_active_app("babel")
-		_open_app_windows["babel"] = true
-		_phone_launcher_open = false
 	_sync_audio_state(false)
 	return true
 
@@ -5873,16 +5826,6 @@ func _soft_style(bg: Color, border: Color) -> StyleBoxFlat:
 	style.set_border_width_all(1)
 	style.set_corner_radius_all(16)
 	style.set_content_margin_all(16)
-	return style
-
-
-func _oldweb_style(bg: Color, border: Color) -> StyleBoxFlat:
-	var style := StyleBoxFlat.new()
-	style.bg_color = bg
-	style.border_color = border
-	style.set_border_width_all(2)
-	style.set_corner_radius_all(0)
-	style.set_content_margin_all(8)
 	return style
 
 

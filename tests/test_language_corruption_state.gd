@@ -10,16 +10,16 @@ func _init() -> void:
 	if _state_script != null:
 		test_pollution_alone_controls_first_floor_threshold()
 		test_sixty_percent_advances_only_from_a_safe_boundary()
-		test_echo_fragments_form_one_hidden_route_without_a_visible_counter()
-		test_existing_choice_ids_form_the_alternate_hidden_route()
+		test_each_prerequisite_requires_a_clue_before_collection()
+		test_clues_without_physical_items_do_not_unlock_the_hidden_floor()
 		test_floor_three_without_hidden_route_enters_normal_ending()
 		test_floor_three_with_hidden_route_enters_unregistered_floor_four()
-		test_v2_save_round_trip_preserves_hidden_language_state()
+		test_v3_save_round_trip_preserves_hidden_language_state()
 		test_v1_floor_five_save_cannot_bypass_the_hidden_route()
 		test_random_dialogue_garble_is_capped_and_preserves_punctuation()
-		test_hidden_dialogue_key_is_attached_to_an_existing_choice_completion()
 		test_floor_transition_request_waits_for_an_explicit_boundary()
 		test_effective_pollution_actions_queue_floor_transitions()
+		test_history_is_view_only_authored_data_and_survives_save()
 	if _failures.is_empty():
 		print("language corruption state tests passed")
 		quit(0)
@@ -33,15 +33,11 @@ func test_pollution_alone_controls_first_floor_threshold() -> void:
 	var game: RefCounted = _state_script.new()
 	game.new_run()
 	game.pollution = 24
-	game.heat = 9999
-	game.clarity = 0
 	game.needs_day_settlement = true
 	_assert_true(game.settle_day_if_needed(), "a requested day settlement should run")
-	_assert_eq(game.tower_floor, 1, "heat and clarity must not bypass the 25% pollution threshold")
+	_assert_eq(game.tower_floor, 1, "24% pollution must not bypass the first threshold")
 
 	game.pollution = 25
-	game.heat = 0
-	game.clarity = 100
 	game.needs_day_settlement = true
 	_assert_true(game.settle_day_if_needed(), "the next requested day settlement should run")
 	_assert_eq(game.tower_floor, 2, "25% pollution should advance floor one at a safe boundary")
@@ -64,33 +60,27 @@ func test_sixty_percent_advances_only_from_a_safe_boundary() -> void:
 	_assert_eq(game.tower_floor, 3, "60% pollution should advance floor two at day settlement")
 
 
-func test_echo_fragments_form_one_hidden_route_without_a_visible_counter() -> void:
+func test_each_prerequisite_requires_a_clue_before_collection() -> void:
 	var game: RefCounted = _state_script.new()
 	game.new_run()
-	_assert_true(game.has_method("get_echo_fragment_ids"), "state should expose the authored echo IDs")
-	_assert_true(game.has_method("collect_echo_fragment"), "state should collect echo fragments by stable ID")
-	_assert_true(game.has_method("is_hidden_layer_unlocked"), "state should evaluate the hidden route without UI progress")
-	if not game.has_method("get_echo_fragment_ids") or not game.has_method("collect_echo_fragment") or not game.has_method("is_hidden_layer_unlocked"):
-		return
-	var fragment_ids: Array = game.get_echo_fragment_ids()
-	_assert_eq(fragment_ids.size(), 3, "the compact hidden route should contain exactly three echo fragments")
-	for fragment_id in fragment_ids:
-		_assert_true(game.collect_echo_fragment(str(fragment_id)), "each authored fragment should be collectible once")
-	_assert_true(not game.collect_echo_fragment(str(fragment_ids[0])), "a fragment cannot be collected twice")
-	_assert_true(game.is_hidden_layer_unlocked(), "all three echo fragments should unlock the hidden route")
+	_assert_eq(game.get_prerequisite_item_ids().size(), 3, "the hidden route should contain one physical prerequisite per normal floor")
+	for floor_number in [1, 2, 3]:
+		var item: Dictionary = game.get_prerequisite_item_for_floor(floor_number)
+		var item_id := str(item.get("id", ""))
+		_assert_true(not item_id.is_empty(), "each floor should author a stable prerequisite ID")
+		_assert_true(not game.collect_prerequisite_item(item_id), "an undisclosed prerequisite cannot be collected before the NPC clue")
+		_assert_true(game.reveal_prerequisite_item_for_floor(floor_number), "the floor NPC should be able to reveal the physical item")
+		_assert_true(game.collect_prerequisite_item(item_id), "the revealed physical item should be collectible once")
+		_assert_true(not game.collect_prerequisite_item(item_id), "the same physical item cannot be collected twice")
+	_assert_true(game.is_hidden_layer_unlocked(), "all three collected physical items should unlock the hidden route")
 
 
-func test_existing_choice_ids_form_the_alternate_hidden_route() -> void:
+func test_clues_without_physical_items_do_not_unlock_the_hidden_floor() -> void:
 	var game: RefCounted = _state_script.new()
 	game.new_run()
-	_assert_true(game.has_method("register_dialogue_key_for_choice"), "existing dialogue choices should be able to grant hidden keys")
-	if not game.has_method("register_dialogue_key_for_choice"):
-		return
-	_assert_true(not game.register_dialogue_key_for_choice("unrelated_choice"), "ordinary choices must not create hidden keys")
-	for choice_id in ["f1n1_name", "copy_refuse_source", "believer_question"]:
-		_assert_true(game.register_dialogue_key_for_choice(choice_id), "each authored existing choice should grant its key once")
-	_assert_true(not game.register_dialogue_key_for_choice("f1n1_name"), "the same dialogue key cannot be farmed")
-	_assert_true(game.is_hidden_layer_unlocked(), "all required dialogue keys should unlock the same hidden route")
+	for floor_number in [1, 2, 3]:
+		_assert_true(game.reveal_prerequisite_item_for_floor(floor_number), "each clue should be revealable once")
+	_assert_true(not game.is_hidden_layer_unlocked(), "three spoken clues must not substitute for finding the three actual items")
 
 
 func test_floor_three_without_hidden_route_enters_normal_ending() -> void:
@@ -112,28 +102,30 @@ func test_floor_three_with_hidden_route_enters_unregistered_floor_four() -> void
 	game.new_run()
 	game.tower_floor = 3
 	game.pollution = 80
-	for fragment_id in game.get_echo_fragment_ids():
-		game.collect_echo_fragment(str(fragment_id))
-	_assert_eq(game.complete_floor_three(), "hidden-floor", "80% pollution plus either hidden route should enter floor four")
+	for floor_number in [1, 2, 3]:
+		var item: Dictionary = game.get_prerequisite_item_for_floor(floor_number)
+		game.reveal_prerequisite_item_for_floor(floor_number)
+		game.collect_prerequisite_item(str(item.get("id", "")))
+	_assert_eq(game.complete_floor_three(), "hidden-floor", "80% pollution plus all three physical items should enter floor four")
 	_assert_eq(game.tower_floor, 4, "the preserved fourth floor should become the hidden unregistered floor")
 	_assert_true(not game.ending_unlocked, "entering floor four should not render the normal ending")
 	_assert_eq(game.ending_route, "hidden", "the hidden route should survive save and ending routing")
 
 
-func test_v2_save_round_trip_preserves_hidden_language_state() -> void:
+func test_v3_save_round_trip_preserves_hidden_language_state() -> void:
 	var source: RefCounted = _state_script.new()
 	source.new_run()
 	source.pollution = 73
-	source.collect_echo_fragment("echo_room_name")
-	source.register_dialogue_key_for_choice("f1n1_name")
+	source.reveal_prerequisite_item_for_floor(1)
+	source.collect_prerequisite_item("artifact_named_lamp_tag")
 	var save_data: Dictionary = source.to_save_data()
-	_assert_eq(int(save_data.get("version", 0)), 2, "new language-corruption saves should use version two")
+	_assert_eq(int(save_data.get("version", 0)), 3, "new language-corruption saves should use version three")
 
 	var restored: RefCounted = _state_script.new()
-	_assert_true(restored.load_save_data(save_data), "a version-two save should load")
-	_assert_eq(restored.pollution, 73, "pollution should survive the version-two round trip")
-	_assert_true("echo_room_name" in restored.collected_echo_fragment_ids, "echo fragments should survive save restoration")
-	_assert_true("dialogue_key_name" in restored.completed_dialogue_key_ids, "dialogue keys should survive save restoration")
+	_assert_true(restored.load_save_data(save_data), "a version-three save should load")
+	_assert_eq(restored.pollution, 73, "pollution should survive the version-three round trip")
+	_assert_true("artifact_named_lamp_tag" in restored.revealed_prerequisite_item_ids, "the NPC clue should survive save restoration")
+	_assert_true("artifact_named_lamp_tag" in restored.collected_prerequisite_item_ids, "the physical prerequisite should survive save restoration")
 
 
 func test_v1_floor_five_save_cannot_bypass_the_hidden_route() -> void:
@@ -172,19 +164,6 @@ func test_random_dialogue_garble_is_capped_and_preserves_punctuation() -> void:
 			_assert_true(not bool(unit.get("corrupted", false)), "punctuation must remain readable at 100% pollution")
 
 
-func test_hidden_dialogue_key_is_attached_to_an_existing_choice_completion() -> void:
-	var game: RefCounted = _state_script.new()
-	game.new_run()
-	_assert_true(game.start_typed_reality_conversation("floor1npc1", "npc", "回声住户"), "the existing echo-tenant conversation should start")
-	_assert_true(game.select_typed_reality_choice("f1n1_name"), "the existing name choice should remain available")
-	while game.conversation_phase == "typing":
-		game.advance_typed_reality_character()
-	_assert_true("dialogue_key_name" in game.completed_dialogue_key_ids, "finishing the existing choice should grant its hidden key")
-	var key_count: int = game.completed_dialogue_key_ids.size()
-	game.register_dialogue_key_for_choice("f1n1_name")
-	_assert_eq(game.completed_dialogue_key_ids.size(), key_count, "repeating the same node must not farm hidden progress")
-
-
 func test_floor_transition_request_waits_for_an_explicit_boundary() -> void:
 	var game: RefCounted = _state_script.new()
 	game.new_run()
@@ -210,6 +189,33 @@ func test_effective_pollution_actions_queue_floor_transitions() -> void:
 	_assert_eq(game.pollution, 25, "the pickup should raise pollution through the canonical path")
 	_assert_eq(game.pending_floor_transition, 2, "crossing 25% during an action should queue floor two")
 	_assert_eq(game.tower_floor, 1, "the queued transition must wait for the UI or day boundary")
+
+
+func test_history_is_view_only_authored_data_and_survives_save() -> void:
+	var game: RefCounted = _state_script.new()
+	game.new_run()
+	_assert_true(game.has_method("record_history_line"), "state should accept authored view-only history lines")
+	_assert_true(game.has_method("get_history_entries"), "state should expose history as a read-only copy")
+	if not game.has_method("record_history_line") or not game.has_method("get_history_entries"):
+		return
+	_assert_true(game.record_history_line({
+		"lineId": "shared_safe_doll",
+		"originalSpeaker": "玩偶",
+		"currentSpeaker": "医生",
+		"originalText": "我只是想让你留在安全的地方。",
+		"displayText": "我只是想让你留在{del}安全{/del}{ins}稳定{/ins}的地方。",
+		"revisionStage": 2,
+		"revisionMarkup": "replace",
+	}), "a complete authored history line should be recorded")
+	_assert_true(not game.record_history_line({"lineId": ""}), "history lines without a stable ID should be rejected")
+	var view: Array = game.get_history_entries()
+	_assert_eq(view.size(), 1, "history should contain the authored line once")
+	view[0]["displayText"] = "tampered"
+	_assert_true(str(game.get_history_entries()[0].get("displayText", "")) != "tampered", "the history viewer must not mutate saved history")
+
+	var restored: RefCounted = _state_script.new()
+	_assert_true(restored.load_save_data(game.to_save_data()), "history should participate in the normal save flow")
+	_assert_eq(restored.get_history_entries().size(), 1, "authored history should survive save restoration")
 
 
 func _assert_true(condition: bool, message: String) -> void:

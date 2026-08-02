@@ -29,10 +29,12 @@ func _run() -> void:
 	await process_frame
 
 	var day_overlay := _find_node_by_name(game_root, "DayTransitionOverlay") as Control
-	var day_label := _find_node_by_name(game_root, "DayTransitionDayLabel") as Label
+	var area_label := _find_node_by_name(game_root, "FloorTransitionAreaLabel") as Label
+	var danger_label := _find_node_by_name(game_root, "FloorTransitionDangerLabel") as Label
+	var hint_label := _find_node_by_name(game_root, "FloorTransitionHintLabel") as Label
 	var action_overlay := _find_node_by_name(game_root, "ActionSpendOverlay") as Control
 	var flashback_overlay := _find_node_by_name(game_root, "PollutionFlashbackOverlay") as Control
-	_assert_true(day_overlay != null and day_label != null, "scene should expose a dedicated next-day overlay")
+	_assert_true(day_overlay != null and area_label != null and danger_label != null and hint_label != null, "scene should expose a three-field floor transition card")
 	if day_overlay != null:
 		var duration := float(day_overlay.get_meta("duration_seconds", 0.0))
 		_assert_true(duration >= 3.0 and duration <= 5.0, "next-day overlay should last between three and five seconds")
@@ -48,11 +50,13 @@ func _run() -> void:
 	_assert_true(day_overlay != null and day_overlay.visible, "last action should start the next-day overlay after its inline pulse")
 	_assert_true(game_root._input_locked, "next-day overlay should lock gameplay input")
 	_assert_eq(game_root.game.day, 1, "day settlement should wait until the transition reaches its midpoint")
-	_assert_true(day_label != null and str(day_label.text).contains("01"), "transition should begin on the departing day")
+	_assert_true(area_label != null and str(area_label.text).begins_with("区域："), "transition should begin with the current area")
+	_assert_eq(str(danger_label.text), "危险：B", "floor one transition should display danger rank B")
+	_assert_true(str(hint_label.text).contains("《游戏与现实》"), "floor one transition should use the approved psychology title")
 	game_root._commit_day_transition_settlement()
 	_assert_eq(game_root.game.day, 2, "transition midpoint should commit the next day")
 	_assert_eq(game_root.game.actions_remaining, 5, "committed next day should restore all five actions")
-	_assert_true(day_label != null and str(day_label.text).contains("02"), "transition should reveal the newly acquired day")
+	_assert_true(area_label != null and str(area_label.text).contains("儿童□"), "transition copy should retain authored language corruption")
 	game_root._finish_day_transition()
 	_assert_true(day_overlay != null and not day_overlay.visible, "finished next-day transition should hide its overlay")
 	_assert_true(not game_root._input_locked, "finished next-day transition should restore input")
