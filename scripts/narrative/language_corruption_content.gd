@@ -486,6 +486,84 @@ const HISTORY_REVISIONS := [
 	},
 ]
 
+const KEY_NPC_DIALOGUES_BY_FLOOR := {
+	1: {
+		"actor_label": "护灯人",
+		"turns": [
+			{
+				"line": "先别往灯上看。你听见她怎么叫那盏灯了吗？",
+				"result": "护灯人把手从灯杆上拿开，等你把名字说完整。",
+				"choices": [
+					{"id": "key_f1_t1_moon", "summary": "沿用她的名字", "sentence": "她叫它小月亮。", "correct": true},
+					{"id": "key_f1_t1_lamp", "summary": "纠正名称", "sentence": "那只是一盏坏掉的路灯。", "correct": false},
+					{"id": "key_f1_t1_unsure", "summary": "避开回答", "sentence": "我没有听清，也不想替她命名。", "correct": false},
+				],
+			},
+			{
+				"line": "要是有人说她叫错了，你按哪个名字去找？",
+				"result": "护灯人朝街外侧偏了一下头，没有用手指方向。",
+				"choices": [
+					{"id": "key_f1_t2_keep", "summary": "按她的名字找", "sentence": "我先按她给的名字找，不在路上纠正。", "correct": true},
+					{"id": "key_f1_t2_fix", "summary": "按正式名称找", "sentence": "我会按路灯的编号找，名字不重要。", "correct": false},
+					{"id": "key_f1_t2_leave", "summary": "拒绝寻找", "sentence": "既然名字会变，我就不去找了。", "correct": false},
+				],
+			},
+		],
+		"success_line": "好。那块旧名牌还认得这个叫法。",
+		"failure_line": "护灯人把嘴闭上了。你答完了，但他没有说出地点。",
+	},
+	2: {
+		"actor_label": "两醒者",
+		"turns": [
+			{
+				"line": "你今天醒过几次？别数现在这一次。",
+				"result": "两醒者用指节在掌心敲了两下，第二下没有声音。",
+				"choices": [
+					{"id": "key_f2_t1_twice", "summary": "承认两次", "sentence": "两次。第一次醒来时，我还在这里。", "correct": true},
+					{"id": "key_f2_t1_once", "summary": "只算一次", "sentence": "一次。我醒来以后就没有再睡。", "correct": false},
+					{"id": "key_f2_t1_now", "summary": "只承认现在", "sentence": "我只确定现在这一回是真的。", "correct": false},
+				],
+			},
+			{
+				"line": "两次醒来都听见了什么？",
+				"result": "两醒者摸了摸空口袋，像在确认磁带没有提前回来。",
+				"choices": [
+					{"id": "key_f2_t2_same", "summary": "同一句话", "sentence": "两次都有同一句话，只是声音的方向相反。", "correct": true},
+					{"id": "key_f2_t2_silence", "summary": "什么都没有", "sentence": "第一次没有声音，第二次我也不记得。", "correct": false},
+					{"id": "key_f2_t2_music", "summary": "一段音乐", "sentence": "我只听见很远的音乐，没有人说话。", "correct": false},
+				],
+			},
+		],
+		"success_line": "那不是回声。有人把同一句录在了磁带两面。",
+		"failure_line": "两醒者把第二下敲击收回掌心，没有说出地点。",
+	},
+	3: {
+		"actor_label": "删句员",
+		"turns": [
+			{
+				"line": "这张病历第一行少了什么？别念后面的诊断。",
+				"result": "删句员压住纸角。那一行没有被风吹动。",
+				"choices": [
+					{"id": "key_f3_t1_subject", "summary": "指出主语", "sentence": "少了主语。没有写是谁经历了这些。", "correct": true},
+					{"id": "key_f3_t1_date", "summary": "指出日期", "sentence": "少了日期，所以记录没有发生过。", "correct": false},
+					{"id": "key_f3_t1_name", "summary": "补上名字", "sentence": "少了我的名字，我可以现在写上去。", "correct": false},
+				],
+			},
+			{
+				"line": "空着的地方应该填谁？",
+				"result": "删句员松开纸角，空白仍然没有向任何人靠近。",
+				"choices": [
+					{"id": "key_f3_t2_blank", "summary": "保留空白", "sentence": "先不要填。缺少主语本身就是这页留下的信息。", "correct": true},
+					{"id": "key_f3_t2_self", "summary": "填写自己", "sentence": "填我。至少我现在还站在这里。", "correct": false},
+					{"id": "key_f3_t2_doctor", "summary": "填写医生", "sentence": "填医生，他会知道该怎样归类。", "correct": false},
+				],
+			},
+		],
+		"success_line": "别补那一格。原页被夹在一扇向外开的假窗下面。",
+		"failure_line": "删句员把纸翻到背面。你给了答案，他没有说出地点。",
+	},
+}
+
 const FLOOR_CARDS := {
 	1: {"区域": "被保存的儿童房", "危险": "B", "提示": "《游戏与现实》"},
 	2: {"区域": "两次醒来之间", "危险": "A", "提示": "《梦的解析》"},
@@ -548,6 +626,11 @@ static func get_floor_card(floor_number: int) -> Dictionary:
 	return card.duplicate(true)
 
 
+static func get_key_npc_dialogue_for_floor(floor_number: int) -> Dictionary:
+	var dialogue: Dictionary = KEY_NPC_DIALOGUES_BY_FLOOR.get(floor_number, {})
+	return dialogue.duplicate(true)
+
+
 static func get_floor_card_display(floor_number: int) -> Dictionary:
 	var card: Dictionary = FLOOR_CARD_DISPLAY_VARIANTS.get(floor_number, FLOOR_CARDS.get(floor_number, {}))
 	return card.duplicate(true)
@@ -581,6 +664,7 @@ static func get_catalog_snapshot() -> Dictionary:
 		"protected_punctuation": PROTECTED_PUNCTUATION.duplicate(),
 		"choice_fragments": PLAYER_CHOICE_FRAGMENTS_BY_FLOOR.duplicate(true),
 		"history_revisions": HISTORY_REVISIONS.duplicate(true),
+		"key_npc_dialogues": KEY_NPC_DIALOGUES_BY_FLOOR.duplicate(true),
 		"floor_cards": FLOOR_CARDS.duplicate(true),
 		"floor_card_display_variants": FLOOR_CARD_DISPLAY_VARIANTS.duplicate(true),
 		"menu_labels": MENU_LABEL_VARIANTS.duplicate(true),

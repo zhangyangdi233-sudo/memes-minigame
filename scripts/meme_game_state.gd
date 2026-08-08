@@ -9,17 +9,17 @@ const PREREQUISITE_ITEMS := {
 	1: {
 		"id": "artifact_named_lamp_tag",
 		"label": "写着“小月亮”的旧名牌",
-		"location_hint": "在儿童房外侧最低的坡后，贴着一盏不亮的路灯。",
+		"location_hint": "沿主路往前走，在右侧第一盏不亮的路灯脚边。",
 	},
 	2: {
 		"id": "artifact_reversed_tape",
 		"label": "两面都录着同一句话的磁带",
-		"location_hint": "在第二次醒来的候车亭背面，压在长椅最右侧。",
+		"location_hint": "在与你醒来位置相反的低坡上，贴着一栋亮窗房子的门前。",
 	},
 	3: {
 		"id": "artifact_missing_subject_page",
 		"label": "缺少主语的病历页",
-		"location_hint": "在没有说完的坡顶，夹在唯一一扇向外开的窗下。",
+		"location_hint": "沿中央通道走过第三排立柱，夹在左侧那扇假窗下面。",
 	},
 }
 const HISTORY_FIELD_NAMES := [
@@ -39,18 +39,6 @@ const FALLBACK_LEGACY_TEXTS := {
 	2: {"text": "在线本身就是发言", "tags": ["沉默", "空位"]},
 	3: {"text": "请用更新后的句式进入", "tags": ["巴别塔", "刷新"]},
 	4: {"text": "你为什么需要他说话", "tags": ["反问", "禁问"]},
-}
-const REALITY_RESPONSE_SETS := {
-	"npc": [
-		{"id": "explain", "summary": "直接说明", "sentence": "我只是想把刚才的事情说清楚。"},
-		{"id": "apologize", "summary": "先道歉", "sentence": "对不起，我没有想让你觉得被忽视。"},
-		{"id": "listen", "summary": "请你再说", "sentence": "请你再说一遍，我想认真听完。"},
-	],
-	"merchant": [
-		{"id": "ask_goods", "summary": "询问商品", "sentence": "我想看看能帮助沟通的东西。"},
-		{"id": "state_need", "summary": "说明来意", "sentence": "我需要让别人更容易听懂我。"},
-		{"id": "test_price", "summary": "试探价格", "sentence": "这些东西分别需要多少钱？"},
-	],
 }
 const REALITY_DIALOGUES_BY_FLOOR := {
 	1: [
@@ -131,18 +119,6 @@ const REALITY_DIALOGUES_BY_FLOOR := {
 			{"id": "f4n1_ask", "summary": "询问缺席者", "sentence": "这个空位原来属于谁，你们为什么不再唱那个人？"},
 		]},
 	],
-	5: [
-		{"line": "你 / 还 / 把 / 自己 / 带着吗", "result": "迟到者的嘴唇动了五次，只有斜线抵达空气。", "choices": [
-			{"id": "f5n0_here", "summary": "仍在这里", "sentence": "我还在这里，只是句子比我先到了一步。"},
-			{"id": "f5n0_lost", "summary": "遗失一部分", "sentence": "有一部分留在楼下，正在替我继续回答问题。"},
-			{"id": "f5n0_count", "summary": "逐字确认", "sentence": "我会一个字一个字地数，数到停下的地方就是我。"},
-		]},
-		{"line": "窗 / 外 / 有 / 一只 / 没有过去的鸟", "result": "旧帖目击者望向窗外。那里没有窗，鸟仍然飞过了一次。", "choices": [
-			{"id": "f5n1_bird", "summary": "描述那只鸟", "sentence": "它没有向前飞，只让身后的世界不断离开。"},
-			{"id": "f5n1_window", "summary": "寻找窗户", "sentence": "先找到窗户吧，不然我们不知道外面究竟属于哪里。"},
-			{"id": "f5n1_signal", "summary": "发送信号", "sentence": "如果它没有过去，就让这句话追上它，替我们问候一次。"},
-		]},
-	],
 }
 const REALITY_FOLLOWUPS_BY_NPC_INDEX := {
 	0: {
@@ -221,57 +197,8 @@ const REALITY_FOLLOWUPS_BY_NPC_INDEX := {
 		"interrupt": "帖子开始自动复制你尚未说出的词。旧帖目击者拔掉电源，屏幕仍亮在中断处。",
 	},
 }
-const MERCHANT_DIALOGUES_BY_FLOOR := {
-	1: {"line": "我卖的是能装住一个字的空框。字会漏出来，框不会。", "result": "信号商人敲了敲柜台，空框发出比内容更清楚的声音。"},
-	2: {"line": "本层交易必须附上一句遗产。价格不会因此减少。", "result": "信号商人收走了声音，没有说明它被记在哪一本账里。"},
-	3: {"line": "请确认购买者与说话者为同一实体。无法确认也可以签字。", "result": "信号商人把签名盖在照片上，照片里的人没有动。"},
-	4: {"line": "交换也是圣歌。你给出一句，我归还一个更响的空位。", "result": "信号商人低声唱出价格，数字在最后一个音里消失。"},
-	5: {"line": "买 / 卖 / 留下 / 哪一个", "result": "信号商人伸出空手。主角无法判断交易是否已经发生。"},
-}
-const MERCHANT_CHOICES_BY_FLOOR := {
-	1: [
-		{"id": "trade", "summary": "询问梗框", "sentence": "我想要一个只装一个字的框，它不需要替我解释。"},
-		{"id": "ask_empty", "summary": "询问空框", "sentence": "空框为什么比装进去的字更容易被人记住？"},
-		{"id": "leave", "summary": "暂不交易", "sentence": "我先保留手里的字，等它愿意进入一个边界。"},
-	],
-	2: [
-		{"id": "trade", "summary": "按遗产交易", "sentence": "我会带上旧句子，但梗框里只放今天拾到的字。"},
-		{"id": "ask_price", "summary": "质疑价格", "sentence": "遗产已经替我说过一次，为什么还要支付第二次价格？"},
-		{"id": "leave", "summary": "拒绝附言", "sentence": "不能不带旧话交易的话，我就让这次交易保持空白。"},
-	],
-	3: [
-		{"id": "trade", "summary": "签字购买", "sentence": "购买者和说话者暂时是同一个人，我愿意在这里签字。"},
-		{"id": "ask_form", "summary": "索要表格", "sentence": "请给我一份没有预填答案的申请表。"},
-		{"id": "leave", "summary": "撤回申请", "sentence": "如果签名会替我继续说话，我撤回这次购买。"},
-	],
-	4: [
-		{"id": "trade", "summary": "加入交换", "sentence": "我给出一句没有旋律的话，只换一个安静的梗框。"},
-		{"id": "ask_song", "summary": "询问价格歌", "sentence": "价格唱完以后消失了，我该把钱交给哪个音？"},
-		{"id": "leave", "summary": "退出合唱", "sentence": "我不想让交易变成副歌，今天先不买。"},
-	],
-	5: [
-		{"id": "trade", "summary": "买", "sentence": "我 / 买 / 一个 / 空框。"},
-		{"id": "ask_hand", "summary": "看空手", "sentence": "你 / 手里 / 已经 / 有 / 我的东西吗。"},
-		{"id": "leave", "summary": "留下", "sentence": "字 / 留下 / 我 / 走。"},
-	],
-}
 const REALITY_CORRUPTION_GLYPHS := ["■", "▦", "∴", "//", "哈", "吉", "米", "空位"]
 const PROTECTED_PUNCTUATION := ["，", "。", "！", "？", "；", "：", "、", "…", ",", ".", "!", "?", ";", ":", "\"", "'", "（", "）", "(", ")"]
-const COMMUNICATION_ITEMS := {
-	"silence_patch": {
-		"id": "silence_patch", "label": "静音贴", "price": 6, "charges": 2, "clarity_bonus": 18,
-		"description": "现实句子严重失真时，临时压低 18% 的污染噪声。",
-	},
-	"semantic_anchor": {
-		"id": "semantic_anchor", "label": "语义锚", "price": 9, "charges": 3, "clarity_bonus": 14,
-		"description": "现实句子严重失真时，临时压低 14% 的污染噪声。",
-	},
-	"dictionary_leaf": {
-		"id": "dictionary_leaf", "label": "旧词典页", "price": 12, "charges": 1, "clarity_bonus": 32,
-		"description": "仅能使用一次，但会压低 32% 的污染噪声。",
-	},
-}
-const COMMUNICATION_ITEM_ROTATION := ["silence_patch", "semantic_anchor", "dictionary_leaf"]
 const ENDING_LANGUAGE_CHOICES := [
 	{"id": "blank", "label": "空白", "output": "（空白）"},
 	{"id": "blocks", "label": "■■■■", "output": "■ ■ ■ ■"},
@@ -310,8 +237,7 @@ const SAVE_FIELD_NAMES := [
 	"history_entries",
 	"reality_sentence_slots", "legacy_rules", "last_clean_sentence", "last_polluted_sentence",
 	"npc_understanding", "reality_phase", "relationship_residue", "last_relationship_residue_gain",
-	"last_relationship_money_loss", "reality_dialogue_count", "owned_communication_items",
-	"daily_communication_item_bought", "last_communication_item_used", "last_communication_item_remaining",
+	"last_relationship_money_loss", "reality_dialogue_count",
 	"npc_meme_frame_reward_pity", "npc_meme_frame_reward_attempt_keys", "last_npc_meme_frame_reward",
 ]
 
@@ -397,10 +323,6 @@ var conversation_interrupted: bool = false
 var conversation_interrupt_line: String = ""
 var conversation_action_spent: bool = false
 var conversation_reward: Dictionary = {}
-var owned_communication_items: Array = []
-var daily_communication_item_bought: bool = false
-var last_communication_item_used: String = ""
-var last_communication_item_remaining: int = 0
 var npc_meme_frame_reward_pity: int = 0
 var npc_meme_frame_reward_attempt_keys: Array[String] = []
 var last_npc_meme_frame_reward: Dictionary = {}
@@ -458,10 +380,6 @@ func new_run() -> void:
 	last_relationship_residue_gain = 0
 	last_relationship_money_loss = 0
 	reality_dialogue_count = 0
-	owned_communication_items = []
-	daily_communication_item_bought = false
-	last_communication_item_used = ""
-	last_communication_item_remaining = 0
 	npc_meme_frame_reward_pity = 0
 	npc_meme_frame_reward_attempt_keys = []
 	last_npc_meme_frame_reward = {}
@@ -504,7 +422,6 @@ func load_save_data(save_data: Dictionary) -> bool:
 		ending_route = ""
 		formal_floor_three_complete = false
 		pending_floor_transition = 0
-		owned_communication_items.clear()
 	if loaded_version < SAVE_DATA_VERSION and saved_floor < 4:
 		_migrate_legacy_hidden_route_data(state_data as Dictionary)
 	var normalized_watcher_floors: Array[int] = []
@@ -588,6 +505,10 @@ func get_prerequisite_item_ids() -> Array[String]:
 
 func get_prerequisite_item_for_floor(floor_number: int) -> Dictionary:
 	return (PREREQUISITE_ITEMS.get(floor_number, {}) as Dictionary).duplicate(true)
+
+
+func get_key_clue_progress(floor_number: int) -> Dictionary:
+	return (key_clue_progress.get(str(clampi(floor_number, 1, 3)), {}) as Dictionary).duplicate(true)
 
 
 func reveal_prerequisite_item_for_floor(floor_number: int) -> bool:
@@ -817,7 +738,7 @@ func start_typed_reality_conversation(actor_id: String, actor_type: String, acto
 	if not can_spend_action():
 		return false
 	conversation_actor_id = actor_id
-	conversation_actor_type = "merchant" if actor_type == "merchant" else "npc"
+	conversation_actor_type = actor_type if actor_type in ["npc", "key_npc"] else "npc"
 	conversation_actor_label = actor_label
 	var dialogue := _reality_dialogue_for_actor(actor_id, conversation_actor_type)
 	conversation_turns = [{
@@ -838,8 +759,6 @@ func start_typed_reality_conversation(actor_id: String, actor_type: String, acto
 	conversation_attempts = 0
 	conversation_locale = "zh"
 	conversation_legacy_texts = []
-	last_communication_item_used = ""
-	last_communication_item_remaining = 0
 	_load_typed_reality_turn(0)
 	conversation_phase = "choosing"
 	return true
@@ -875,8 +794,6 @@ func reset_typed_reality_conversation() -> void:
 	conversation_interrupt_line = ""
 	conversation_action_spent = false
 	conversation_reward = {}
-	last_communication_item_used = ""
-	last_communication_item_remaining = 0
 
 
 func get_typed_reality_choices() -> Array:
@@ -941,10 +858,14 @@ func configure_conversation_locale(locale_code: String, localized_legacy_texts: 
 
 func _reality_dialogue_for_actor(actor_id: String, actor_type: String) -> Dictionary:
 	var floor_number := clampi(tower_floor, 1, 3)
-	if actor_type == "merchant":
-		var merchant_entry: Dictionary = (MERCHANT_DIALOGUES_BY_FLOOR.get(floor_number, MERCHANT_DIALOGUES_BY_FLOOR[1]) as Dictionary).duplicate(true)
-		merchant_entry["choices"] = (MERCHANT_CHOICES_BY_FLOOR.get(floor_number, MERCHANT_CHOICES_BY_FLOOR[1]) as Array).duplicate(true)
-		return merchant_entry
+	if actor_type == "key_npc":
+		var key_dialogue: Dictionary = LanguageCorruptionContentScript.get_key_npc_dialogue_for_floor(floor_number)
+		var key_turns: Array = key_dialogue.get("turns", [])
+		if key_turns.is_empty():
+			return {"line": "你来得太早了。", "result": "对方没有再开口。", "choices": []}
+		var first_turn: Dictionary = (key_turns[0] as Dictionary).duplicate(true)
+		first_turn["continuation_turns"] = key_turns.slice(1).duplicate(true)
+		return first_turn
 	var entries: Array = LanguageCorruptionContentScript.get_dialogues_for_floor(floor_number)
 	var actor_index := _reality_actor_index(actor_id)
 	if entries.is_empty():
@@ -961,60 +882,6 @@ func _reality_actor_index(actor_id: String) -> int:
 		if actor_id.ends_with("npc%d" % index):
 			return index
 	return 0
-
-
-func get_daily_communication_item() -> Dictionary:
-	var index := posmod(day + tower_floor - 2, COMMUNICATION_ITEM_ROTATION.size())
-	var item_id := str(COMMUNICATION_ITEM_ROTATION[index])
-	return (COMMUNICATION_ITEMS.get(item_id, {}) as Dictionary).duplicate(true)
-
-
-func buy_daily_communication_item() -> bool:
-	if daily_communication_item_bought:
-		return false
-	var item := get_daily_communication_item()
-	if item.is_empty():
-		return false
-	var price := int(item.get("price", 0))
-	if money < price or not spend_action("buy-communication-item"):
-		return false
-	money -= price
-	daily_communication_item_bought = true
-	var item_id := str(item.get("id", ""))
-	var stacked := false
-	for index in owned_communication_items.size():
-		var owned: Dictionary = owned_communication_items[index]
-		if str(owned.get("id", "")) != item_id:
-			continue
-		owned["charges"] = int(owned.get("charges", 0)) + int(item.get("charges", 0))
-		owned_communication_items[index] = owned
-		stacked = true
-		break
-	if not stacked:
-		owned_communication_items.append(item.duplicate(true))
-	event_log.push_front("你从信号商人那里买到%s，可用 %d 次。" % [str(item.get("label", "沟通辅助")), int(item.get("charges", 0))])
-	return true
-
-
-func get_active_communication_item() -> Dictionary:
-	var best: Dictionary = {}
-	for item in owned_communication_items:
-		if int(item.get("charges", 0)) <= 0:
-			continue
-		if best.is_empty() or int(item.get("clarity_bonus", 0)) > int(best.get("clarity_bonus", 0)):
-			best = item
-	return best.duplicate(true)
-
-
-func get_communication_item_status() -> String:
-	var item := get_active_communication_item()
-	if item.is_empty():
-		return ""
-	return "%s ×%d" % [str(item.get("label", "沟通辅助")), int(item.get("charges", 0))]
-
-
-func should_show_merchant_communication_offer() -> bool:
-	return conversation_actor_type == "merchant" and conversation_phase == "result" and conversation_selected_choice_id == "trade"
 
 
 func preview_typed_reality_choice(choice_id: String) -> String:
@@ -1076,7 +943,9 @@ func advance_typed_reality_character() -> Dictionary:
 		return result
 
 	result["completed"] = true
-	if not conversation_action_spent:
+	var is_key_npc_final_turn := conversation_actor_type == "key_npc" and conversation_turn_index + 1 >= conversation_turns.size()
+	var should_spend_now := conversation_actor_type != "key_npc" or is_key_npc_final_turn
+	if not conversation_action_spent and should_spend_now:
 		if not spend_action("typed-reality-dialogue"):
 			conversation_phase = "result"
 			conversation_interrupted = true
@@ -1090,16 +959,18 @@ func advance_typed_reality_character() -> Dictionary:
 	conversation_attempts += 1
 	last_clean_sentence = conversation_clean_sentence
 	last_polluted_sentence = get_typed_reality_spoken_sentence()
-	var understood := _resolve_typed_reality_understanding()
+	var understood := true
+	if conversation_actor_type == "key_npc":
+		conversation_understanding_rolls = []
+		npc_understanding = 100
+	else:
+		understood = _resolve_typed_reality_understanding()
 	conversation_understood = understood
 	result["understood"] = understood
 	if not understood:
 		last_relationship_residue_gain = clampi(1 + int(pollution / 18.0) + legacy_rules.size(), 1, 14)
 		relationship_residue = clampi(relationship_residue + last_relationship_residue_gain, 0, 100)
 	conversation_feedback = conversation_result_line
-	var aid_feedback := _communication_item_feedback()
-	if not aid_feedback.is_empty():
-		conversation_feedback += "\n" + aid_feedback
 	conversation_history.append({
 		"turn_index": conversation_turn_index,
 		"prompt": conversation_prompt,
@@ -1127,12 +998,61 @@ func advance_typed_reality_character() -> Dictionary:
 	conversation_can_continue = false
 	conversation_completed = true
 	result["conversation_completed"] = true
-	if conversation_actor_type == "npc":
+	if conversation_actor_type == "key_npc":
+		conversation_reward = _resolve_key_npc_clue_attempt()
+		result["reward"] = conversation_reward.duplicate(true)
+		conversation_feedback += "\n" + str(conversation_reward.get("feedback", ""))
+	elif conversation_actor_type == "npc":
 		conversation_reward = _resolve_npc_meme_frame_reward(conversation_actor_id)
 		result["reward"] = conversation_reward.duplicate(true)
 		if bool(conversation_reward.get("awarded", false)):
 			conversation_feedback += "\n对方把一个梗框留在你手边。框沿没有商人的价签。"
 	return result
+
+
+func _resolve_key_npc_clue_attempt() -> Dictionary:
+	var floor_number := clampi(tower_floor, 1, 3)
+	var key_dialogue: Dictionary = LanguageCorruptionContentScript.get_key_npc_dialogue_for_floor(floor_number)
+	var turns: Array = key_dialogue.get("turns", [])
+	var selected_ids: Array[String] = []
+	for history_entry: Dictionary in conversation_history:
+		selected_ids.append(str(history_entry.get("choice_id", "")))
+	var correct_count := 0
+	for turn_index in mini(turns.size(), selected_ids.size()):
+		var turn: Dictionary = turns[turn_index]
+		for choice: Dictionary in turn.get("choices", []):
+			if bool(choice.get("correct", false)) and str(choice.get("id", "")) == selected_ids[turn_index]:
+				correct_count += 1
+				break
+	var solved := turns.size() == 2 and correct_count == turns.size()
+	var progress_key := str(floor_number)
+	var previous: Dictionary = (key_clue_progress.get(progress_key, {}) as Dictionary).duplicate(true)
+	var progress := {
+		"attempts": int(previous.get("attempts", 0)) + 1,
+		"correct_answers": correct_count,
+		"last_answers": selected_ids.duplicate(),
+		"solved": bool(previous.get("solved", false)) or solved,
+	}
+	key_clue_progress[progress_key] = progress
+	var item := get_prerequisite_item_for_floor(floor_number)
+	var item_id := str(item.get("id", ""))
+	var newly_revealed := false
+	var feedback := str(key_dialogue.get("failure_line", "对方没有说出地点。"))
+	if solved:
+		newly_revealed = reveal_prerequisite_item_for_floor(floor_number)
+		feedback = "%s\n%s" % [
+			str(key_dialogue.get("success_line", "对方终于说出了地点。")),
+			str(item.get("location_hint", "这一层有一件东西正等着被找到。")),
+		]
+	return {
+		"kind": "prerequisite_clue",
+		"floor": floor_number,
+		"item_id": item_id,
+		"correct_answers": correct_count,
+		"solved": solved,
+		"newly_revealed": newly_revealed,
+		"feedback": feedback,
+	}
 
 
 func get_typed_reality_spoken_sentence() -> String:
@@ -1189,47 +1109,18 @@ func _conversation_corruption_text(roll: int, character_index: int) -> String:
 
 func _resolve_typed_reality_understanding() -> bool:
 	conversation_understanding_rolls = []
-	last_communication_item_used = ""
-	last_communication_item_remaining = 0
 	var legacy_penalty_per_rule := 6
 	var legacy_penalty := legacy_rules.size() * legacy_penalty_per_rule
 	var base_clear_chance := clampi(100 - pollution - legacy_penalty, 5, 96)
-	var check_count := 3 if conversation_actor_type == "merchant" else 1
+	var check_count := 1
 	var understood := false
 	for check_index in check_count:
 		var roll := _conversation_roll("understanding", 0, check_index)
 		conversation_understanding_rolls.append(roll)
 		if roll < base_clear_chance:
 			understood = true
-	var effective_clear_chance := base_clear_chance
-	if not understood:
-		var aid := get_active_communication_item()
-		if not aid.is_empty():
-			effective_clear_chance = clampi(base_clear_chance + int(aid.get("clarity_bonus", 0)), 5, 98)
-			_consume_communication_item(str(aid.get("id", "")))
-			for roll in conversation_understanding_rolls:
-				if roll < effective_clear_chance:
-					understood = true
-	npc_understanding = effective_clear_chance
+	npc_understanding = base_clear_chance
 	return understood
-
-
-func _consume_communication_item(item_id: String) -> void:
-	for index in owned_communication_items.size():
-		var item: Dictionary = owned_communication_items[index]
-		if str(item.get("id", "")) != item_id or int(item.get("charges", 0)) <= 0:
-			continue
-		item["charges"] = maxi(0, int(item.get("charges", 0)) - 1)
-		owned_communication_items[index] = item
-		last_communication_item_used = str(item.get("label", "沟通辅助"))
-		last_communication_item_remaining = int(item.get("charges", 0))
-		return
-
-
-func _communication_item_feedback() -> String:
-	if last_communication_item_used.is_empty():
-		return ""
-	return "（%s生效，剩余 %d 次）" % [last_communication_item_used, last_communication_item_remaining]
 
 
 func _conversation_roll(channel: String, character_index: int, check_index: int) -> int:
@@ -1316,9 +1207,6 @@ func settle_day_if_needed() -> bool:
 	reset_reality_phase_for_day()
 	reset_typed_reality_conversation()
 	daily_meme_frame_bought = false
-	daily_communication_item_bought = false
-	last_communication_item_used = ""
-	last_communication_item_remaining = 0
 	return true
 
 

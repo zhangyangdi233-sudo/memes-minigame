@@ -34,14 +34,12 @@ const POLLUTION_PALETTE_5 := {
 
 const PHONE_DOWN_BACKDROP_PATH := "res://assets/generated/world/phone_down_backdrop.png"
 const PLAYER_CHARACTER_PATH := "res://assets/generated/characters/protagonist_operator.png"
-const MERCHANT_CHARACTER_PATH := "res://assets/generated/characters/merchant_frame_vendor.png"
 const NPC_CHARACTER_PATHS := [
 	"res://assets/generated/characters/npc_late_arrival.png",
 	"res://assets/generated/characters/npc_echo_tenant.png",
 	"res://assets/generated/characters/npc_archive_witness.png",
 ]
 const NO_SIGNAL_ICON_PATH := "res://assets/generated/ui/no_signal_icon.png"
-const HUD_DAY_ICON_PATH := "res://assets/generated/ui/hud_day_icon.png"
 const HUD_POLLUTION_ICON_PATH := "res://assets/generated/ui/hud_pollution_icon.png"
 const HUD_MONEY_ICON_PATH := "res://assets/generated/ui/hud_money_icon.png"
 const HUD_SETTINGS_ICON_PATH := "res://assets/generated/ui/hud_settings_icon.png"
@@ -52,7 +50,6 @@ const PHONE_AMBIENCE_PATHS := {
 	2: "res://assets/generated/audio/babel_phone_signal.wav",
 	3: "res://assets/generated/audio/babel_phone_signal_floor_3.wav",
 	4: "res://assets/generated/audio/babel_phone_signal_floor_4.wav",
-	5: "res://assets/generated/audio/babel_phone_signal_floor_5.wav",
 }
 const REALITY_AMBIENCE_PATH := "res://assets/generated/audio/babel_reality_liminal.wav"
 const POLLUTION_AMBIENCE_PATH := "res://assets/generated/audio/babel_pollution_rot.wav"
@@ -400,10 +397,6 @@ var _reality_intent_preview: RichTextLabel
 var _reality_typing_line: RichTextLabel
 var _reality_typing_progress: Label
 var _reality_continue_button: Button
-var _reality_aid_status: Label
-var _reality_merchant_offer: PanelContainer
-var _reality_merchant_offer_text: Label
-var _reality_merchant_buy_button: Button
 var _reality_hover_choice_id := ""
 var _flashback_overlay: Control
 var _flashback_noise: ColorRect
@@ -967,12 +960,19 @@ func _rebuild_reality_floor() -> void:
 		var texture := _load_runtime_texture(str(texture_path))
 		if texture != null:
 			npc_textures.append(texture)
+	var key_dialogue: Dictionary = LanguageCorruptionContentScript.get_key_npc_dialogue_for_floor(clampi(game.tower_floor, 1, 3))
+	var key_npc_texture: Texture2D = null
+	if not npc_textures.is_empty():
+		key_npc_texture = npc_textures[posmod(game.tower_floor - 1, npc_textures.size())]
 	var actor_textures := {
-		"merchant": _load_runtime_texture(MERCHANT_CHARACTER_PATH),
+		"key_npc": key_npc_texture,
+		"key_npc_label": str(key_dialogue.get("actor_label", "关键住户")),
 		"npcs": npc_textures,
 	}
-	_reality_floor.rebuild(game.tower_floor, _active_palette(), actor_textures, game.day, game.has_seen_cover_watcher(game.tower_floor))
+	var prerequisite_item: Dictionary = game.get_prerequisite_item_for_floor(game.tower_floor)
+	_reality_floor.rebuild(game.tower_floor, _active_palette(), actor_textures, game.day, game.has_seen_cover_watcher(game.tower_floor), prerequisite_item)
 	_reality_floor.sync_collected_items(game.collected_world_item_ids)
+	_reality_floor.sync_prerequisite_items(game.revealed_prerequisite_item_ids, game.collected_prerequisite_item_ids)
 	_reality_built_floor = game.tower_floor
 	_reality_built_day = game.day
 	_reality_interaction_active = false
@@ -1830,43 +1830,6 @@ func _build_ui() -> void:
 	_reality_typing_progress.z_index = 15
 	_ui_root.add_child(_reality_typing_progress)
 
-	_reality_aid_status = _label("", 14, _theme_color("muted"))
-	_reality_aid_status.name = "RealityAidStatus"
-	_reality_aid_status.set_meta("on_dark", true)
-	_reality_aid_status.set_anchors_preset(Control.PRESET_BOTTOM_WIDE)
-	_reality_aid_status.offset_left = 520
-	_reality_aid_status.offset_top = -204
-	_reality_aid_status.offset_right = -460
-	_reality_aid_status.offset_bottom = -180
-	_reality_aid_status.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
-	_reality_aid_status.z_index = 15
-	_ui_root.add_child(_reality_aid_status)
-
-	_reality_merchant_offer = _panel()
-	_reality_merchant_offer.name = "RealityMerchantOffer"
-	_reality_merchant_offer.set_anchors_preset(Control.PRESET_BOTTOM_WIDE)
-	_reality_merchant_offer.offset_left = 480
-	_reality_merchant_offer.offset_top = -330
-	_reality_merchant_offer.offset_right = -420
-	_reality_merchant_offer.offset_bottom = -210
-	_reality_merchant_offer.z_index = 15
-	_ui_root.add_child(_reality_merchant_offer)
-	var merchant_offer_box := HBoxContainer.new()
-	merchant_offer_box.add_theme_constant_override("separation", 14)
-	_reality_merchant_offer.add_child(merchant_offer_box)
-	_reality_merchant_offer_text = _label("", 17, _theme_color("ink"))
-	_reality_merchant_offer_text.name = "RealityMerchantOfferText"
-	_reality_merchant_offer_text.custom_minimum_size = Vector2(120, 80)
-	_reality_merchant_offer_text.size_flags_horizontal = Control.SIZE_EXPAND_FILL
-	_reality_merchant_offer_text.autowrap_mode = TextServer.AUTOWRAP_ARBITRARY
-	_reality_merchant_offer_text.clip_text = true
-	merchant_offer_box.add_child(_reality_merchant_offer_text)
-	_reality_merchant_buy_button = Button.new()
-	_reality_merchant_buy_button.name = "RealityMerchantBuyButton"
-	_reality_merchant_buy_button.custom_minimum_size = Vector2(132, 56)
-	_reality_merchant_buy_button.pressed.connect(_on_buy_communication_item)
-	merchant_offer_box.add_child(_reality_merchant_buy_button)
-
 	_reality_subtitle_panel = PanelContainer.new()
 	_reality_subtitle_panel.name = "RealitySubtitlePanel"
 	_reality_subtitle_panel.set_meta("movie_subtitle", true)
@@ -2096,6 +2059,7 @@ func _build_apple_hud() -> void:
 	center.add_child(box)
 
 	_add_hud_icon(box, "HUDPollutionIcon", "pollution", HUD_POLLUTION_ICON_PATH)
+	_add_hud_icon(box, "HUDMoneyIcon", "money", HUD_MONEY_ICON_PATH)
 
 	var action_divider := ColorRect.new()
 	action_divider.color = _theme_color("muted")
@@ -2166,8 +2130,6 @@ func _show_hud_tooltip(kind: String, source: Control) -> void:
 	if _hud_tooltip == null or _hud_tooltip_label == null or source == null:
 		return
 	match kind:
-		"day":
-			_hud_tooltip_label.text = "DAY %d" % game.day
 		"pollution":
 			_hud_tooltip_label.text = "污染 %d%%" % game.pollution
 		"money":
@@ -2924,19 +2886,6 @@ func _apply_reality_layout() -> void:
 		_reality_typing_progress.offset_top = -208.0
 		_reality_typing_progress.offset_right = content_right
 		_reality_typing_progress.offset_bottom = -182.0
-	if _reality_aid_status != null:
-		_reality_aid_status.set_anchors_preset(Control.PRESET_BOTTOM_WIDE)
-		_reality_aid_status.offset_left = content_left
-		_reality_aid_status.offset_top = -204.0
-		_reality_aid_status.offset_right = content_right
-		_reality_aid_status.offset_bottom = -180.0
-	if _reality_merchant_offer != null:
-		_reality_merchant_offer.set_anchors_preset(Control.PRESET_BOTTOM_WIDE)
-		var offer_inset := 0.0 if compact else 160.0
-		_reality_merchant_offer.offset_left = content_left + offer_inset
-		_reality_merchant_offer.offset_top = -348.0
-		_reality_merchant_offer.offset_right = content_right - offer_inset
-		_reality_merchant_offer.offset_bottom = -214.0
 	if _reality_subtitle_panel != null:
 		_reality_subtitle_panel.set_anchors_preset(Control.PRESET_BOTTOM_WIDE)
 		_reality_subtitle_panel.offset_left = content_left
@@ -2994,6 +2943,8 @@ func _render() -> void:
 		_refresh_localized_ui()
 		return
 	_ensure_reality_floor_current()
+	if _reality_floor != null:
+		_reality_floor.sync_prerequisite_items(game.revealed_prerequisite_item_ids, game.collected_prerequisite_item_ids)
 	_render_status()
 	_render_world_prompt()
 	_render_app()
@@ -3041,8 +2992,7 @@ func _render_world_prompt() -> void:
 			str(_nearby_reality_item.get_meta("item_description", "信号已经写入。")),
 		]
 	elif _nearby_reality_actor != null:
-		var action := "交易" if str(_nearby_reality_actor.get_meta("actor_type", "npc")) == "merchant" else "交谈"
-		_world_prompt.text = "F  %s · %s" % [action, str(_nearby_reality_actor.get_meta("display_name", "对方"))]
+		_world_prompt.text = "F  交谈 · %s" % str(_nearby_reality_actor.get_meta("display_name", "对方"))
 	else:
 		_world_prompt.text = ""
 
@@ -4117,17 +4067,6 @@ func _render_reality() -> void:
 		_reality_continue_button.text = "结束"
 	else:
 		_reality_continue_button.text = "离开"
-	var aid_status := game.get_communication_item_status()
-	_reality_aid_status.text = "沟通辅助  %s" % aid_status if not aid_status.is_empty() else ""
-	_reality_aid_status.visible = _reality_interaction_active and not typing and not aid_status.is_empty()
-	var show_offer := _reality_interaction_active and game.should_show_merchant_communication_offer()
-	_reality_merchant_offer.visible = show_offer
-	if show_offer:
-		var offer := game.get_daily_communication_item()
-		_reality_merchant_offer_text.text = "%s · %d 次\n%s" % [str(offer.get("label", "沟通辅助")), int(offer.get("charges", 0)), str(offer.get("description", ""))]
-		_reality_merchant_buy_button.text = "已购" if game.daily_communication_item_bought else "%d 资金" % int(offer.get("price", 0))
-		_reality_merchant_buy_button.disabled = game.daily_communication_item_bought or not game.can_spend_action() or game.money < int(offer.get("price", 0))
-
 	if choosing:
 		for choice in game.get_typed_reality_choices():
 			var choice_id := str(choice.get("id", ""))
@@ -4234,19 +4173,6 @@ func _on_reality_continue_pressed() -> void:
 	_exit_reality_interaction()
 
 
-func _on_buy_communication_item() -> void:
-	if _input_locked:
-		return
-	var actions_before := int(game.actions_remaining)
-	var item := game.get_daily_communication_item()
-	if game.buy_daily_communication_item():
-		log_text = "买到%s。" % str(item.get("label", "沟通辅助"))
-		_after_effective_action(actions_before)
-	else:
-		log_text = "这件沟通辅助没有成交。"
-		_render()
-
-
 func _advance_typed_reality_character() -> bool:
 	if _input_locked or not _reality_interaction_active:
 		return false
@@ -4329,10 +4255,6 @@ func _update_visibility() -> void:
 		_reality_typing_line.visible = interaction_visible and game.conversation_phase == "typing"
 	if _reality_typing_progress != null:
 		_reality_typing_progress.visible = interaction_visible and game.conversation_phase == "typing"
-	if _reality_aid_status != null:
-		_reality_aid_status.visible = interaction_visible and game.conversation_phase != "typing" and not game.get_communication_item_status().is_empty()
-	if _reality_merchant_offer != null:
-		_reality_merchant_offer.visible = interaction_visible and game.should_show_merchant_communication_offer()
 	if _reality_floor != null:
 		_reality_floor.visible = not in_phone
 	if _reality_player != null:

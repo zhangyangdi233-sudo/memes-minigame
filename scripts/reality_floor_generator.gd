@@ -34,7 +34,7 @@ const MAP_END_MARGIN := 12.0 * WORLD_LENGTH_SCALE
 const WALL_HEIGHT := 3.4
 const AIR_WALL_HEIGHT := 6.0
 const AIR_WALL_THICKNESS := 0.5
-const ORDINARY_NPC_COUNTS := [4, 3, 2, 1, 0]
+const ORDINARY_NPC_COUNTS := [4, 3, 2, 0]
 const NIGHT_TERRACE_END_MARGIN := 8.0
 const NIGHT_TERRACE_GAP := 1.2
 const NIGHT_FACADE_BAY := 7.6
@@ -87,11 +87,6 @@ const AUTHORED_EVENT_TABLE := {
 		["light_memory"],
 		["dead_sign"],
 		["light_memory", "dead_sign"],
-	],
-	5: [
-		["dead_sign", "light_memory"],
-		["light_memory", "dead_sign"],
-		["dead_sign", "light_memory"],
 	],
 }
 const DISTRICT_STYLES := ["sunlit_brick_street", "night_white_blocks", "overgrown_gallery"]
@@ -146,7 +141,7 @@ static func district_style_for_floor(floor_number: int) -> String:
 
 
 static func authored_event_kinds_for_floor_day(floor_number: int, day_number: int) -> PackedStringArray:
-	var floor_schedules: Array = AUTHORED_EVENT_TABLE.get(clampi(floor_number, 1, 5), [])
+	var floor_schedules: Array = AUTHORED_EVENT_TABLE.get(clampi(floor_number, 1, 4), [])
 	if floor_schedules.is_empty():
 		return PackedStringArray()
 	var normalized_day := maxi(1, day_number)
@@ -157,9 +152,16 @@ static func authored_event_kinds_for_floor_day(floor_number: int, day_number: in
 	return event_kinds
 
 
-func rebuild(floor_number: int, palette: Dictionary, actor_textures: Dictionary, day_number: int = 1, cover_watcher_seen: bool = false) -> void:
+func rebuild(
+	floor_number: int,
+	palette: Dictionary,
+	actor_textures: Dictionary,
+	day_number: int = 1,
+	cover_watcher_seen: bool = false,
+	prerequisite_item: Dictionary = {}
+) -> void:
 	_clear_floor()
-	built_floor = clampi(floor_number, 1, 5)
+	built_floor = clampi(floor_number, 1, 4)
 	district_style = district_style_for_floor(built_floor)
 	room_count = room_count_for_floor(built_floor)
 	ordinary_npc_count = npc_count_for_floor(built_floor)
@@ -234,6 +236,7 @@ func rebuild(floor_number: int, palette: Dictionary, actor_textures: Dictionary,
 
 	_build_environment(palette)
 	_build_architecture(palette)
+	_build_prerequisite_item(prerequisite_item, palette)
 	_build_actors(actor_textures)
 	configure_authored_events(day_number, palette)
 	_build_cover_watcher_event(palette, cover_watcher_seen)
@@ -265,6 +268,20 @@ func sync_collected_items(collected_ids: Array[String]) -> void:
 		item.visible = not collected
 		item.monitoring = not collected
 		item.monitorable = not collected
+
+
+func sync_prerequisite_items(revealed_ids: Array[String], collected_ids: Array[String]) -> void:
+	for item in _items:
+		if not is_instance_valid(item) or not bool(item.get_meta("prerequisite_item", false)):
+			continue
+		var item_id := str(item.get_meta("item_id", ""))
+		var revealed := item_id in revealed_ids
+		var collected := item_id in collected_ids
+		item.set_meta("revealed", revealed)
+		item.set_meta("collected", collected)
+		item.visible = revealed and not collected
+		item.monitoring = revealed and not collected
+		item.monitorable = revealed and not collected
 
 
 func configure_authored_events(day_number: int, palette: Dictionary) -> void:
@@ -1946,9 +1963,7 @@ func _new_room(parent: Node3D, room_index: int) -> Node3D:
 
 
 func _place_room_reward(room: Node3D, room_index: int, position: Vector3, palette: Dictionary) -> void:
-	if (room_index + built_floor) % 3 == 0:
-		_build_useful_item(room, room_index, position, palette)
-	elif (room_index + built_floor) % 4 == 0:
+	if (room_index + built_floor) % 4 == 0:
 		_add_box(room, "EmptyPlinth", Vector3(0.72, 0.42, 0.72), position + Vector3(0.0, 0.21, 0.0), "wall_dark", palette, false)
 
 
@@ -2114,9 +2129,7 @@ func _build_street_lot(parent: Node3D, room_index: int, center: Vector3, side: f
 			true
 		)
 
-	if (room_index + built_floor) % 3 == 0:
-		_build_useful_item(room, room_index, center + Vector3(-side * 1.55, 0.0, 0.15), palette)
-	elif (room_index + built_floor) % 4 == 0:
+	if (room_index + built_floor) % 4 == 0:
 		_add_box(room, "EmptyPlinth", Vector3(0.72, 0.42, 0.72), center + Vector3(-side * 1.25, 0.21, 0.14), "wall_dark", palette, false)
 
 
@@ -2211,70 +2224,133 @@ func _add_air_wall(parent: Node3D, node_name: String, size: Vector3, position: V
 	return wall
 
 
-func _build_useful_item(parent: Node3D, room_index: int, position: Vector3, palette: Dictionary) -> void:
+func _prerequisite_item_position_for_floor() -> Vector3:
+	match built_floor:
+		1:
+			var lot_rows := int(ceil(float(room_count) / 2.0))
+			var first_row_z := float(lot_rows - 1) * LOT_SPACING * 0.5
+			return clamp_to_playable_position(Vector3(STREET_WIDTH * 0.5 - 1.05, 0.08, first_row_z - 2.6), 2.0)
+		2:
+			var house_front := _floor_two_disc_point(3.55, 0.50)
+			house_front.y += 0.10
+			return _clamp_to_floor_two_disc(house_front, 3.0)
+		3:
+			var false_window_z := lerpf(-map_length * 0.38, map_length * 0.38, 1.0 / 19.0)
+			return clamp_to_playable_position(Vector3(-4.15, 0.10, false_window_z + 0.35), 2.0)
+		_:
+			return clamp_to_playable_position(start_position() + Vector3(0.0, 0.0, -18.0), 2.0)
+
+
+func _build_prerequisite_item(item_data: Dictionary, palette: Dictionary) -> void:
+	if item_data.is_empty() or built_floor > 3:
+		return
+	var item_id := str(item_data.get("id", "")).strip_edges()
+	if item_id.is_empty():
+		return
 	useful_item_count += 1
-	var definitions := [
-		{"label": "信号筹码", "effect": "publish_base", "value": 8, "description": "下一次发布的传播基础 +8。"},
-		{"label": "回声镜片", "effect": "publish_multiplier_bonus", "value": 1, "description": "下一次发布的整数倍率 +1。"},
-		{"label": "清晰线", "effect": "clarity", "value": 7, "description": "立即恢复 7 点清晰。"},
-	]
-	var definition: Dictionary = definitions[posmod(int(room_index / 3) + built_floor, definitions.size())]
 	var item := Area3D.new()
-	item.name = "UsefulItem%02d" % room_index
-	item.position = position
+	item.name = "PrerequisiteItemFloor%d" % built_floor
+	item.position = _prerequisite_item_position_for_floor()
 	item.collision_layer = 2
 	item.collision_mask = 0
-	item.set_meta("useful_item", true)
-	item.set_meta("room_index", room_index)
-	item.set_meta("item_id", "signal_fragment_%d_%d" % [built_floor, room_index])
-	item.set_meta("display_name", str(definition.get("label", "街区遗物")))
-	item.set_meta("item_effect", str(definition.get("effect", "")))
-	item.set_meta("item_value", definition.get("value", 0))
-	item.set_meta("item_description", str(definition.get("description", "")))
-	parent.add_child(item)
+	item.visible = false
+	item.monitoring = false
+	item.monitorable = false
+	item.set_meta("prerequisite_item", true)
+	item.set_meta("revealed", false)
+	item.set_meta("collected", false)
+	item.set_meta("item_id", item_id)
+	item.set_meta("display_name", str(item_data.get("label", "未登记物")))
+	item.set_meta("item_effect", "prerequisite")
+	item.set_meta("item_value", built_floor)
+	item.set_meta("item_description", "这不是奖励。它只是证明你来过这里。")
+	item.set_meta("reachable_spawn", true)
+	item.set_meta("spawn_floor", built_floor)
+	add_child(item)
 	_items.append(item)
-	var pedestal := MeshInstance3D.new()
-	pedestal.name = "Pedestal"
-	var pedestal_mesh := BoxMesh.new()
-	pedestal_mesh.size = Vector3(0.72, 0.42, 0.72)
-	pedestal.mesh = pedestal_mesh
-	pedestal.position.y = 0.21
-	pedestal.set_meta("theme_role", "wall_dark")
-	pedestal.material_override = _material("wall_dark", palette, false)
-	item.add_child(pedestal)
-	var shard_material := _material("item", palette, true)
-	var lower_shard := MeshInstance3D.new()
-	lower_shard.name = "SignalShardLower"
-	var lower_mesh := CylinderMesh.new()
-	lower_mesh.top_radius = 0.20
-	lower_mesh.bottom_radius = 0.0
-	lower_mesh.height = 0.34
-	lower_mesh.radial_segments = 6
-	lower_mesh.rings = 1
-	lower_shard.mesh = lower_mesh
-	lower_shard.position.y = 0.64
-	lower_shard.set_meta("theme_role", "item")
-	lower_shard.material_override = shard_material
-	item.add_child(lower_shard)
-	var upper_shard := MeshInstance3D.new()
-	upper_shard.name = "SignalShardUpper"
-	var upper_mesh := CylinderMesh.new()
-	upper_mesh.top_radius = 0.0
-	upper_mesh.bottom_radius = 0.20
-	upper_mesh.height = 0.44
-	upper_mesh.radial_segments = 6
-	upper_mesh.rings = 1
-	upper_shard.mesh = upper_mesh
-	upper_shard.position.y = 1.03
-	upper_shard.set_meta("theme_role", "item")
-	upper_shard.material_override = shard_material
-	item.add_child(upper_shard)
+
+	var halo := MeshInstance3D.new()
+	halo.name = "SearchHalo"
+	var halo_mesh := CylinderMesh.new()
+	halo_mesh.top_radius = 0.48
+	halo_mesh.bottom_radius = 0.48
+	halo_mesh.height = 0.025
+	halo_mesh.radial_segments = 24
+	halo.mesh = halo_mesh
+	halo.position.y = 0.055
+	halo.set_meta("theme_role", "item")
+	halo.material_override = _material("item", palette, true)
+	item.add_child(halo)
+
+	match built_floor:
+		1:
+			_build_nameplate_prerequisite(item, palette)
+		2:
+			_build_cassette_prerequisite(item, palette)
+		3:
+			_build_page_prerequisite(item, palette)
+
 	var collision := CollisionShape3D.new()
+	collision.name = "InteractionShape"
 	var shape := SphereShape3D.new()
-	shape.radius = 0.52
+	shape.radius = 0.72
 	collision.shape = shape
-	collision.position.y = 0.58
+	collision.position.y = 0.62
 	item.add_child(collision)
+
+	var glow := OmniLight3D.new()
+	glow.name = "SearchGlow"
+	glow.position.y = 0.72
+	glow.light_color = _role_color("item", palette)
+	glow.light_energy = 0.52
+	glow.omni_range = 2.4
+	glow.shadow_enabled = false
+	item.add_child(glow)
+
+
+func _build_nameplate_prerequisite(parent: Node3D, palette: Dictionary) -> void:
+	var plate := _add_box(parent, "OldNameplate", Vector3(0.72, 0.34, 0.055), Vector3(0.0, 0.72, 0.0), "surface", palette, false)
+	plate.rotation.x = deg_to_rad(-8.0)
+	for line_index in 2:
+		_add_box(parent, "NameStroke%d" % line_index, Vector3(0.46 - float(line_index) * 0.12, 0.035, 0.025), Vector3(-0.04, 0.77 - float(line_index) * 0.11, -0.04), "ink", palette, false)
+	var pin := MeshInstance3D.new()
+	pin.name = "BentPin"
+	var pin_mesh := CylinderMesh.new()
+	pin_mesh.top_radius = 0.035
+	pin_mesh.bottom_radius = 0.035
+	pin_mesh.height = 0.42
+	pin_mesh.radial_segments = 8
+	pin.mesh = pin_mesh
+	pin.position = Vector3(-0.32, 0.90, 0.0)
+	pin.rotation.z = deg_to_rad(-24.0)
+	pin.material_override = _material("fixture_metal", palette, false)
+	parent.add_child(pin)
+
+
+func _build_cassette_prerequisite(parent: Node3D, palette: Dictionary) -> void:
+	_add_box(parent, "CassetteBody", Vector3(0.78, 0.48, 0.14), Vector3(0.0, 0.66, 0.0), "wall_dark", palette, false)
+	_add_box(parent, "CassetteLabel", Vector3(0.60, 0.20, 0.025), Vector3(0.0, 0.72, -0.085), "surface", palette, false)
+	for spool_index in 2:
+		var spool := MeshInstance3D.new()
+		spool.name = "TapeSpool%d" % spool_index
+		var spool_mesh := CylinderMesh.new()
+		spool_mesh.top_radius = 0.10
+		spool_mesh.bottom_radius = 0.10
+		spool_mesh.height = 0.035
+		spool_mesh.radial_segments = 16
+		spool.mesh = spool_mesh
+		spool.position = Vector3(-0.19 + float(spool_index) * 0.38, 0.72, -0.11)
+		spool.rotation.x = PI * 0.5
+		spool.material_override = _material("item", palette, true)
+		parent.add_child(spool)
+
+
+func _build_page_prerequisite(parent: Node3D, palette: Dictionary) -> void:
+	var page := _add_box(parent, "MissingSubjectPage", Vector3(0.56, 0.74, 0.035), Vector3(0.0, 0.72, 0.0), "surface", palette, false)
+	page.rotation.z = deg_to_rad(7.0)
+	for line_index in 5:
+		var line_width := 0.34 if line_index != 0 else 0.18
+		_add_box(parent, "PageLine%d" % line_index, Vector3(line_width, 0.025, 0.018), Vector3(-0.04, 0.94 - float(line_index) * 0.11, -0.03), "ink", palette, false)
 
 
 func _build_actors(actor_textures: Dictionary) -> void:
@@ -2282,17 +2358,19 @@ func _build_actors(actor_textures: Dictionary) -> void:
 	actors.name = "Actors"
 	add_child(actors)
 	var spawn := start_position()
-	var merchant_position := Vector3(-3.4, 0.0, spawn.z - 8.0)
+	var key_npc_position := Vector3(-3.4, 0.0, spawn.z - 8.0)
 	if built_floor == 2:
-		merchant_position = _floor_two_disc_point(PI * 0.5 + 0.12, 0.72)
-	var merchant_texture := actor_textures.get("merchant") as Texture2D
+		key_npc_position = _floor_two_disc_point(PI * 0.5 + 0.12, 0.72)
+	var key_npc_texture := actor_textures.get("key_npc") as Texture2D
 	var npc_textures: Array = actor_textures.get("npcs", [])
-	var fallback_texture := merchant_texture
+	var fallback_texture := key_npc_texture
 	if not npc_textures.is_empty() and npc_textures[0] is Texture2D:
 		fallback_texture = npc_textures[0]
-	var merchant := _make_actor("Merchant", "merchant", "信号商人", merchant_position, merchant_texture if merchant_texture != null else fallback_texture, 0)
-	actors.add_child(merchant)
-	_actors.append(merchant)
+	if built_floor <= 3:
+		var key_npc_label := str(actor_textures.get("key_npc_label", "关键住户"))
+		var key_npc := _make_actor("KeyNPC", "key_npc", key_npc_label, key_npc_position, key_npc_texture if key_npc_texture != null else fallback_texture, built_floor - 1)
+		actors.add_child(key_npc)
+		_actors.append(key_npc)
 
 	var labels := ["迟到者", "回声住户", "抄写员", "无名信徒", "旧帖目击者"]
 	var street_south := map_length * 0.5 - 12.5
@@ -2321,7 +2399,7 @@ func _build_actors(actor_textures: Dictionary) -> void:
 
 func _make_actor(node_name: String, actor_type: String, display_name: String, position: Vector3, npc_texture: Texture2D, tint_index: int) -> Area3D:
 	var actor := Area3D.new()
-	var face_center := Vector2(0.5, 0.17 if actor_type == "merchant" else 0.18)
+	var face_center := Vector2(0.5, 0.18)
 	actor.name = node_name
 	actor.position = position
 	actor.collision_layer = 2
@@ -2332,7 +2410,7 @@ func _make_actor(node_name: String, actor_type: String, display_name: String, po
 	actor.set_meta("tint_index", tint_index)
 	actor.set_meta("face_veil", true)
 	actor.set_meta("face_veil_style", "separate_animated_marker_overlay")
-	actor.set_meta("face_veil_mode", 1 if actor_type == "merchant" else tint_index % 3)
+	actor.set_meta("face_veil_mode", tint_index % 3)
 	actor.set_meta("face_identity_readable", false)
 	actor.set_meta("face_effect_separate_layer", true)
 	actor.set_meta("base_character_texture_preserved", true)
@@ -2394,9 +2472,9 @@ func _make_actor(node_name: String, actor_type: String, display_name: String, po
 	scribble_material.set_shader_parameter("ink_opacity", 1.0)
 	scribble_material.set_shader_parameter("brush_width_px", 56.0)
 	scribble_material.set_shader_parameter("face_center", face_center)
-	scribble_material.set_shader_parameter("face_size", Vector2(0.16, 0.085 if actor_type == "merchant" else 0.09))
-	scribble_material.set_shader_parameter("variation", float(1 if actor_type == "merchant" else tint_index % 3))
-	scribble_material.set_shader_parameter("seed", float(built_floor * 17 + tint_index * 7 + (3 if actor_type == "merchant" else 0)))
+	scribble_material.set_shader_parameter("face_size", Vector2(0.16, 0.09))
+	scribble_material.set_shader_parameter("variation", float(tint_index % 3))
+	scribble_material.set_shader_parameter("seed", float(built_floor * 17 + tint_index * 7))
 	scribble_overlay.material_override = scribble_material
 	actor.add_child(scribble_overlay)
 	return actor

@@ -144,7 +144,7 @@ func test_v1_floor_five_save_cannot_bypass_the_hidden_route() -> void:
 	_assert_eq(restored.pollution, 100, "migrated pollution should be clamped to the canonical range")
 	_assert_eq(restored.owned_meme_frames, 2, "unspent meme frames should survive migration")
 	_assert_true(not restored.is_hidden_layer_unlocked(), "old floor number and merchant data must not unlock floor four")
-	_assert_true(restored.owned_communication_items.is_empty(), "removed merchant items should not remain active after migration")
+	_assert_true(not restored.has_method("get_daily_communication_item"), "removed merchant inventory should not remain active after migration")
 
 
 func test_random_dialogue_garble_is_capped_and_preserves_punctuation() -> void:
