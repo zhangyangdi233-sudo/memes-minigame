@@ -45,6 +45,9 @@ func _capture() -> void:
 
 	main._toggle_settings_window()
 	await _wait_frames(4)
+	main._camera_access_toggle.set_pressed_no_signal(true)
+	main._refresh_camera_source_buttons()
+	await _wait_frames(2)
 	if not _save_viewport(SETTINGS_OUTPUT):
 		return
 	print("saved hand X-ray evidence: ", CONSENT_OUTPUT, ", ", XRAY_OUTPUT, ", ", SETTINGS_OUTPUT)

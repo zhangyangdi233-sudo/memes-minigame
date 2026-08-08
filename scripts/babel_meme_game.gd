@@ -1826,6 +1826,8 @@ func _on_camera_source_selected(index: int, option: OptionButton) -> void:
 
 func _activate_camera_source(source: String) -> void:
 	_camera_session_decided = true
+	if _camera_enabled:
+		_set_camera_enabled(false, false)
 	_set_camera_source(source, false)
 	_set_camera_enabled(true, true)
 
@@ -2825,7 +2827,7 @@ func _build_settings_window() -> void:
 	_settings_content.add_child(_camera_computer_button)
 	_camera_phone_button = Button.new()
 	_camera_phone_button.name = "SettingsConnectPhoneCameraButton"
-	_camera_phone_button.text = "连接手机并打开摄像头"
+	_camera_phone_button.text = "连接手机摄像头并开启 X-ray"
 	_camera_phone_button.tooltip_text = "只会选择手机连续互通或虚拟摄像头。"
 	_camera_phone_button.toggle_mode = true
 	_camera_phone_button.custom_minimum_size.y = 52

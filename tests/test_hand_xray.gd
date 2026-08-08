@@ -124,6 +124,7 @@ func _test_main_scene_surfaces() -> void:
 	_assert_true(xray != null, "the actual game UI should include the hand-driven X-ray layer")
 	if xray != null:
 		_assert_true(xray.get_meta("xray_mode", "") == "two_hand_thumb_index_bbox", "X-ray should be bound to the four fingertip bounding box")
+		_assert_true(xray.get_meta("border_effect", "") == "subtle_pulse_scan_trace", "X-ray should use the subtle animated border effect")
 	game_root.queue_free()
 	await process_frame
 
