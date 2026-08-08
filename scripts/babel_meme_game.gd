@@ -8,6 +8,8 @@ const DropButtonScript = preload("res://scripts/ui/drop_button.gd")
 const RadialMemeRingScript = preload("res://scripts/ui/radial_meme_ring.gd")
 const RealityFloorGeneratorScript = preload("res://scripts/reality_floor_generator.gd")
 const RicherTextLabelScript = preload("res://addons/richtext2/richer_text_label.gd")
+const HandTrackingReceiverScript = preload("res://scripts/integrations/hand_tracking_receiver.gd")
+const HandXRayOverlayScript = preload("res://scripts/ui/hand_xray_overlay.gd")
 
 const PALETTE_1 := {
 	"name": "palette_1",
@@ -81,6 +83,11 @@ const CINEMATIC_MAX_BAR_RATIO := 0.12
 const HUD_RAIL_WIDTH := 158.0
 const HUD_RAIL_MAX_HEIGHT := 700.0
 const HUD_RAIL_FRAME_MARGIN := 10.0
+const HUD_DRAWER_EDGE_HIT_WIDTH := 44.0
+const HUD_DRAWER_EDGE_CUE_WIDTH := 5.0
+const HUD_DRAWER_OPEN_DURATION := 0.26
+const HUD_DRAWER_CLOSE_DURATION := 0.18
+const HUD_DRAWER_CLOSE_DELAY := 0.22
 const MEME_BANK_MOTION_TRANSITION := Tween.TRANS_QUINT
 const MEME_BANK_MOTION_EASE := Tween.EASE_OUT
 const MEME_BANK_SCALE_DURATION := 0.28
@@ -333,13 +340,29 @@ var _ui_root: Control
 var _texture_cache: Dictionary = {}
 var _phone_down_backdrop_image: TextureRect
 var _hand_phone_image: TextureRect
+var _hand_tracking_receiver
+var _hand_xray_overlay: Control
+var _second_layer_texture: Texture2D
+var _camera_consent_overlay: Control
+var _camera_access_toggle: CheckButton
+var _camera_consent_source_option: OptionButton
+var _camera_computer_button: Button
+var _camera_phone_button: Button
+var _camera_status_label: Label
+var _camera_consent_copy: Label
 var _cinematic_top_bar: ColorRect
 var _cinematic_bottom_bar: ColorRect
 var _hud_panel: PanelContainer
+var _hud_reveal_zone: Control
+var _hud_reveal_indicator: ColorRect
 var _hud_settings_icon: Button
 var _hud_actions_label: Label
 var _hud_tooltip: PanelContainer
 var _hud_tooltip_label: Label
+var _hud_drawer_expanded := false
+var _hud_drawer_touch_pinned := false
+var _hud_drawer_close_countdown := -1.0
+var _hud_drawer_tween: Tween
 var _world_prompt: Label
 var _desk_log: Label
 var _main_menu_layer: Control
@@ -351,9 +374,11 @@ var _prologue_index := 0
 var _settings_window: PanelContainer
 var _settings_content: VBoxContainer
 var _settings_title_label: Label
+var _settings_volume_label: Label
 var _settings_save_button: Button
 var _settings_autoplay_button: CheckButton
 var _settings_history_button: Button
+var _settings_exit_button: Button
 var _volume_slider: HSlider
 var _vhs_toggle: CheckButton
 var _settings_language_option: OptionButton
@@ -444,6 +469,10 @@ var _game_started := false
 var _settings_open := false
 var _vhs_enabled := true
 var _master_volume := 80.0
+var _camera_enabled := false
+var _camera_source := "computer"
+var _camera_session_decided := false
+var _camera_tracking_status := "摄像头未启用"
 var _phone_art_alpha := 0.0
 var _save_path := SAVE_PATH
 
@@ -452,6 +481,10 @@ func _ready() -> void:
 	var preferences := _locale.load_preferences(_master_volume, _vhs_enabled)
 	_master_volume = float(preferences.get("master_volume", _master_volume))
 	_vhs_enabled = bool(preferences.get("vhs_enabled", _vhs_enabled))
+	_camera_enabled = bool(preferences.get("camera_enabled", false))
+	_camera_source = str(preferences.get("camera_source", "computer"))
+	_camera_session_decided = false
+	_ensure_hand_tracking_receiver()
 	_apply_master_volume()
 	show_main_menu()
 	if not _locale.language_selected:
@@ -459,13 +492,21 @@ func _ready() -> void:
 
 
 func _process(delta: float) -> void:
+	if _hand_tracking_receiver != null:
+		_hand_tracking_receiver.poll()
 	if _camera == null:
 		return
 	if _game_started:
 		_ensure_reality_floor_current()
 		_refresh_nearby_reality_actor()
 		_apply_responsive_layouts_if_needed()
+		_update_hud_drawer_auto_close(delta)
 	_animate_world(delta)
+
+
+func _exit_tree() -> void:
+	if _hand_tracking_receiver != null:
+		_hand_tracking_receiver.stop()
 
 
 func _physics_process(delta: float) -> void:
@@ -480,6 +521,8 @@ func _input(event: InputEvent) -> void:
 		return
 	if _input_locked:
 		_reality_touch_look_index = -1
+		return
+	if _handle_hud_drawer_global_input(event):
 		return
 	if _handle_reality_touch_look(event):
 		return
@@ -608,6 +651,7 @@ func _begin_game_session(session_state: MemeGameState, world_data: Dictionary, s
 	_game_started = true
 	_settings_open = false
 	_phone_art_alpha = 1.0
+	_second_layer_texture = null
 	game = session_state
 	_migrate_social_author_ids()
 	selected_token_id = ""
@@ -616,6 +660,12 @@ func _begin_game_session(session_state: MemeGameState, world_data: Dictionary, s
 	_phone_popup_expanded = true
 	_phone_launcher_open = game.active_app_window.is_empty()
 	_meme_bank_layout_mode = ""
+	if _hud_drawer_tween != null and _hud_drawer_tween.is_valid():
+		_hud_drawer_tween.kill()
+	_hud_drawer_tween = null
+	_hud_drawer_expanded = false
+	_hud_drawer_touch_pinned = false
+	_hud_drawer_close_countdown = -1.0
 	_open_app_windows = {}
 	if not game.active_app_window.is_empty():
 		_open_app_windows[game.active_app_window] = true
@@ -660,7 +710,7 @@ func show_main_menu() -> void:
 		if _reality_interaction_active:
 			_exit_reality_interaction(false)
 		_save_progress()
-	_locale.save_preferences(_master_volume, _vhs_enabled)
+	_locale.save_preferences(_master_volume, _vhs_enabled, _camera_enabled, _camera_source)
 	_game_started = false
 	_settings_open = false
 	_input_locked = false
@@ -673,6 +723,8 @@ func show_main_menu() -> void:
 	_set_reality_mouse_look(false)
 	_build_world()
 	_build_main_menu()
+	if _locale.language_selected and not _camera_session_decided:
+		_build_camera_consent_overlay()
 	_sync_audio_state(true)
 
 
@@ -766,6 +818,8 @@ func _migrate_social_author_ids() -> void:
 func set_view_state(value: String) -> void:
 	if _input_locked:
 		return
+	if value == "npc_up" and game.view_state == "phone_down":
+		_capture_phone_layer_for_xray()
 	if game.set_view_state(value):
 		_reality_interaction_active = false
 		_active_reality_actor = null
@@ -797,6 +851,21 @@ func _toggle_view_state() -> void:
 		set_view_state("phone_down")
 
 
+func _capture_phone_layer_for_xray() -> bool:
+	if not _game_started or get_viewport() == null or DisplayServer.get_name().to_lower() == "headless":
+		return false
+	var viewport_texture := get_viewport().get_texture()
+	if viewport_texture == null:
+		return false
+	var image := viewport_texture.get_image()
+	if image == null or image.is_empty():
+		return false
+	_second_layer_texture = ImageTexture.create_from_image(image)
+	if _hand_xray_overlay != null:
+		_hand_xray_overlay.set_layer_texture(_second_layer_texture)
+	return true
+
+
 func _set_reality_mouse_look(enabled: bool) -> void:
 	_reality_mouse_look_enabled = enabled
 	if not enabled or game.view_state != "npc_up":
@@ -816,6 +885,14 @@ func _build_world() -> void:
 	if _audio_tween != null and _audio_tween.is_valid():
 		_audio_tween.kill()
 	_audio_tween = null
+	_hand_xray_overlay = null
+	_camera_consent_overlay = null
+	_camera_access_toggle = null
+	_camera_consent_source_option = null
+	_camera_computer_button = null
+	_camera_phone_button = null
+	_camera_status_label = null
+	_camera_consent_copy = null
 	for child in get_children():
 		remove_child(child)
 		child.free()
@@ -1548,12 +1625,14 @@ func _build_language_selection_overlay(first_run: bool = false) -> void:
 func _on_language_selected(locale_code: String) -> void:
 	if not _locale.select_language(locale_code):
 		return
-	_locale.save_preferences(_master_volume, _vhs_enabled)
+	_locale.save_preferences(_master_volume, _vhs_enabled, _camera_enabled, _camera_source)
 	_close_language_selection_overlay()
 	if _game_started:
 		_render()
 	else:
 		_build_main_menu()
+		if not _camera_session_decided:
+			_build_camera_consent_overlay()
 	_refresh_localized_ui()
 
 
@@ -1564,6 +1643,222 @@ func _close_language_selection_overlay() -> void:
 		_language_overlay.queue_free()
 	_language_overlay = null
 	_language_overlay_first_run = false
+
+
+func _build_camera_consent_overlay() -> void:
+	if _ui_root == null or _camera_session_decided:
+		return
+	if _camera_consent_overlay != null and is_instance_valid(_camera_consent_overlay):
+		_camera_consent_overlay.queue_free()
+	_camera_consent_overlay = Control.new()
+	_camera_consent_overlay.name = "CameraConsentOverlay"
+	_camera_consent_overlay.set_anchors_preset(Control.PRESET_FULL_RECT)
+	_camera_consent_overlay.mouse_filter = Control.MOUSE_FILTER_STOP
+	_camera_consent_overlay.z_index = 210
+	_ui_root.add_child(_camera_consent_overlay)
+
+	var blackout := ColorRect.new()
+	blackout.name = "CameraConsentBackdrop"
+	blackout.color = Color(_theme_color("ink"), 0.94)
+	blackout.set_anchors_preset(Control.PRESET_FULL_RECT)
+	blackout.mouse_filter = Control.MOUSE_FILTER_STOP
+	_camera_consent_overlay.add_child(blackout)
+
+	var center := CenterContainer.new()
+	center.set_anchors_preset(Control.PRESET_FULL_RECT)
+	_camera_consent_overlay.add_child(center)
+	var panel := PanelContainer.new()
+	panel.name = "CameraConsentPanel"
+	panel.custom_minimum_size = Vector2(720, 520)
+	panel.add_theme_stylebox_override("panel", _soft_style(_theme_color("surface"), _theme_color("accent")))
+	center.add_child(panel)
+	var box := VBoxContainer.new()
+	box.add_theme_constant_override("separation", 18)
+	panel.add_child(box)
+
+	var eyebrow := _label("LOCAL VISION  /  TWO HANDS", 15, _theme_color("accent"))
+	eyebrow.name = "CameraConsentEyebrow"
+	box.add_child(eyebrow)
+	var title := _label("摄像头与 X-RAY", 30, _theme_color("ink"))
+	title.name = "CameraConsentTitle"
+	box.add_child(title)
+	_camera_consent_copy = _label(
+		"用双手指尖框出一块区域，区域内会显示手机层。视频只在本机用于关键点计算，不写入存档。",
+		18,
+		_theme_color("ink")
+	)
+	_camera_consent_copy.name = "CameraConsentPrivacyCopy"
+	_camera_consent_copy.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
+	_camera_consent_copy.custom_minimum_size.y = 110
+	box.add_child(_camera_consent_copy)
+	var source_guidance := _label("默认使用电脑摄像头；手机只作为没有电脑镜头时的备用。", 15, _theme_color("accent"))
+	source_guidance.name = "CameraConsentSourceGuidance"
+	box.add_child(source_guidance)
+	var source_label := _label("摄像头来源", 16, _theme_color("ink"))
+	box.add_child(source_label)
+	_camera_consent_source_option = OptionButton.new()
+	_camera_consent_source_option.name = "CameraConsentSourceOption"
+	_camera_consent_source_option.set_meta("skip_localization", true)
+	_camera_consent_source_option.custom_minimum_size = Vector2(440, 52)
+	_populate_camera_source_option(_camera_consent_source_option)
+	_camera_consent_source_option.item_selected.connect(_on_camera_source_selected.bind(_camera_consent_source_option))
+	box.add_child(_camera_consent_source_option)
+	var previous_choice := _label(
+		"上次设置为允许；本次仍需要你确认。" if _camera_enabled else "镜头默认关闭，点击允许后才会启动。",
+		15,
+		_theme_color("accent")
+	)
+	previous_choice.name = "CameraConsentPreviousChoice"
+	box.add_child(previous_choice)
+
+	var actions := HBoxContainer.new()
+	actions.alignment = BoxContainer.ALIGNMENT_CENTER
+	actions.add_theme_constant_override("separation", 14)
+	box.add_child(actions)
+	var allow_button := Button.new()
+	allow_button.name = "CameraConsentAllowButton"
+	allow_button.text = "允许并打开摄像头"
+	allow_button.custom_minimum_size = Vector2(260, 58)
+	allow_button.pressed.connect(_resolve_camera_consent.bind(true))
+	actions.add_child(allow_button)
+	var skip_button := Button.new()
+	skip_button.name = "CameraConsentSkipButton"
+	skip_button.text = "暂不使用"
+	skip_button.custom_minimum_size = Vector2(190, 58)
+	skip_button.pressed.connect(_resolve_camera_consent.bind(false))
+	actions.add_child(skip_button)
+	_apply_ui_theme()
+	_refresh_localized_ui()
+
+
+func _resolve_camera_consent(allowed: bool) -> void:
+	_camera_session_decided = true
+	_set_camera_enabled(allowed, true)
+	if _camera_consent_overlay != null and is_instance_valid(_camera_consent_overlay):
+		_camera_consent_overlay.queue_free()
+	_camera_consent_overlay = null
+
+
+func _ensure_hand_tracking_receiver() -> void:
+	if _hand_tracking_receiver != null:
+		return
+	_hand_tracking_receiver = HandTrackingReceiverScript.new()
+	_hand_tracking_receiver.camera_source = _camera_source
+	_hand_tracking_receiver.frame_received.connect(_on_hand_tracking_frame)
+	_hand_tracking_receiver.status_changed.connect(_on_hand_tracking_status_changed)
+
+
+func _set_camera_enabled(value: bool, persist: bool = true) -> void:
+	_camera_enabled = value
+	_ensure_hand_tracking_receiver()
+	_hand_tracking_receiver.camera_source = _camera_source
+	if value:
+		_hand_tracking_receiver.start(true)
+		_camera_tracking_status = _hand_tracking_receiver.get_status()
+	else:
+		_hand_tracking_receiver.stop()
+		_camera_tracking_status = "摄像头未启用"
+	if _camera_access_toggle != null:
+		_camera_access_toggle.set_pressed_no_signal(value)
+	if _hand_xray_overlay != null:
+		_hand_xray_overlay.set_tracking_enabled(value)
+	_refresh_camera_source_buttons()
+	_refresh_camera_status_ui()
+	if persist:
+		_locale.save_preferences(_master_volume, _vhs_enabled, _camera_enabled, _camera_source)
+
+
+func _set_camera_source(value: String, persist: bool = true) -> void:
+	var normalized := value if value in ["computer", "phone"] else "computer"
+	var changed := _camera_source != normalized
+	_camera_source = normalized
+	_ensure_hand_tracking_receiver()
+	_hand_tracking_receiver.camera_source = _camera_source
+	if changed and _camera_enabled:
+		_hand_tracking_receiver.stop()
+		_hand_tracking_receiver.start(true)
+		_camera_tracking_status = _hand_tracking_receiver.get_status()
+	_sync_camera_source_options()
+	_refresh_camera_source_buttons()
+	_refresh_camera_status_ui()
+	if persist:
+		_locale.save_preferences(_master_volume, _vhs_enabled, _camera_enabled, _camera_source)
+
+
+func _populate_camera_source_option(option: OptionButton) -> void:
+	if option == null:
+		return
+	option.clear()
+	for entry in [
+		{"id": "computer", "label": "电脑摄像头（默认）"},
+		{"id": "phone", "label": "手机摄像头（备用）"},
+	]:
+		option.add_item(_locale.translate(str(entry["label"])))
+		var item_index := option.item_count - 1
+		option.set_item_metadata(item_index, entry["id"])
+		if str(entry["id"]) == _camera_source:
+			option.select(item_index)
+
+
+func _sync_camera_source_options() -> void:
+	for option in [_camera_consent_source_option]:
+		if option == null:
+			continue
+		for item_index in option.item_count:
+			if str(option.get_item_metadata(item_index)) == _camera_source:
+				option.select(item_index)
+				break
+
+
+func _refresh_camera_source_option_labels() -> void:
+	for option in [_camera_consent_source_option]:
+		if option == null or option.item_count < 2:
+			continue
+		option.set_item_text(0, _locale.translate("电脑摄像头（默认）"))
+		option.set_item_text(1, _locale.translate("手机摄像头（备用）"))
+
+
+func _on_camera_source_selected(index: int, option: OptionButton) -> void:
+	if option == null or index < 0 or index >= option.item_count:
+		return
+	_set_camera_source(str(option.get_item_metadata(index)), true)
+
+
+func _activate_camera_source(source: String) -> void:
+	_camera_session_decided = true
+	_set_camera_source(source, false)
+	_set_camera_enabled(true, true)
+
+
+func _refresh_camera_source_buttons() -> void:
+	if _camera_computer_button != null:
+		_camera_computer_button.set_pressed_no_signal(_camera_enabled and _camera_source == "computer")
+	if _camera_phone_button != null:
+		_camera_phone_button.set_pressed_no_signal(_camera_enabled and _camera_source == "phone")
+
+
+func _on_hand_tracking_frame(hands: Array, _timestamp_msec: int) -> void:
+	if _hand_xray_overlay != null:
+		_hand_xray_overlay.ingest_hands(hands, Time.get_ticks_msec())
+	var receiver_status: String = str(_hand_tracking_receiver.get_status()) if _hand_tracking_receiver != null else ""
+	if hands.size() >= 2:
+		_camera_tracking_status = "已锁定双手指尖"
+	elif receiver_status in ["摄像头不可用或权限被拒绝", "手部追踪程序发生错误"]:
+		_camera_tracking_status = receiver_status
+	else:
+		_camera_tracking_status = "等待双手进入画面"
+	_refresh_camera_status_ui()
+
+
+func _on_hand_tracking_status_changed(status: String) -> void:
+	_camera_tracking_status = status
+	_refresh_camera_status_ui()
+
+
+func _refresh_camera_status_ui() -> void:
+	if _camera_status_label != null:
+		_camera_status_label.text = _camera_tracking_status
+		_set_localized_property(_camera_status_label, "text")
 
 
 func _build_ui() -> void:
@@ -1598,6 +1893,7 @@ func _build_ui() -> void:
 	_phone_down_backdrop_image.z_index = 1
 	_ui_root.add_child(_phone_down_backdrop_image)
 	_hand_phone_image = null
+	_build_hand_xray_overlay()
 	_build_cinematic_bars()
 
 	_build_apple_hud()
@@ -1948,6 +2244,20 @@ func _build_ui() -> void:
 	_apply_responsive_layouts_if_needed(true)
 
 
+func _build_hand_xray_overlay() -> void:
+	_hand_xray_overlay = HandXRayOverlayScript.new()
+	_hand_xray_overlay.name = "HandXRayOverlay"
+	_hand_xray_overlay.set_anchors_preset(Control.PRESET_FULL_RECT)
+	_hand_xray_overlay.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	_hand_xray_overlay.z_index = 9
+	_ui_root.add_child(_hand_xray_overlay)
+	var initial_texture: Texture2D = _second_layer_texture
+	if initial_texture == null and _phone_down_backdrop_image != null:
+		initial_texture = _phone_down_backdrop_image.texture
+	_hand_xray_overlay.set_layer_texture(initial_texture)
+	_hand_xray_overlay.set_tracking_enabled(_camera_enabled)
+
+
 func _build_prologue_overlay() -> void:
 	_prologue_overlay = Control.new()
 	_prologue_overlay.name = "PrologueOverlay"
@@ -2037,17 +2347,53 @@ func _skip_prologue() -> void:
 
 
 func _build_apple_hud() -> void:
+	_hud_drawer_expanded = false
+	_hud_drawer_touch_pinned = false
+	_hud_drawer_close_countdown = -1.0
 	_hud_panel = _panel()
 	_hud_panel.name = "InternationalHUDRail"
 	_hud_panel.set_meta("dark_rail", true)
+	_hud_panel.set_meta("drawer_state", "collapsed")
+	_hud_panel.set_meta("slide_direction", "left_to_right")
+	_hud_panel.set_meta("open_duration", HUD_DRAWER_OPEN_DURATION)
+	_hud_panel.set_meta("close_duration", HUD_DRAWER_CLOSE_DURATION)
 	_hud_panel.set_anchors_preset(Control.PRESET_TOP_LEFT)
 	_hud_panel.offset_left = 0.0
 	_hud_panel.offset_top = 0.0
 	_hud_panel.offset_right = HUD_RAIL_WIDTH
 	_hud_panel.offset_bottom = HUD_RAIL_MAX_HEIGHT
 	_hud_panel.z_index = 40
+	_hud_panel.mouse_filter = Control.MOUSE_FILTER_STOP
 	_hud_panel.add_theme_stylebox_override("panel", _style(_theme_color("ink"), Color(_theme_color("muted"), 0.22)))
 	_ui_root.add_child(_hud_panel)
+	_hud_panel.mouse_entered.connect(_on_hud_drawer_pointer_entered)
+	_hud_panel.mouse_exited.connect(_schedule_hud_drawer_close)
+
+	_hud_reveal_zone = Control.new()
+	_hud_reveal_zone.name = "HUDRevealZone"
+	_hud_reveal_zone.set_meta("hover_reveals", true)
+	_hud_reveal_zone.set_meta("touch_reveals", true)
+	_hud_reveal_zone.set_meta("touch_target_width", HUD_DRAWER_EDGE_HIT_WIDTH)
+	_hud_reveal_zone.mouse_filter = Control.MOUSE_FILTER_STOP
+	_hud_reveal_zone.mouse_default_cursor_shape = Control.CURSOR_POINTING_HAND
+	_hud_reveal_zone.tooltip_text = "打开状态栏"
+	_hud_reveal_zone.z_index = 39
+	_hud_reveal_zone.mouse_entered.connect(_on_hud_reveal_zone_entered)
+	_hud_reveal_zone.mouse_exited.connect(_schedule_hud_drawer_close)
+	_hud_reveal_zone.gui_input.connect(_on_hud_reveal_zone_gui_input)
+	_ui_root.add_child(_hud_reveal_zone)
+
+	_hud_reveal_indicator = ColorRect.new()
+	_hud_reveal_indicator.name = "HUDRevealIndicator"
+	_hud_reveal_indicator.color = _theme_color("muted")
+	_hud_reveal_indicator.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	_hud_reveal_indicator.set_anchors_preset(Control.PRESET_CENTER_LEFT)
+	_hud_reveal_indicator.offset_left = 0.0
+	_hud_reveal_indicator.offset_top = -46.0
+	_hud_reveal_indicator.offset_right = HUD_DRAWER_EDGE_CUE_WIDTH
+	_hud_reveal_indicator.offset_bottom = 46.0
+	_hud_reveal_indicator.set_meta("edge_cue", true)
+	_hud_reveal_zone.add_child(_hud_reveal_indicator)
 
 	var center := CenterContainer.new()
 	center.name = "InternationalHUDCenter"
@@ -2086,15 +2432,6 @@ func _build_apple_hud() -> void:
 	box.add_child(settings_spacer)
 	_hud_settings_icon = _add_hud_icon(box, "HUDSettingsIcon", "settings", HUD_SETTINGS_ICON_PATH)
 	_hud_settings_icon.pressed.connect(_toggle_settings_window)
-
-	var exit_button := Button.new()
-	exit_button.name = "ExitGameButton"
-	exit_button.text = "退出游戏"
-	exit_button.set_meta("skip_localization", true)
-	exit_button.custom_minimum_size = Vector2(118, 46)
-	exit_button.size_flags_horizontal = Control.SIZE_SHRINK_CENTER
-	exit_button.pressed.connect(_request_quit_game)
-	box.add_child(exit_button)
 
 	_hud_tooltip = _panel()
 	_hud_tooltip.name = "HUDTooltip"
@@ -2143,6 +2480,131 @@ func _show_hud_tooltip(kind: String, source: Control) -> void:
 
 
 func _hide_hud_tooltip() -> void:
+	if _hud_tooltip != null:
+		_hud_tooltip.visible = false
+	_schedule_hud_drawer_close()
+
+
+func _is_hud_drawer_expanded() -> bool:
+	return _hud_drawer_expanded
+
+
+func _set_hud_drawer_expanded(expanded: bool, animate: bool = true) -> void:
+	if _hud_panel == null:
+		return
+	_hud_drawer_expanded = expanded
+	_hud_drawer_close_countdown = -1.0
+	_hud_panel.set_meta("drawer_state", "expanded" if expanded else "collapsed")
+	_hud_panel.set_meta("motion_easing", "easeOutQuint" if expanded else "easeInQuint")
+	if not expanded:
+		_hide_hud_tooltip_immediately()
+	if _hud_drawer_tween != null and _hud_drawer_tween.is_valid():
+		_hud_drawer_tween.kill()
+	_hud_drawer_tween = null
+	var target_position := Vector2(_hud_drawer_x(expanded), _hud_panel.position.y)
+	if not animate or not is_inside_tree():
+		_hud_panel.position = target_position
+		_hud_panel.set_meta("motion_phase", "idle")
+		return
+	_hud_panel.set_meta("motion_phase", "opening" if expanded else "closing")
+	var duration := HUD_DRAWER_OPEN_DURATION if expanded else HUD_DRAWER_CLOSE_DURATION
+	var ease := Tween.EASE_OUT if expanded else Tween.EASE_IN
+	_hud_drawer_tween = create_tween()
+	_hud_drawer_tween.tween_property(_hud_panel, "position", target_position, duration).set_trans(Tween.TRANS_QUINT).set_ease(ease)
+	_hud_drawer_tween.finished.connect(_finish_hud_drawer_motion.bind(_hud_drawer_tween), CONNECT_ONE_SHOT)
+
+
+func _finish_hud_drawer_motion(completed_tween: Tween) -> void:
+	if completed_tween != _hud_drawer_tween or _hud_panel == null:
+		return
+	_hud_panel.position.x = _hud_drawer_x(_hud_drawer_expanded)
+	_hud_panel.set_meta("motion_phase", "idle")
+	_hud_drawer_tween = null
+
+
+func _hud_drawer_x(expanded: bool) -> float:
+	return 0.0 if expanded else -HUD_RAIL_WIDTH
+
+
+func _on_hud_reveal_zone_entered() -> void:
+	if _input_locked or not _game_started:
+		return
+	_hud_drawer_touch_pinned = false
+	_set_hud_drawer_expanded(true)
+
+
+func _on_hud_drawer_pointer_entered() -> void:
+	if _input_locked or not _game_started:
+		return
+	_hud_drawer_close_countdown = -1.0
+	if not _hud_drawer_expanded:
+		_set_hud_drawer_expanded(true)
+
+
+func _schedule_hud_drawer_close() -> void:
+	if not _hud_drawer_expanded or _hud_drawer_touch_pinned:
+		return
+	_hud_drawer_close_countdown = HUD_DRAWER_CLOSE_DELAY
+
+
+func _update_hud_drawer_auto_close(delta: float) -> void:
+	if not _hud_drawer_expanded or _hud_drawer_touch_pinned or _hud_panel == null:
+		return
+	if _is_pointer_over_hud_drawer():
+		_hud_drawer_close_countdown = -1.0
+		return
+	if _hud_drawer_close_countdown < 0.0:
+		_hud_drawer_close_countdown = HUD_DRAWER_CLOSE_DELAY
+		return
+	_hud_drawer_close_countdown -= delta
+	if _hud_drawer_close_countdown <= 0.0:
+		_set_hud_drawer_expanded(false)
+
+
+func _is_pointer_over_hud_drawer() -> bool:
+	var pointer := get_viewport().get_mouse_position()
+	if _hud_panel != null and _hud_panel.visible and _hud_panel.get_global_rect().has_point(pointer):
+		return true
+	if _hud_reveal_zone != null and _hud_reveal_zone.visible and _hud_reveal_zone.get_global_rect().has_point(pointer):
+		return true
+	if _hud_tooltip != null and _hud_tooltip.visible and _hud_tooltip.get_global_rect().has_point(pointer):
+		return true
+	return false
+
+
+func _on_hud_reveal_zone_gui_input(event: InputEvent) -> void:
+	var pressed := false
+	if event is InputEventScreenTouch:
+		pressed = (event as InputEventScreenTouch).pressed
+	elif event is InputEventMouseButton:
+		var mouse_event := event as InputEventMouseButton
+		pressed = mouse_event.button_index == MOUSE_BUTTON_LEFT and mouse_event.pressed
+	if not pressed or _input_locked or not _game_started:
+		return
+	_hud_drawer_touch_pinned = true
+	_set_hud_drawer_expanded(true)
+	get_viewport().set_input_as_handled()
+
+
+func _handle_hud_drawer_global_input(event: InputEvent) -> bool:
+	if not _hud_drawer_expanded or not _hud_drawer_touch_pinned or not event is InputEventScreenTouch:
+		return false
+	var touch := event as InputEventScreenTouch
+	if not touch.pressed:
+		return false
+	if _hud_panel != null and _hud_panel.get_global_rect().has_point(touch.position):
+		return false
+	if _hud_tooltip != null and _hud_tooltip.visible and _hud_tooltip.get_global_rect().has_point(touch.position):
+		return false
+	if _settings_window != null and _settings_window.visible and _settings_window.get_global_rect().has_point(touch.position):
+		return false
+	_hud_drawer_touch_pinned = false
+	_set_hud_drawer_expanded(false)
+	get_viewport().set_input_as_handled()
+	return true
+
+
+func _hide_hud_tooltip_immediately() -> void:
 	if _hud_tooltip != null:
 		_hud_tooltip.visible = false
 
@@ -2242,13 +2704,24 @@ func _layout_hud_rail() -> void:
 	var available_height := maxf(1.0, bottom_limit - top_limit)
 	var rail_height := minf(HUD_RAIL_MAX_HEIGHT, available_height)
 	var center_y := (top_limit + bottom_limit) * 0.5
+	var rail_x := _hud_drawer_x(_hud_drawer_expanded)
+	if _hud_drawer_tween != null and _hud_drawer_tween.is_valid():
+		rail_x = _hud_panel.position.x
 	_hud_panel.set_anchors_preset(Control.PRESET_TOP_LEFT)
-	_hud_panel.offset_left = 0.0
+	_hud_panel.offset_left = rail_x
 	_hud_panel.offset_top = center_y - rail_height * 0.5
-	_hud_panel.offset_right = HUD_RAIL_WIDTH
+	_hud_panel.offset_right = rail_x + HUD_RAIL_WIDTH
 	_hud_panel.offset_bottom = center_y + rail_height * 0.5
 	_hud_panel.set_meta("cinematic_safe_top", top_limit)
 	_hud_panel.set_meta("cinematic_safe_bottom", bottom_limit)
+	_hud_panel.set_meta("collapsed_x", _hud_drawer_x(false))
+	_hud_panel.set_meta("expanded_x", _hud_drawer_x(true))
+	if _hud_reveal_zone != null:
+		_hud_reveal_zone.set_anchors_preset(Control.PRESET_TOP_LEFT)
+		_hud_reveal_zone.offset_left = 0.0
+		_hud_reveal_zone.offset_top = center_y - rail_height * 0.5
+		_hud_reveal_zone.offset_right = HUD_DRAWER_EDGE_HIT_WIDTH
+		_hud_reveal_zone.offset_bottom = center_y + rail_height * 0.5
 
 
 func _build_settings_window() -> void:
@@ -2256,23 +2729,25 @@ func _build_settings_window() -> void:
 	_settings_window.name = "SettingsWindow"
 	_settings_window.set_anchors_preset(Control.PRESET_TOP_LEFT)
 	_settings_window.offset_left = 180
-	_settings_window.offset_top = 330
-	_settings_window.offset_right = 550
-	_settings_window.offset_bottom = 770
+	_settings_window.offset_top = 16
+	_settings_window.offset_right = 610
+	_settings_window.offset_bottom = 884
 	_settings_window.z_index = 30
 	_settings_window.visible = false
 	_ui_root.add_child(_settings_window)
+	_layout_settings_window()
 
-	_settings_content = VBoxContainer.new()
-	_settings_content.name = "SettingsContent"
-	_settings_content.add_theme_constant_override("separation", 12)
-	_settings_window.add_child(_settings_content)
+	var settings_shell := Control.new()
+	settings_shell.name = "SettingsShell"
+	settings_shell.set_anchors_preset(Control.PRESET_FULL_RECT)
+	_settings_window.add_child(settings_shell)
 
 	var title_bar := HBoxContainer.new()
 	title_bar.name = "SettingsTitleBar"
-	title_bar.custom_minimum_size.y = 48
+	title_bar.set_anchors_preset(Control.PRESET_TOP_WIDE)
+	title_bar.offset_bottom = 56
 	title_bar.add_theme_constant_override("separation", 8)
-	_settings_content.add_child(title_bar)
+	settings_shell.add_child(title_bar)
 	_make_draggable_window(_settings_window, "settings", title_bar)
 
 	_settings_title_label = _label("设置", 24, _theme_color("accent"))
@@ -2287,14 +2762,34 @@ func _build_settings_window() -> void:
 	close.pressed.connect(_close_settings_window)
 	title_bar.add_child(close)
 
-	var volume_label := _label("音量", 17, _theme_color("ink"))
-	_settings_content.add_child(volume_label)
+	var settings_scroll := ScrollContainer.new()
+	settings_scroll.name = "SettingsScroll"
+	settings_scroll.set_anchors_preset(Control.PRESET_FULL_RECT)
+	settings_scroll.offset_top = 66
+	settings_scroll.offset_bottom = -108
+	settings_scroll.horizontal_scroll_mode = ScrollContainer.SCROLL_MODE_DISABLED
+	settings_shell.add_child(settings_scroll)
+
+	_settings_content = VBoxContainer.new()
+	_settings_content.name = "SettingsContent"
+	_settings_content.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+	_settings_content.add_theme_constant_override("separation", 8)
+	settings_scroll.add_child(_settings_content)
+
+	_settings_volume_label = _label("音量", 17, _theme_color("ink"))
+	_settings_volume_label.name = "SettingsVolumeLabel"
+	_settings_volume_label.set_meta("functional_label_only", true)
+	_settings_content.add_child(_settings_volume_label)
 	_volume_slider = HSlider.new()
 	_volume_slider.name = "SettingsVolumeSlider"
+	_volume_slider.set_meta("must_remain_functional", true)
 	_volume_slider.min_value = 0
 	_volume_slider.max_value = 100
 	_volume_slider.step = 1
 	_volume_slider.value = _master_volume
+	_volume_slider.editable = true
+	_volume_slider.mouse_filter = Control.MOUSE_FILTER_STOP
+	_volume_slider.focus_mode = Control.FOCUS_ALL
 	_volume_slider.custom_minimum_size = Vector2(260, 44)
 	_volume_slider.value_changed.connect(_on_volume_changed)
 	_settings_content.add_child(_volume_slider)
@@ -2306,6 +2801,49 @@ func _build_settings_window() -> void:
 	_vhs_toggle.custom_minimum_size.y = 48
 	_vhs_toggle.toggled.connect(_on_vhs_toggled)
 	_settings_content.add_child(_vhs_toggle)
+
+	var camera_rule := HSeparator.new()
+	_settings_content.add_child(camera_rule)
+	_camera_access_toggle = CheckButton.new()
+	_camera_access_toggle.name = "SettingsCameraAccessToggle"
+	_camera_access_toggle.text = "允许访问摄像头"
+	_camera_access_toggle.button_pressed = _camera_enabled
+	_camera_access_toggle.custom_minimum_size.y = 48
+	_camera_access_toggle.set_meta("privacy_control", true)
+	_camera_access_toggle.toggled.connect(_on_camera_access_toggled)
+	_settings_content.add_child(_camera_access_toggle)
+	var camera_source_label := _label("摄像头来源", 15, _theme_color("ink"))
+	camera_source_label.name = "SettingsCameraSourceLabel"
+	_settings_content.add_child(camera_source_label)
+	_camera_computer_button = Button.new()
+	_camera_computer_button.name = "SettingsOpenComputerCameraButton"
+	_camera_computer_button.text = "打开电脑摄像头并开启 X-ray"
+	_camera_computer_button.tooltip_text = "只会选择电脑内置或 USB 摄像头。"
+	_camera_computer_button.toggle_mode = true
+	_camera_computer_button.custom_minimum_size.y = 52
+	_camera_computer_button.pressed.connect(_activate_camera_source.bind("computer"))
+	_settings_content.add_child(_camera_computer_button)
+	_camera_phone_button = Button.new()
+	_camera_phone_button.name = "SettingsConnectPhoneCameraButton"
+	_camera_phone_button.text = "连接手机并打开摄像头"
+	_camera_phone_button.tooltip_text = "只会选择手机连续互通或虚拟摄像头。"
+	_camera_phone_button.toggle_mode = true
+	_camera_phone_button.custom_minimum_size.y = 52
+	_camera_phone_button.pressed.connect(_activate_camera_source.bind("phone"))
+	_settings_content.add_child(_camera_phone_button)
+	_refresh_camera_source_buttons()
+	var phone_fallback_note := _label("手机备用会优先寻找连续互通相机或虚拟摄像头。", 13, _theme_color("ink"))
+	phone_fallback_note.name = "SettingsPhoneCameraFallbackNote"
+	phone_fallback_note.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
+	_settings_content.add_child(phone_fallback_note)
+	var camera_privacy := _label("镜头仅在启用时由本地 MediaPipe 读取。", 13, _theme_color("ink"))
+	camera_privacy.name = "SettingsCameraPrivacyNote"
+	camera_privacy.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
+	_settings_content.add_child(camera_privacy)
+	_camera_status_label = _label(_camera_tracking_status, 14, _theme_color("accent"))
+	_camera_status_label.name = "SettingsCameraStatus"
+	_camera_status_label.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
+	_settings_content.add_child(_camera_status_label)
 
 	var language_label := _label("语言", 17, _theme_color("ink"))
 	_settings_content.add_child(language_label)
@@ -2355,7 +2893,41 @@ func _build_settings_window() -> void:
 	main_menu_button.custom_minimum_size.y = 50
 	main_menu_button.pressed.connect(_on_return_main_menu_pressed)
 	_settings_content.add_child(main_menu_button)
+
+	var system_footer := VBoxContainer.new()
+	system_footer.name = "SettingsSystemFooter"
+	system_footer.set_anchors_preset(Control.PRESET_BOTTOM_WIDE)
+	system_footer.offset_top = -100
+	system_footer.add_theme_constant_override("separation", 6)
+	settings_shell.add_child(system_footer)
+	var system_rule := HSeparator.new()
+	system_rule.name = "SettingsSystemDivider"
+	system_footer.add_child(system_rule)
+	var system_label := _label("系统", 14, _theme_color("accent"))
+	system_label.name = "SettingsSystemLabel"
+	system_footer.add_child(system_label)
+	_settings_exit_button = Button.new()
+	_settings_exit_button.name = "SettingsExitGameButton"
+	_settings_exit_button.text = "退出游戏"
+	_settings_exit_button.set_meta("skip_localization", true)
+	_settings_exit_button.set_meta("reliable_system_command", true)
+	_settings_exit_button.custom_minimum_size.y = 52
+	_settings_exit_button.pressed.connect(_request_quit_game)
+	system_footer.add_child(_settings_exit_button)
 	_refresh_language_menu_labels()
+
+
+func _layout_settings_window() -> void:
+	if _settings_window == null:
+		return
+	var viewport_size := _viewport_size()
+	var margin := 16.0
+	var window_width := minf(430.0, maxf(320.0, viewport_size.x - margin * 2.0))
+	var window_height := minf(868.0, maxf(420.0, viewport_size.y - margin * 2.0))
+	var left := clampf(180.0, margin, maxf(margin, viewport_size.x - window_width - margin))
+	var top := maxf(margin, (viewport_size.y - window_height) * 0.5)
+	_settings_window.position = Vector2(left, top)
+	_settings_window.size = Vector2(window_width, window_height)
 
 
 func _build_history_window() -> void:
@@ -2457,25 +3029,32 @@ func _history_markup_to_bbcode(value: String) -> String:
 
 func _menu_display_label(kind: String) -> String:
 	if game.pollution < 25:
-		return {"save": "保存", "autoplay": "自动播放", "history": "历史记录", "settings": "设置"}.get(kind, kind)
+		return {"save": "保存", "autoplay": "自动播放", "history": "历史记录", "settings": "设置", "volume": "音量"}.get(kind, kind)
 	if game.pollution < 60:
 		return {
 			"save": "留住这一段",
 			"autoplay": "让我替你继续说",
 			"history": "他们说你说过",
 			"settings": "调整记录方式",
+			"volume": "外面的声音",
 		}.get(kind, kind)
 	return {
 		"save": "留住这■■",
 		"autoplay": "让我替你继续■■",
 		"history": "他们说你■■过",
 		"settings": "调整你能接受的部分",
+		"volume": "它离你有多近",
 	}.get(kind, kind)
 
 
 func _refresh_language_menu_labels() -> void:
 	if _settings_title_label != null:
 		_settings_title_label.text = _menu_display_label("settings")
+	if _settings_volume_label != null:
+		_settings_volume_label.text = _menu_display_label("volume")
+	if _volume_slider != null:
+		_volume_slider.editable = true
+		_volume_slider.mouse_filter = Control.MOUSE_FILTER_STOP
 	if _settings_save_button != null:
 		_settings_save_button.text = _menu_display_label("save")
 	if _settings_autoplay_button != null:
@@ -2497,12 +3076,14 @@ func _toggle_settings_window() -> void:
 	if _settings_open:
 		_settings_window.move_to_front()
 	_hide_hud_tooltip()
+	_update_visibility()
 
 
 func _close_settings_window() -> void:
 	_settings_open = false
 	if _settings_window != null:
 		_settings_window.visible = false
+	_update_visibility()
 
 
 func _on_volume_changed(value: float) -> void:
@@ -2524,14 +3105,15 @@ func _on_settings_language_selected(index: int) -> void:
 		_exit_reality_interaction(false)
 	if not _locale.select_language(locale_code):
 		return
-	_locale.save_preferences(_master_volume, _vhs_enabled)
+	_locale.save_preferences(_master_volume, _vhs_enabled, _camera_enabled, _camera_source)
 	_render()
 	_refresh_localized_ui()
+	_refresh_camera_source_option_labels()
 
 
 func _on_manual_save_pressed() -> void:
 	var progress_saved := _save_progress()
-	var preferences_saved := _locale.save_preferences(_master_volume, _vhs_enabled)
+	var preferences_saved := _locale.save_preferences(_master_volume, _vhs_enabled, _camera_enabled, _camera_source)
 	if _settings_save_status != null:
 		_settings_save_status.text = "已保存当前进度与设置。" if progress_saved and preferences_saved else "保存失败，请检查本地写入权限。"
 	_refresh_localized_ui()
@@ -2545,6 +3127,11 @@ func _on_vhs_toggled(value: bool) -> void:
 	_vhs_enabled = value
 	if _vhs_overlay != null:
 		_vhs_overlay.visible = value
+
+
+func _on_camera_access_toggled(value: bool) -> void:
+	_camera_session_decided = true
+	_set_camera_enabled(value, true)
 
 
 func _build_exit_confirmation_overlay() -> void:
@@ -2576,7 +3163,7 @@ func _build_exit_confirmation_overlay() -> void:
 	var box := VBoxContainer.new()
 	box.add_theme_constant_override("separation", 24)
 	panel.add_child(box)
-	var message := _label("别把我一个人留在这里。", 25, _theme_color("ink"))
+	var message := _label("真的要抛弃我吗？", 25, _theme_color("ink"))
 	message.name = "ExitConfirmationMessage"
 	message.set_meta("skip_localization", true)
 	message.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
@@ -2602,9 +3189,6 @@ func _build_exit_confirmation_overlay() -> void:
 
 
 func _request_quit_game() -> void:
-	if game.exit_prompt_seen:
-		_confirm_quit_game()
-		return
 	game.exit_prompt_seen = true
 	if _exit_confirmation_overlay != null:
 		_exit_confirmation_overlay.visible = true
@@ -2619,7 +3203,7 @@ func _cancel_quit_game() -> void:
 func _confirm_quit_game() -> void:
 	if _game_started:
 		_save_progress()
-	_locale.save_preferences(_master_volume, _vhs_enabled)
+	_locale.save_preferences(_master_volume, _vhs_enabled, _camera_enabled, _camera_source)
 	get_tree().quit()
 
 
@@ -2933,6 +3517,7 @@ func _apply_responsive_layouts_if_needed(force: bool = false) -> void:
 	_apply_social_detail_window_layout()
 	_apply_reality_layout()
 	_apply_view_toggle_layout()
+	_layout_settings_window()
 	_layout_cinematic_bars()
 	_layout_hud_rail()
 
@@ -4233,8 +4818,10 @@ func _update_visibility() -> void:
 		_phone_down_backdrop_image.visible = in_phone or _phone_art_alpha > 0.03
 	if _hand_phone_image != null:
 		_hand_phone_image.visible = in_phone or _phone_art_alpha > 0.03
+	if _hand_xray_overlay != null:
+		_hand_xray_overlay.visible = _camera_enabled and _game_started and not in_phone
 	if _view_toggle_button != null:
-		_view_toggle_button.visible = _game_started and (in_phone or not _reality_interaction_active)
+		_view_toggle_button.visible = _game_started and not _settings_open and (in_phone or not _reality_interaction_active)
 		_view_toggle_button.text = "放下手机" if in_phone else "拿起手机"
 	if _settings_window != null:
 		_settings_window.visible = _settings_open and _game_started

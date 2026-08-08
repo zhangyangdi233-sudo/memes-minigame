@@ -21,6 +21,8 @@ func load_preferences(default_volume: float, default_vhs: bool) -> Dictionary:
 	var result := {
 		"master_volume": default_volume,
 		"vhs_enabled": default_vhs,
+		"camera_enabled": false,
+		"camera_source": "computer",
 	}
 	var config := ConfigFile.new()
 	if config.load(preferences_path) != OK:
@@ -30,15 +32,20 @@ func load_preferences(default_volume: float, default_vhs: bool) -> Dictionary:
 	_set_locale_internal(str(config.get_value("language", "locale", "zh")))
 	result["master_volume"] = clampf(float(config.get_value("audio", "master_volume", default_volume)), 0.0, 100.0)
 	result["vhs_enabled"] = bool(config.get_value("visual", "vhs_enabled", default_vhs))
+	result["camera_enabled"] = bool(config.get_value("camera", "enabled", false))
+	var camera_source := str(config.get_value("camera", "source", "computer"))
+	result["camera_source"] = camera_source if camera_source in ["computer", "phone"] else "computer"
 	return result
 
 
-func save_preferences(master_volume: float, vhs_enabled: bool) -> bool:
+func save_preferences(master_volume: float, vhs_enabled: bool, camera_enabled: bool = false, camera_source: String = "computer") -> bool:
 	var config := ConfigFile.new()
 	config.set_value("language", "selected", language_selected)
 	config.set_value("language", "locale", current_locale)
 	config.set_value("audio", "master_volume", clampf(master_volume, 0.0, 100.0))
 	config.set_value("visual", "vhs_enabled", vhs_enabled)
+	config.set_value("camera", "enabled", camera_enabled)
+	config.set_value("camera", "source", camera_source if camera_source in ["computer", "phone"] else "computer")
 	return config.save(preferences_path) == OK
 
 
