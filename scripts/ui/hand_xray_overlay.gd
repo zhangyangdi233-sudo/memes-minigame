@@ -13,12 +13,14 @@ var _frame_active := false
 var _smoothed_rect := Rect2()
 var _last_hands_msec := 0
 var _fingertips: Array[Vector2] = []
+var _effect_phase := 0.0
 
 
 func _ready() -> void:
 	mouse_filter = Control.MOUSE_FILTER_IGNORE
 	set_process(true)
 	set_meta("xray_mode", "two_hand_thumb_index_bbox")
+	set_meta("border_effect", "subtle_pulse_scan_trace")
 
 
 func set_layer_texture(texture: Texture2D) -> void:
@@ -89,7 +91,10 @@ func expire_tracking_for_test() -> void:
 	_process(0.0)
 
 
-func _process(_delta: float) -> void:
+func _process(delta: float) -> void:
+	if _frame_active:
+		_effect_phase = fmod(_effect_phase + delta, 1000.0)
+		queue_redraw()
 	if _frame_active and Time.get_ticks_msec() - _last_hands_msec > LOST_HAND_TIMEOUT_MSEC:
 		_deactivate_frame()
 
@@ -102,15 +107,49 @@ func _draw() -> void:
 	if texture_size.x <= 0.0 or texture_size.y <= 0.0:
 		return
 	var source := Rect2(_smoothed_rect.position * texture_size, _smoothed_rect.size * texture_size)
+	var pulse := (sin(_effect_phase * 2.4) + 1.0) * 0.5
 	draw_rect(destination.grow(8.0), Color(0.02, 0.08, 0.02, 0.44), true)
 	draw_texture_rect_region(_layer_texture, destination, source, Color(0.83, 1.0, 0.78, 0.97))
 	draw_rect(destination, Color("dfff78"), false, 3.0, true)
-	draw_rect(destination.grow(5.0), Color(0.40, 1.0, 0.35, 0.42), false, 2.0, true)
+	draw_rect(
+		destination.grow(5.0 + pulse * 1.5),
+		Color(0.40, 1.0, 0.35, 0.27 + pulse * 0.12),
+		false,
+		1.4 + pulse * 0.7,
+		true
+	)
+	var scan_y := lerpf(destination.position.y + 2.0, destination.end.y - 2.0, fmod(_effect_phase * 0.16, 1.0))
+	draw_line(
+		Vector2(destination.position.x + 2.0, scan_y),
+		Vector2(destination.end.x - 2.0, scan_y),
+		Color(0.87, 1.0, 0.55, 0.07 + pulse * 0.04),
+		1.0,
+		true
+	)
+	var trace_point := _point_on_rect_perimeter(destination, fmod(_effect_phase * 0.11, 1.0))
+	draw_circle(trace_point, 2.6 + pulse * 0.8, Color(0.94, 1.0, 0.58, 0.38 + pulse * 0.18))
 	_draw_frame_corners(destination)
 	for fingertip in _fingertips:
 		var point := fingertip * size
 		draw_circle(point, 8.0, Color(0.05, 0.10, 0.03, 0.88))
 		draw_circle(point, 4.5, Color("efff94"))
+
+
+func _point_on_rect_perimeter(rect: Rect2, progress: float) -> Vector2:
+	var width := rect.size.x
+	var height := rect.size.y
+	var perimeter := (width + height) * 2.0
+	var distance := wrapf(progress, 0.0, 1.0) * perimeter
+	if distance <= width:
+		return rect.position + Vector2(distance, 0.0)
+	distance -= width
+	if distance <= height:
+		return Vector2(rect.end.x, rect.position.y + distance)
+	distance -= height
+	if distance <= width:
+		return Vector2(rect.end.x - distance, rect.end.y)
+	distance -= width
+	return Vector2(rect.position.x, rect.end.y - distance)
 
 
 func _draw_frame_corners(rect: Rect2) -> void:
