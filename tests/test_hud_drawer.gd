@@ -42,12 +42,24 @@ func _run_async() -> void:
 			reveal_zone.mouse_entered.emit()
 			_assert_true(game_root._is_hud_drawer_expanded(), "hovering the left-edge target should reveal the HUD")
 
+			reveal_zone.visible = false
+			rail.mouse_exited.emit()
+			game_root._update_hud_drawer_auto_close(1.0)
+			_assert_true(not game_root._is_hud_drawer_expanded(), "leaving both the rail and edge target should collapse the HUD after its delay")
+			reveal_zone.visible = true
+
 			game_root._set_hud_drawer_expanded(false, false)
 			var touch := InputEventScreenTouch.new()
 			touch.pressed = true
 			touch.position = reveal_zone.get_global_rect().get_center()
 			reveal_zone.gui_input.emit(touch)
 			_assert_true(game_root._is_hud_drawer_expanded(), "tapping the edge target should reveal the HUD")
+
+			var outside_touch := InputEventScreenTouch.new()
+			outside_touch.pressed = true
+			outside_touch.position = Vector2(900.0, 450.0)
+			_assert_true(game_root._handle_hud_drawer_global_input(outside_touch), "a touch outside the pinned drawer should be consumed")
+			_assert_true(not game_root._is_hud_drawer_expanded(), "touching outside should collapse the pinned drawer")
 
 		game_root.queue_free()
 		await process_frame
