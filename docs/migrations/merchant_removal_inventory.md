@@ -8,7 +8,7 @@
 
 | 表面 | 当前实现 | 替换方案 |
 | --- | --- | --- |
-| 3D 商人 | `RealityFloor/Actors/Merchant`，每层固定生成 | 完全删除；地图生成若干隐藏 `DollEncounter`，不计入普通 NPC 数量 |
+| 3D 商人 | `RealityFloor/Actors/Merchant`，每层固定生成 | 完全删除；前三层各生成一个隐藏 `DollEncounter`，不计入普通 NPC 数量 |
 | 商人角色图 | `merchant_frame_vendor.png` | 从运行时依赖和测试移除；保留在 Git 历史，不在游戏加载 |
 | 面部涂写 | 商人与 NPC 共用 `FaceScribbleOverlay` | 只保留普通 NPC；玩偶使用原生无脸设计，不套商人遮挡逻辑 |
 | 商人对话 | `MERCHANT_DIALOGUES_BY_FLOOR`、`MERCHANT_CHOICES_BY_FLOOR` | 删除；新增作者编写的玩偶短对话，稳定 doll ID 和 choice ID |
@@ -17,7 +17,7 @@
 | 现实报价条 | `RealityMerchantOffer` 和购买按钮 | 删除；玩偶结果使用现有对话结果区，不出现价格 |
 | 沟通道具 | `COMMUNICATION_ITEMS`、轮换、charges、购买字段 | 删除；不设置替代属性，避免引入第二进度系统 |
 | NPC 随机掉框 | `_resolve_npc_meme_frame_reward()` 的 45% 结果 | 删除；普通 NPC 只承担对话与隐藏 key |
-| 资金用途 | 商店与沟通道具 | 不再影响主线；存档兼容读取旧值，但 HUD 和新流程不显示它 |
+| 资金用途 | 商店与沟通道具 | 改为发布结果与轻量资源反馈；不购买梗框，也不决定楼层或结局 |
 | 引导文案 | README、提示、F 键“交易” | 改成搜索与交谈玩偶；F 键统一为“交谈/查看” |
 | 捕获工具 | shop/merchant capture | 替换为 doll discovery、doll choice、frame grant capture |
 
@@ -56,7 +56,7 @@ DollEncounter
 4. 将梗框唯一入口切到玩偶。
 5. 删除商店、商人、沟通道具和随机掉框运行入口。
 6. 更新本地化、README、捕获工具和旧测试。
-7. 用 `rg` 证明运行脚本、测试和文档不再引用 merchant/shop 语义。
+7. 用 `rg` 证明运行脚本不再引用 merchant/shop 语义；迁移测试与本档案保留旧字段名作为兼容证据。
 
 ## 完成判定
 

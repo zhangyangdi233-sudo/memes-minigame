@@ -36,7 +36,7 @@ func _run() -> void:
 	_assert_eq(RealityFloorGeneratorScript.authored_event_kinds_for_floor_day(1, 4), PackedStringArray(), "the calm baseline should suppress the rare mirage even on a scheduled day")
 	_assert_eq(RealityFloorGeneratorScript.authored_event_kinds_for_floor_day(2, 1), PackedStringArray(["light_memory", "dead_sign"]), "floor two day one should use the authored light/sign pair")
 	_assert_eq(RealityFloorGeneratorScript.authored_event_kinds_for_floor_day(2, 4), PackedStringArray(["light_memory", "dead_sign", "distant_mirage"]), "day four should add the first rare image mirage")
-	_assert_eq(RealityFloorGeneratorScript.authored_event_kinds_for_floor_day(5, 9), PackedStringArray(["dead_sign", "light_memory", "distant_mirage"]), "day nine should add the final rare image mirage")
+	_assert_eq(RealityFloorGeneratorScript.authored_event_kinds_for_floor_day(4, 9), PackedStringArray(["light_memory", "dead_sign", "distant_mirage"]), "hidden floor four day nine should add the final rare image mirage")
 	_assert_eq(RealityFloorGeneratorScript.authored_event_kinds_for_floor_day(2, 1), RealityFloorGeneratorScript.authored_event_kinds_for_floor_day(2, 1), "the same floor and day should always return the same events")
 	_assert_true(RealityFloorGeneratorScript.authored_event_kinds_for_floor_day(2, 1) != RealityFloorGeneratorScript.authored_event_kinds_for_floor_day(2, 2), "day changes should rotate the authored event schedule")
 	_assert_true(RealityFloorGeneratorScript.authored_event_kinds_for_floor_day(3, 1) != RealityFloorGeneratorScript.authored_event_kinds_for_floor_day(2, 1), "floor changes should alter the event composition")

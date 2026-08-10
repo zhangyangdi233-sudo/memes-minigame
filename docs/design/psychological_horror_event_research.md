@@ -10,7 +10,7 @@ The strongest reusable principle is not a specific hallway, monster, or line of 
 
 ## Implemented Event Grammar
 
-The reality world now has a deterministic authored event table for floors two through five. The selected event or pair depends on floor and day. No random timer is used.
+The reality world now has a deterministic authored event table for floors two through four. The selected event or pair depends on floor and day. No random timer is used.
 
 1. **Light memory**: after the player walks away from the spawn point, a familiar suspended fluorescent fixture follows a fixed five-beat failure pattern and settles into a dim afterimage. It never flickers forever.
 2. **Dead sign**: an ordinary `EXIT` sign changes to `EX_T` only after the player has looked at it and then moved their view away. The absence is visible on the next glance.
@@ -23,7 +23,7 @@ Every event root is non-interactable, deterministic, and explicitly marked `non_
 - Floor one remains calm so later contradictions have contrast.
 - Floors two through four alternate between one restrained event and a two-event day.
 - The image mirage can appear at most twice in a twelve-day run, independent of the repeating light/sign rotation.
-- Floor five continues to use the light and sign events; the mirage is added only on its two authored days.
+- Hidden floor four continues to use the light and sign events; the mirage is added only on its authored days.
 - Looking at an event never causes it to lunge, teleport toward the player, or seize input.
 - Day changes rotate the event combination without rebuilding the whole floor or resetting the player's position.
 

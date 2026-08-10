@@ -66,7 +66,7 @@ func _run() -> void:
 		_assert_true(absf(phone.get_playback_position() - reality.get_playback_position()) < 0.05, "phone and reality score stems should begin in sync")
 		_assert_true(absf(reality.get_playback_position() - pollution_music.get_playback_position()) < 0.05, "pollution score stem should begin in sync with reality")
 		var floor_paths: Dictionary = {}
-		for floor_number in range(1, 6):
+		for floor_number in range(1, 5):
 			game_root.game.tower_floor = floor_number
 			game_root._sync_audio_state(true)
 			var floor_path := str(phone.get_meta("generated_audio_path", ""))
@@ -75,7 +75,7 @@ func _run() -> void:
 			_assert_eq(int(phone.get_meta("phone_music_floor", 0)), floor_number, "phone score metadata should follow the current floor")
 			var floor_stream := phone.stream as AudioStreamWAV
 			_assert_true(floor_stream != null and floor_stream.loop_end == 2_116_800, "every floor score should preserve the 96-second seamless loop contract")
-		_assert_eq(floor_paths.size(), 5, "all five tower floors should use distinct phone music")
+		_assert_eq(floor_paths.size(), 4, "three formal floors and the hidden floor should use distinct phone music")
 		game_root.game.tower_floor = 1
 		game_root._sync_audio_state(true)
 	_validate_score_metadata()
@@ -96,13 +96,16 @@ func _run() -> void:
 		_assert_near(reality.volume_db, -10.0, 0.2, "NPC speaking mix should reach its audible liminal-score target")
 
 	var player := game_root.get_node_or_null("RealityPlayer") as CharacterBody3D
-	var merchant := game_root.get_node_or_null("RealityFloor/Actors/Merchant") as Area3D
-	if player != null and merchant != null:
-		player.position = merchant.position + Vector3(0.0, 0.0, 1.4)
+	var doll := game_root.get_node_or_null("RealityFloor/Actors/DollEncounter") as Area3D
+	if player != null and doll != null:
+		player.position = doll.position + Vector3(0.0, 0.0, 1.4)
 		game_root._refresh_nearby_reality_actor()
 		game_root._try_reality_interaction()
-	var first_choice_id := str(game_root.game.get_typed_reality_choices()[0].get("id", ""))
-	game_root._on_reality_choice_selected(first_choice_id)
+	var doll_choices: Array = game_root.game.get_typed_reality_choices()
+	_assert_true(not doll_choices.is_empty(), "stitched doll conversation should expose choices for the intimate mix")
+	if not doll_choices.is_empty():
+		var first_choice_id := str(doll_choices[0].get("id", ""))
+		game_root._on_reality_choice_selected(first_choice_id)
 	await create_timer(0.65).timeout
 	if reality != null:
 		_assert_near(reality.volume_db, -7.0, 0.2, "player composing should make the room score more intimate")

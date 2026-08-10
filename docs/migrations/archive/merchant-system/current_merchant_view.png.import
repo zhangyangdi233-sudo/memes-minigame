@@ -2,16 +2,16 @@
 
 importer="texture"
 type="CompressedTexture2D"
-uid="uid://cnel80l2ykqo8"
-path="res://.godot/imported/current_shop_view.png-faab7c47c2cbac8ac82ca358063d8a23.ctex"
+uid="uid://byu2ea13skds8"
+path="res://.godot/imported/current_merchant_view.png-30efb8f34ba983993872ff94e19d2140.ctex"
 metadata={
 "vram_texture": false
 }
 
 [deps]
 
-source_file="res://tools/current_shop_view.png"
-dest_files=["res://.godot/imported/current_shop_view.png-faab7c47c2cbac8ac82ca358063d8a23.ctex"]
+source_file="res://docs/migrations/archive/merchant-system/current_merchant_view.png"
+dest_files=["res://.godot/imported/current_merchant_view.png-30efb8f34ba983993872ff94e19d2140.ctex"]
 
 [params]
 

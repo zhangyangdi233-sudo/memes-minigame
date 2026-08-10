@@ -1,10 +1,6 @@
 extends SceneTree
 
 const CHARACTER_ASSETS := {
-	"merchant": {
-		"path": "res://assets/generated/characters/merchant_frame_vendor.png",
-		"sha256": "d2971622e77e4534ceae23896b701bdf8bfde6c407c105953f03efde47637ee8",
-	},
 	"late_arrival": {
 		"path": "res://assets/generated/characters/npc_late_arrival.png",
 		"sha256": "6983f6000cf5ee282f27cab1a8edd56c2894cb1dc9efdcba10ebed85f3a4df3e",
@@ -18,6 +14,8 @@ const CHARACTER_ASSETS := {
 		"sha256": "df351ab9e5373eb07d9e1fd1db56295d3c3bc9622b048a02bc65cbf60ee019c3",
 	},
 }
+const GUIDE_DOLL_PATH := "res://assets/generated/characters/guide_doll.png"
+const GUIDE_DOLL_SHA256 := "4448fb540ac2dd7e351f85321b399a228d90884af0b6d9c66e2e8d4c7407d68b"
 
 var _failures: Array[String] = []
 
@@ -49,6 +47,15 @@ func _run() -> void:
 		_assert_eq(image.get_size(), Vector2i(1024, 1536), "%s portrait should keep the shared full-body canvas" % character_id)
 		_assert_true(image.get_pixel(0, 0).a <= 0.01 and image.get_pixel(image.get_width() - 1, image.get_height() - 1).a <= 0.01, "%s portrait should retain a transparent background" % character_id)
 		_assert_featureless_face(image, character_id)
+	_assert_true(FileAccess.file_exists(GUIDE_DOLL_PATH), "the player's stitched guide doll artwork should exist")
+	if FileAccess.file_exists(GUIDE_DOLL_PATH):
+		_assert_eq(FileAccess.get_sha256(GUIDE_DOLL_PATH), GUIDE_DOLL_SHA256, "guide doll should remain the exact player-authored source")
+		var doll_image := Image.new()
+		var doll_error := doll_image.load(ProjectSettings.globalize_path(GUIDE_DOLL_PATH))
+		_assert_eq(doll_error, OK, "guide doll should decode as a PNG")
+		if doll_error == OK:
+			_assert_eq(doll_image.get_size(), Vector2i(1847, 1662), "guide doll should preserve the authored canvas")
+			_assert_true(doll_image.detect_alpha(), "guide doll should retain transparency for its physical-world billboard")
 
 
 func _assert_featureless_face(image: Image, character_id: String) -> void:

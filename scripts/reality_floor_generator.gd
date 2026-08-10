@@ -16,6 +16,7 @@ const COVER_WATCHER_SOURCE_CROP := Rect2(300.0, 150.0, 424.0, 1220.0)
 const COVER_WATCHER_PIXEL_SIZE := 0.00155
 const ACTOR_PORTRAIT_WORLD_HEIGHT := 1.90
 const ACTOR_CAMERA_EYE_HEIGHT := 1.56
+const DOLL_PORTRAIT_WORLD_HEIGHT := 0.96
 
 const BASE_ROOM_COUNT := 4
 const WORLD_LENGTH_SCALE := 5.0
@@ -177,6 +178,7 @@ func rebuild(
 	set_meta("room_count", room_count)
 	set_meta("logical_room_count", room_count)
 	set_meta("ordinary_npc_count", ordinary_npc_count)
+	set_meta("doll_encounter_count", 0)
 	set_meta("layout_mode", "irregular_disc" if built_floor == 2 else ("skylit_overgrown_gallery" if built_floor == 3 else "shared_street"))
 	set_meta("map_width", map_width)
 	set_meta("map_length", map_length)
@@ -282,6 +284,18 @@ func sync_prerequisite_items(revealed_ids: Array[String], collected_ids: Array[S
 		item.visible = revealed and not collected
 		item.monitoring = revealed and not collected
 		item.monitorable = revealed and not collected
+
+
+func sync_claimed_dolls(claimed_ids: Array[String]) -> void:
+	for actor in _actors:
+		if not is_instance_valid(actor) or str(actor.get_meta("actor_type", "")) != "doll":
+			continue
+		var doll_id := str(actor.get_meta("actor_id", ""))
+		var claimed := doll_id in claimed_ids
+		actor.set_meta("claimed", claimed)
+		var sprite := actor.get_node_or_null("Billboard") as Sprite3D
+		if sprite != null:
+			sprite.modulate = Color(0.82, 0.90, 0.82, 1.0) if claimed else Color.WHITE
 
 
 func configure_authored_events(day_number: int, palette: Dictionary) -> void:
@@ -470,11 +484,13 @@ func _authored_event_position(event_kind: String) -> Vector3:
 func _orient_event_toward_origin(event_root: Node3D) -> void:
 	if built_floor != 2:
 		return
-	var target := Vector3(_authored_event_origin.x, event_root.global_position.y, _authored_event_origin.z)
-	if event_root.global_position.distance_squared_to(target) < 0.01:
+	var target := Vector3(_authored_event_origin.x, event_root.position.y, _authored_event_origin.z)
+	var direction := target - event_root.position
+	if direction.length_squared() < 0.01:
 		return
-	event_root.look_at(target, Vector3.UP)
-	event_root.rotate_y(PI)
+	# Authored events are oriented while their parent floor may still be outside the tree.
+	# Their visual front is +Z, so a local yaw avoids querying an invalid global transform.
+	event_root.rotation.y = atan2(direction.x, direction.z)
 
 
 func _register_authored_event(event_kind: String, event_root: Node3D, state: Dictionary) -> void:
@@ -2372,6 +2388,15 @@ func _build_actors(actor_textures: Dictionary) -> void:
 		actors.add_child(key_npc)
 		_actors.append(key_npc)
 
+	var doll_texture := actor_textures.get("doll") as Texture2D
+	var doll_encounter: Dictionary = actor_textures.get("doll_encounter", {})
+	if built_floor <= 3 and doll_texture != null and not doll_encounter.is_empty():
+		var doll_position := _doll_position_for_floor(spawn)
+		var doll := _make_doll_actor(doll_encounter, doll_position, doll_texture)
+		actors.add_child(doll)
+		_actors.append(doll)
+		set_meta("doll_encounter_count", 1)
+
 	var labels := ["迟到者", "回声住户", "抄写员", "无名信徒", "旧帖目击者"]
 	var street_south := map_length * 0.5 - 12.5
 	var street_north := -map_length * 0.5 + 8.0
@@ -2395,6 +2420,64 @@ func _build_actors(actor_textures: Dictionary) -> void:
 		var actor := _make_actor("NPC%d" % index, "npc", labels[index % labels.size()], actor_position, npc_texture, index % 3)
 		actors.add_child(actor)
 		_actors.append(actor)
+
+
+func _doll_position_for_floor(spawn: Vector3) -> Vector3:
+	match built_floor:
+		1:
+			return clamp_to_playable_position(spawn + Vector3(5.2, 0.0, -17.0), 3.0)
+		2:
+			return _floor_two_disc_point(5.34, 0.46)
+		3:
+			return clamp_to_playable_position(spawn + Vector3(-4.8, 0.0, -24.0), 3.0)
+	return spawn
+
+
+func _make_doll_actor(encounter: Dictionary, doll_position: Vector3, doll_texture: Texture2D) -> Area3D:
+	var doll := Area3D.new()
+	var doll_id := str(encounter.get("doll_id", "doll_unknown"))
+	doll.name = "DollEncounter"
+	doll.position = doll_position
+	doll.collision_layer = 2
+	doll.collision_mask = 0
+	doll.set_meta("actor_id", doll_id)
+	doll.set_meta("actor_type", "doll")
+	doll.set_meta("display_name", str(encounter.get("actor_label", "缝线布偶")))
+	doll.set_meta("doll_id", doll_id)
+	doll.set_meta("guide_character", true)
+	doll.set_meta("discovery_style", "partially_hidden_near_existing_cover")
+	doll.set_meta("world_hint", str(encounter.get("world_hint", "")))
+	doll.set_meta("claimed", false)
+	doll.set_meta("face_veil", false)
+	doll.set_meta("camera_facing_layer", true)
+	doll.set_meta("portrait_world_height", DOLL_PORTRAIT_WORLD_HEIGHT)
+
+	var collision := CollisionShape3D.new()
+	collision.name = "InteractionShape"
+	var shape := CapsuleShape3D.new()
+	shape.radius = 0.48
+	shape.height = 1.12
+	collision.shape = shape
+	collision.position.y = 0.54
+	doll.add_child(collision)
+
+	var sprite := Sprite3D.new()
+	sprite.name = "Billboard"
+	sprite.texture = doll_texture
+	var source_height := float(doll_texture.get_height())
+	sprite.pixel_size = DOLL_PORTRAIT_WORLD_HEIGHT / maxf(1.0, source_height)
+	sprite.position.y = DOLL_PORTRAIT_WORLD_HEIGHT * 0.5
+	sprite.billboard = BaseMaterial3D.BILLBOARD_ENABLED
+	sprite.shaded = false
+	sprite.texture_filter = BaseMaterial3D.TEXTURE_FILTER_NEAREST
+	sprite.cast_shadow = GeometryInstance3D.SHADOW_CASTING_SETTING_OFF
+	sprite.render_priority = 2
+	sprite.alpha_cut = SpriteBase3D.ALPHA_CUT_DISCARD
+	sprite.double_sided = true
+	sprite.set_meta("camera_facing_layer", true)
+	sprite.set_meta("user_authored_guide_asset", true)
+	doll.add_child(sprite)
+	return doll
 
 
 func _make_actor(node_name: String, actor_type: String, display_name: String, position: Vector3, npc_texture: Texture2D, tint_index: int) -> Area3D:

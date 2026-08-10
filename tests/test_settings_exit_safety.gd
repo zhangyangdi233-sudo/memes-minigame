@@ -14,6 +14,7 @@ func _run_async() -> void:
 	if scene != null:
 		var game_root := scene.instantiate()
 		root.add_child(game_root)
+		game_root._locale.set_locale("zh")
 		game_root.new_game()
 		game_root._skip_prologue()
 		await process_frame

@@ -124,7 +124,15 @@ def _open_camera(cv2: Any, source: str, index: int, width: int, height: int, fps
     raise RuntimeError(f"Unable to open {source} camera (requested index {index}).")
 
 
-def _make_packet(result: Any, frame_id: int, timestamp_ms: int, width: int, height: int) -> dict[str, Any]:
+def _make_packet(
+    result: Any,
+    frame_id: int,
+    timestamp_ms: int,
+    width: int,
+    height: int,
+    camera_source: str,
+    selected_index: int,
+) -> dict[str, Any]:
     hands: list[dict[str, Any]] = []
     for index, landmarks in enumerate(result.hand_landmarks):
         handedness = result.handedness[index][0] if index < len(result.handedness) else None
@@ -144,6 +152,8 @@ def _make_packet(result: Any, frame_id: int, timestamp_ms: int, width: int, heig
         "timestamp_ms": timestamp_ms,
         "image_size": [width, height],
         "mirrored": True,
+        "camera_source": camera_source,
+        "selected_index": selected_index,
         "hands": hands,
     }
 
@@ -157,6 +167,8 @@ def _send_status_packet(args: argparse.Namespace, status_code: str, message: str
         "mirrored": True,
         "status_code": status_code,
         "message": message,
+        "camera_source": args.camera_source,
+        "selected_index": -1,
         "hands": [],
     }
     try:
@@ -188,6 +200,8 @@ def run_simulator(args: argparse.Namespace) -> int:
                 "timestamp_ms": int(time.monotonic() * 1000),
                 "image_size": [args.width, args.height],
                 "mirrored": True,
+                "camera_source": args.camera_source,
+                "selected_index": args.camera_index,
                 "hands": [
                     _synthetic_hand("Left", (0.24 + drift, 0.64), (0.29 + drift, 0.28)),
                     _synthetic_hand("Right", (0.76 + drift, 0.64), (0.71 + drift, 0.28)),
@@ -266,7 +280,15 @@ def run_tracker(args: argparse.Namespace) -> int:
             timestamp_ms = int((time.monotonic() - started) * 1000)
             mp_image = mp.Image(image_format=mp.ImageFormat.SRGB, data=rgb)
             result = landmarker.detect_for_video(mp_image, timestamp_ms)
-            packet = _make_packet(result, frame_id, timestamp_ms, frame.shape[1], frame.shape[0])
+            packet = _make_packet(
+                result,
+                frame_id,
+                timestamp_ms,
+                frame.shape[1],
+                frame.shape[0],
+                args.camera_source,
+                selected_index,
+            )
             hand_count = len(packet["hands"])
             max_hands = max(max_hands, hand_count)
             if hand_count >= 2:

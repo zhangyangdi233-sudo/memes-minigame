@@ -3,6 +3,7 @@ extends RefCounted
 
 signal frame_received(hands: Array, timestamp_msec: int)
 signal status_changed(status: String)
+signal source_ready(source: String, selected_index: int)
 
 const DEFAULT_HOST := "127.0.0.1"
 const DEFAULT_PORT := 7001
@@ -24,11 +25,14 @@ var _sidecar_pid := -1
 var _last_packet_msec := 0
 var _last_frame: Dictionary = {}
 var _status := "摄像头未启用"
+var _ready_source := ""
+var _ready_index := -1
 
 
 func start(launch_sidecar: bool = true) -> bool:
 	if _enabled:
 		return _bound
+	_clear_ready_source()
 	_enabled = true
 	var bind_error := _udp.bind(port, host)
 	if bind_error != OK:
@@ -54,6 +58,7 @@ func stop() -> void:
 	_bound = false
 	_enabled = false
 	_last_frame.clear()
+	_clear_ready_source()
 	_set_status("摄像头未启用")
 
 
@@ -97,10 +102,16 @@ func ingest_packet(packet: Dictionary) -> bool:
 		"status_code": str(packet.get("status_code", "")),
 	}
 	var status_code := str(packet.get("status_code", ""))
+	var packet_source := str(packet.get("camera_source", camera_source))
+	var selected_index := int(packet.get("selected_index", -1))
+	if status_code.is_empty() and packet_source in ["computer", "phone"]:
+		_mark_source_ready(packet_source, selected_index)
 	match status_code:
 		"camera_open_failed":
+			_clear_ready_source()
 			_set_status("摄像头不可用或权限被拒绝")
 		"tracker_error":
+			_clear_ready_source()
 			_set_status("手部追踪程序发生错误")
 		_:
 			_set_status("已锁定双手指尖" if hands.size() >= 2 else "等待双手进入画面")
@@ -122,6 +133,14 @@ func get_status() -> String:
 
 func get_last_frame() -> Dictionary:
 	return _last_frame.duplicate(true)
+
+
+func get_ready_source() -> String:
+	return _ready_source
+
+
+func get_ready_index() -> int:
+	return _ready_index
 
 
 func _sanitize_hand(raw_hand: Dictionary) -> Dictionary:
@@ -182,6 +201,19 @@ func _resolve_python_path() -> String:
 		if FileAccess.file_exists(candidate):
 			return candidate
 	return ""
+
+
+func _mark_source_ready(source: String, selected_index: int) -> void:
+	if _ready_source == source and _ready_index == selected_index:
+		return
+	_ready_source = source
+	_ready_index = selected_index
+	source_ready.emit(_ready_source, _ready_index)
+
+
+func _clear_ready_source() -> void:
+	_ready_source = ""
+	_ready_index = -1
 
 
 func _set_status(value: String) -> void:

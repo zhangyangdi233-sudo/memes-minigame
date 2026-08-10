@@ -93,9 +93,9 @@ func _run() -> void:
 	_assert_true(phone_tab == null, "responsive layout should not restore the duplicate PHONE tab")
 	_assert_true(reality_subtitle != null and not reality_subtitle.visible, "small-view walking mode should wait for an F interaction before showing subtitles")
 	var reality_player := _find_node_by_name(game_root, "RealityPlayer") as CharacterBody3D
-	var reality_merchant := _find_node_by_name(game_root, "Merchant") as Area3D
-	if reality_player != null and reality_merchant != null:
-		reality_player.position = reality_merchant.position + Vector3(0.0, 0.0, 1.4)
+	var reality_doll := _find_node_by_name(game_root, "DollEncounter") as Area3D
+	if reality_player != null and reality_doll != null:
+		reality_player.position = reality_doll.position + Vector3(0.0, 0.0, 1.4)
 		game_root._refresh_nearby_reality_actor()
 		game_root._try_reality_interaction()
 	await process_frame
@@ -105,15 +105,19 @@ func _run() -> void:
 		_assert_true(_inside_rect(reality_subtitle, viewport_rect), "small-view movie subtitle should stay inside the viewport")
 	if reality_choices != null:
 		_assert_true(_inside_rect(reality_choices, viewport_rect), "small-view response choices should stay inside the viewport")
-	var first_choice_id := str(game_root.game.get_typed_reality_choices()[0].get("id", ""))
-	game_root._on_reality_choice_hovered(first_choice_id)
+	var doll_choices: Array = game_root.game.get_typed_reality_choices()
+	_assert_true(not doll_choices.is_empty(), "small-view doll discovery should expose authored choices")
+	var first_choice_id := str(doll_choices[0].get("id", "")) if not doll_choices.is_empty() else ""
+	if not first_choice_id.is_empty():
+		game_root._on_reality_choice_hovered(first_choice_id)
 	var intent_preview := _find_node_by_name(game_root, "RealityIntentPreview") as RichTextLabel
 	_assert_true(intent_preview != null and intent_preview.visible, "small-view hover should reveal the full intended sentence")
 	if intent_preview != null:
 		_assert_true(_inside_rect(intent_preview, viewport_rect), "small-view intent preview should stay inside the viewport")
 		if reality_subtitle != null:
 			_assert_true(not intent_preview.get_global_rect().intersects(reality_subtitle.get_global_rect()), "small-view intent preview should not cover the subtitle")
-	game_root._on_reality_choice_selected(first_choice_id)
+	if not first_choice_id.is_empty():
+		game_root._on_reality_choice_selected(first_choice_id)
 	await process_frame
 	var typing_line := _find_node_by_name(game_root, "RealityTypingLine") as RichTextLabel
 	var typing_progress := _find_node_by_name(game_root, "RealityTypingProgress") as Label
@@ -125,17 +129,9 @@ func _run() -> void:
 			_assert_true(_inside_rect(control, viewport_rect), "small-view reality control should stay inside the viewport: %s" % control.name)
 	if hud != null and typing_line != null:
 		_assert_true(typing_line.get_global_rect().position.x >= hud.get_global_rect().end.x + 8.0, "small-view typing line should keep clear of the HUD rail")
-	game_root.game.conversation_actor_type = "merchant"
-	game_root.game.conversation_selected_choice_id = "trade"
-	game_root.game.conversation_phase = "result"
-	game_root._render()
-	var merchant_offer := _find_node_by_name(game_root, "RealityMerchantOffer") as PanelContainer
-	var merchant_buy := _find_node_by_name(game_root, "RealityMerchantBuyButton") as Button
-	_assert_true(merchant_offer != null and merchant_offer.visible, "small-view authored trade result should show its item offer")
-	if merchant_offer != null:
-		_assert_true(_inside_rect(merchant_offer, viewport_rect), "small-view merchant offer should stay inside the viewport")
-	if merchant_buy != null:
-		_assert_true(_inside_rect(merchant_buy, viewport_rect), "small-view merchant purchase control should stay reachable")
+	_assert_true(_find_node_by_name(game_root, "Merchant") == null, "small view must not restore the removed merchant actor")
+	_assert_true(_find_node_by_name(game_root, "RealityMerchantOffer") == null, "doll dialogue should use the shared result surface instead of a trade panel")
+	_assert_true(_find_node_by_name(game_root, "RealityMerchantBuyButton") == null, "doll frames should never expose a purchase button")
 	game_root.queue_free()
 
 

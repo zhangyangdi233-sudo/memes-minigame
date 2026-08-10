@@ -14,6 +14,7 @@ func _run_async() -> void:
 		var root := scene.instantiate()
 		get_root().add_child(root)
 		await process_frame
+		root._locale.set_locale("zh")
 		root.new_game()
 		_assert_true(_find_node_by_name(root, "HUDPollutionIcon") is Button, "the in-game HUD should expose pollution")
 		_assert_true(_find_node_by_name(root, "HUDDayIcon") == null, "day must not remain a visible progress metric")

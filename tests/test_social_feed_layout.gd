@@ -15,7 +15,7 @@ func _run() -> void:
 		return
 	var game_root := scene.instantiate()
 	root.add_child(game_root)
-	game_root._on_language_selected("ja")
+	game_root._locale.set_locale("ja")
 	game_root.new_game()
 	game_root._skip_prologue()
 	game_root._open_app_windows["social"] = true

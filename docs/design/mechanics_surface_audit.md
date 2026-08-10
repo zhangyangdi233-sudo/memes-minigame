@@ -8,29 +8,32 @@ The game should expose only values that help the player make a decision. Interna
 
 | Value | Surface | Reason |
 | --- | --- | --- |
-| Day | Left icon tooltip | Establishes run pacing. |
-| Pollution | Left icon tooltip and corruption events | Primary risk/reward axis. |
-| Money | Left icon tooltip and shop | Supports purchasing decisions. |
+| Pollution | Left icon tooltip and corruption events | Sole progression and risk axis. |
+| Funds | Left icon tooltip and publish preview | Immediate economy result; frames are never purchased. |
 | Actions | Persistent five-pip label | Immediate daily constraint. |
 | Tower floor | Social-app secondary page | Narrative progression belongs to the phone, not the world HUD. |
 
-## Hidden Values Retained
+Day remains an internal scheduler and save field, but is not presented as a competing progress metric. Hidden-floor eligibility is deliberately not surfaced as a checklist.
+
+## Internal State Retained
 
 | Value | Verified gameplay role |
 | --- | --- |
-| Heat | Enters ascent pressure, settlement decay, and the final run pressure calculation. |
-| Clarity | Falls after publishing and reality dialogue, changes communication quality, and contributes to final pressure. |
-| Threshold discount | Softens the next ascent after failure and prevents a hard run lock. |
+| Day | Resets the five-action budget and advances authored events. |
+| Floor | Selects geography, dialogue, music, and legacy rules. |
+| Prerequisite IDs | Stores the three key-NPC reveals and physical pickups for the hidden route. |
+| Doll encounter IDs | Prevents one physical doll from granting more than one Meme Frame. |
+| Relationship residue | Records reality-dialogue consequences without becoming a player-facing progression bar. |
 
-These values are not permanently displayed, but removing them would change progression or the language-collapse arc. They are therefore mechanics, not abandoned HUD data.
+There is no separate heat, clarity, sanity, trust, danger, Tarot, or threshold-discount progression system. Pollution alone controls floor thresholds and language degradation.
 
 ## Removed Surface Debt
 
 - Removed six legacy HUD value bindings that were permanently `null` after the icon-rail redesign.
 - Removed the unused `_stats_label` and duplicate `_actions_label` alias.
-- Reduced publish results to one additive base, named integer bonuses and penalties, one final multiplier, and one score.
-- Removed the redundant `synergy_multiplier`, `pollution_multiplier`, `repeat_multiplier`, `contract_multiplier`, `world_item_multiplier`, and `modifier_base_bonus` mirrors. None had a runtime consumer.
+- Publish results foreground only funds and pollution; propagation remains an internal calculation needed to determine those outcomes.
+- Removed active merchant/shop, Arcana/Tarot, clarity relic, and random NPC-frame reward surfaces.
 
 ## Bonus Audit
 
-Daily contracts, source-card passives, world-item effects, fusion bonuses, Arcana modifiers, and repeat penalties remain because each changes the visible publish preview or a later dialogue outcome. Their contribution is named in the preview instead of being exposed as parallel multiplier totals.
+Token tags, fusion bonuses, daily signals, and repeat penalties remain because they change the funds/pollution preview. They do not introduce new persistent meters. Physical floor objects now serve only the authored three-part hidden-route prerequisite flow.

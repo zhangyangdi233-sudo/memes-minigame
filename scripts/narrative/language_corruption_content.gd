@@ -564,6 +564,62 @@ const KEY_NPC_DIALOGUES_BY_FLOOR := {
 	},
 }
 
+const DOLL_ENCOUNTERS_BY_FLOOR := {
+	1: {
+		"doll_id": "doll_small_moon",
+		"actor_label": "缝线布偶",
+		"world_hint": "一盏不亮的路灯背后",
+		"turns": [{
+			"line": "你把我放反了。缝口应该朝着路，不是朝着你。……算了。今天要留哪个字？",
+			"result": "布偶从腹部的旧缝里抽出一个空框。线头还连在它身上。",
+			"choices": [
+				{"id": "doll_f1_keep_name", "summary": "留下名字", "sentence": "留‘月’。她叫那盏灯小月亮。", "frame_id": "frame_kept_name", "frame_label": "留名框"},
+				{"id": "doll_f1_ask_who", "summary": "留下追问", "sentence": "留‘谁’。下次有人替我说话，我先问是谁。", "frame_id": "frame_ask_who", "frame_label": "追问框"},
+				{"id": "doll_f1_keep_blank", "summary": "留下空位", "sentence": "留‘空’。先别急着把谁塞进去。", "frame_id": "frame_kept_blank", "frame_label": "空位框"},
+			],
+		}],
+		"repeat_line": "你已经拿走一个了。它还在你那里，只是没再发出声音。",
+	},
+	2: {
+		"doll_id": "doll_window_memory",
+		"actor_label": "缝线布偶",
+		"world_hint": "一栋亮窗房子背面的低坡",
+		"turns": [{
+			"line": "你上次把我藏在窗后。这里没有窗。你要说我记错了，还是这里记错了？",
+			"result": "布偶摸了摸右眼的纽扣。窗的倒影在纽扣上停了一下。",
+			"choices": [
+				{"id": "doll_f2_return_word", "summary": "把话送回去", "sentence": "留‘回’。不是我的话，就送回原来的嘴里。", "frame_id": "frame_return_word", "frame_label": "归还框"},
+				{"id": "doll_f2_count_wakings", "summary": "记住两次醒来", "sentence": "留‘两’。我醒过两次，不把第一次删掉。", "frame_id": "frame_double_wake", "frame_label": "两醒框"},
+				{"id": "doll_f2_blame_room", "summary": "说房间记错了", "sentence": "留‘错’。先说是房间错了，别急着说是我。", "frame_id": "frame_wrong_room", "frame_label": "错室框"},
+			],
+		}],
+		"repeat_line": "它说自己没有换过位置。你记得上次见它时，它也这么说。",
+	},
+	3: {
+		"doll_id": "doll_missing_subject",
+		"actor_label": "缝线布偶",
+		"world_hint": "第三排立柱后的假窗内侧",
+		"turns": [{
+			"line": "我把你教我的句子念到一半。后半句从我肚子里回答。你还要留下哪个部分？",
+			"result": "布偶腹部的缝线自己松开一针，又把空框推了出来。",
+			"choices": [
+				{"id": "doll_f3_keep_subject", "summary": "留下主语", "sentence": "留‘我’。至少先说明是谁在说。", "frame_id": "frame_kept_subject", "frame_label": "主语框"},
+				{"id": "doll_f3_keep_refusal", "summary": "留下拒绝", "sentence": "留‘不’。句子坏掉以后，我还要能拒绝。", "frame_id": "frame_kept_refusal", "frame_label": "拒绝框"},
+				{
+					"id": "doll_f3_keep_gap",
+					"summary": "留下缺口",
+					"locked_summary": "■■还没念到这里",
+					"sentence": "留‘■’。不是每个缺口都需要补成一个人。",
+					"frame_id": "frame_missing_subject",
+					"frame_label": "缺主框",
+					"required_pollution_min": 70,
+				},
+			],
+		}],
+		"repeat_line": "它的腹部已经缝好。针脚数量和刚才不一样。",
+	},
+}
+
 const FLOOR_CARDS := {
 	1: {"区域": "被保存的儿童房", "危险": "B", "提示": "《游戏与现实》"},
 	2: {"区域": "两次醒来之间", "危险": "A", "提示": "《梦的解析》"},
@@ -631,6 +687,28 @@ static func get_key_npc_dialogue_for_floor(floor_number: int) -> Dictionary:
 	return dialogue.duplicate(true)
 
 
+static func get_doll_encounter_for_floor(floor_number: int) -> Dictionary:
+	var encounter: Dictionary = DOLL_ENCOUNTERS_BY_FLOOR.get(floor_number, {})
+	return encounter.duplicate(true)
+
+
+static func get_doll_encounter_by_id(doll_id: String) -> Dictionary:
+	for floor_number in [1, 2, 3]:
+		var encounter: Dictionary = DOLL_ENCOUNTERS_BY_FLOOR.get(floor_number, {})
+		if str(encounter.get("doll_id", "")) == doll_id:
+			return encounter.duplicate(true)
+	return {}
+
+
+static func get_doll_ids() -> Array[String]:
+	var doll_ids: Array[String] = []
+	for floor_number in [1, 2, 3]:
+		var doll_id := str((DOLL_ENCOUNTERS_BY_FLOOR.get(floor_number, {}) as Dictionary).get("doll_id", ""))
+		if not doll_id.is_empty():
+			doll_ids.append(doll_id)
+	return doll_ids
+
+
 static func get_floor_card_display(floor_number: int) -> Dictionary:
 	var card: Dictionary = FLOOR_CARD_DISPLAY_VARIANTS.get(floor_number, FLOOR_CARDS.get(floor_number, {}))
 	return card.duplicate(true)
@@ -665,6 +743,7 @@ static func get_catalog_snapshot() -> Dictionary:
 		"choice_fragments": PLAYER_CHOICE_FRAGMENTS_BY_FLOOR.duplicate(true),
 		"history_revisions": HISTORY_REVISIONS.duplicate(true),
 		"key_npc_dialogues": KEY_NPC_DIALOGUES_BY_FLOOR.duplicate(true),
+		"doll_encounters": DOLL_ENCOUNTERS_BY_FLOOR.duplicate(true),
 		"floor_cards": FLOOR_CARDS.duplicate(true),
 		"floor_card_display_variants": FLOOR_CARD_DISPLAY_VARIANTS.duplicate(true),
 		"menu_labels": MENU_LABEL_VARIANTS.duplicate(true),

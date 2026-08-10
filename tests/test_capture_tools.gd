@@ -14,15 +14,14 @@ func _run() -> void:
 		"res://tools/capture_notebook_scene.gd",
 		"res://tools/capture_meme_bank_motion.gd",
 		"res://tools/capture_publish_scene.gd",
-		"res://tools/capture_shop_scene.gd",
+		"res://tools/capture_doll_discovery.gd",
+		"res://tools/capture_doll_dialogue.gd",
+		"res://tools/capture_doll_reward.gd",
 		"res://tools/capture_reality_scene.gd",
 		"res://tools/capture_reality_district.gd",
 		"res://tools/capture_dreamcore_artifacts.gd",
 		"res://tools/capture_authored_horror_events.gd",
-		"res://tools/capture_dialogue_scene.gd",
-		"res://tools/capture_merchant_scene.gd",
 		"res://tools/capture_npc_character_scene.gd",
-		"res://tools/capture_relic_scene.gd",
 		"res://tools/capture_ending_scene.gd",
 		"res://tools/capture_day_transition.gd",
 		"res://tools/capture_main_menu.gd",
@@ -39,6 +38,11 @@ func _run() -> void:
 		"res://tools/current_meme_bank_opening.png",
 		"res://tools/current_meme_bank_open.png",
 	], "meme-bank closed, opening, and open motion")
+	_assert_distinct_capture_sequence([
+		"res://tools/current_doll_discovery.png",
+		"res://tools/current_doll_dialogue.png",
+		"res://tools/current_doll_reward.png",
+	], "doll discovery, authored choice, and notebook reward")
 	_assert_meme_bank_motion_trace("res://tools/current_meme_bank_motion_trace.json")
 
 	if _failures.is_empty():

@@ -72,10 +72,11 @@ func _run() -> void:
 	_assert_eq(game_root._room_count_for_floor(1), 4, "floor one should begin with four rooms")
 	_assert_eq(game_root._room_count_for_floor(2), 6, "floor two should add two rooms")
 	_assert_eq(game_root._room_count_for_floor(3), 9, "floor three should add three rooms")
-	for floor_number in range(2, 6):
+	_assert_eq(game_root._room_count_for_floor(4), 11, "hidden floor four should retain the final authored expansion")
+	for floor_number in range(2, 5):
 		var growth: int = game_root._room_count_for_floor(floor_number) - game_root._room_count_for_floor(floor_number - 1)
 		_assert_true(growth == 2 or growth == 3, "each ascent should add two or three rooms")
-	var expected_npc_counts := [4, 3, 2, 1, 0]
+	var expected_npc_counts := [4, 3, 2, 0]
 	for floor_index in expected_npc_counts.size():
 		var floor_number := floor_index + 1
 		_assert_eq(game_root._npc_count_for_floor(floor_number), expected_npc_counts[floor_index], "ordinary NPC population should follow the reduced floor sequence")
@@ -94,13 +95,12 @@ func _run() -> void:
 	_assert_true(first_reference_portal != null and str(first_reference_portal.get_meta("reference_texture", "")).contains("sunlit_brick_street"), "sunlit district should extend its geometry with the supplied reference image")
 	if first_reference_portal != null and first_reference_portal.mesh is QuadMesh:
 		_assert_true((first_reference_portal.mesh as QuadMesh).size.x >= 12.0, "sunlit reference continuation should fill the road horizon rather than appear as a small poster")
-	_assert_true(int(floor_root.get_meta("useful_item_count", 0)) > 0, "some first-floor rooms should contain useful items")
-	_assert_true(int(floor_root.get_meta("useful_item_count", 0)) < int(floor_root.get_meta("room_count", 0)), "some rooms should remain empty")
-	var useful_item := _find_useful_item(floor_root)
-	_assert_true(useful_item != null, "a useful street lot should expose a real pickup Area3D")
-	if useful_item != null:
-		_assert_true(not str(useful_item.get_meta("item_effect", "")).is_empty(), "world pickup should carry a gameplay effect")
-		_assert_true(not str(useful_item.get_meta("item_description", "")).is_empty(), "world pickup should explain its effect in the F prompt")
+	_assert_eq(int(floor_root.get_meta("useful_item_count", 0)), 1, "each normal floor should reserve one physical hidden-route prerequisite")
+	var hidden_prerequisite := _find_node_by_name(floor_root, "PrerequisiteItemFloor1") as Area3D
+	_assert_true(hidden_prerequisite != null and not hidden_prerequisite.visible, "the prerequisite should exist in reachable geometry but remain hidden before its NPC clue")
+	if hidden_prerequisite != null:
+		_assert_true(not hidden_prerequisite.monitoring and not hidden_prerequisite.monitorable, "an unrevealed prerequisite must not intercept interaction")
+		_assert_eq(str(hidden_prerequisite.get_meta("item_effect", "")), "prerequisite", "physical route proof should not carry an obsolete stat bonus")
 	_assert_eq(str(floor_root.get_meta("layout_mode", "")), "shared_street", "reality floor should be one shared open street instead of isolated NPC boxes")
 	_assert_true(map_width >= 32.0 and map_length >= 230.0, "first floor should be five times longer than the original forty-six-metre street")
 	_assert_eq(float(floor_root.get_meta("world_length_scale", 0.0)), 5.0, "generated floors should expose the requested five-times world scale")
@@ -152,21 +152,23 @@ func _run() -> void:
 	var clamped_corner: Vector3 = floor_root.call("clamp_to_playable_position", outside_corner)
 	_assert_true(bool(floor_root.call("contains_playable_position", clamped_corner)), "clamping should choose the nearest valid arm or trunk instead of a bounding rectangle")
 
-	var merchant := _find_actor(floor_root, "merchant")
+	var doll := _find_actor(floor_root, "doll")
 	var ordinary_npcs := _count_actors(floor_root, "npc")
-	_assert_true(merchant != null, "every floor should contain exactly one merchant actor")
+	_assert_true(doll != null, "each normal floor should contain one discoverable stitched doll")
+	_assert_true(_find_actor(floor_root, "merchant") == null, "removed merchant actor must not return")
 	_assert_eq(ordinary_npcs, 4, "first floor should place all four ordinary NPC billboards")
 	var npc_z_positions: Array[float] = []
 	_collect_actor_z_positions(floor_root, "npc", npc_z_positions)
 	npc_z_positions.sort()
 	for index in range(1, npc_z_positions.size()):
 		_assert_true(npc_z_positions[index] - npc_z_positions[index - 1] >= 25.0, "ordinary NPCs should be spaced across the five-times-long street")
-	if merchant != null:
-		var merchant_billboard := merchant.get_node_or_null("Billboard") as Sprite3D
-		_assert_true(merchant_billboard != null and merchant_billboard.texture != null, "merchant should use generated 2D character artwork")
-		if merchant_billboard != null:
-			_assert_eq(merchant_billboard.billboard, BaseMaterial3D.BILLBOARD_ENABLED, "2D actors should always face the camera")
-			_assert_actor_face_veil(merchant, merchant_billboard, "merchant")
+	if doll != null:
+		var doll_billboard := doll.get_node_or_null("Billboard") as Sprite3D
+		_assert_true(doll_billboard != null and doll_billboard.texture != null, "doll should use the player's stitched guide artwork")
+		if doll_billboard != null:
+			_assert_eq(doll_billboard.billboard, BaseMaterial3D.BILLBOARD_ENABLED, "the physical doll should always face the camera")
+		_assert_true(doll.get_node_or_null("FaceScribbleOverlay") == null, "the guide doll artwork should never receive the NPC face veil")
+		_assert_true(bool(doll.get_meta("guide_character", false)), "the world doll should retain its guide role")
 	var sample_npc := _find_actor(floor_root, "npc")
 	if sample_npc != null:
 		var sample_npc_billboard := sample_npc.get_node_or_null("Billboard") as Sprite3D
@@ -297,31 +299,16 @@ func _run() -> void:
 		player.velocity = Vector3(0.0, -12.0, 0.0)
 		game_root._update_reality_player(0.016)
 		_assert_true(player.position.y >= 0.0, "falling below the street should recover the player onto a safe spawn")
-	if player != null and useful_item != null:
-		var item_id := str(useful_item.get_meta("item_id", ""))
-		player.global_position = useful_item.global_position + Vector3(0.0, 0.0, 1.2)
+	if player != null and doll != null:
+		player.position = doll.position + Vector3(0.0, 0.0, 1.4)
 		game_root._refresh_nearby_reality_actor()
-		_assert_true(game_root._nearby_reality_item == useful_item, "approaching a street relic should select it ahead of distant actors")
-		var actions_before_pickup := int(game_root.game.actions_remaining)
-		_assert_true(game_root._try_reality_interaction(), "F should collect the nearby street relic")
-		_assert_true(game_root.game.is_world_item_collected(item_id), "collected street relic should persist in run state")
-		_assert_eq(game_root.game.actions_remaining, actions_before_pickup, "collecting a street relic should not spend an action")
-		_assert_true(not useful_item.visible and bool(useful_item.get_meta("collected", false)), "collected street relic should disappear from the current floor")
-		game_root._rebuild_reality_floor()
-		floor_root = game_root.get_node_or_null("RealityFloor") as Node3D
-		var rebuilt_item := _find_item_by_id(floor_root, item_id)
-		_assert_true(rebuilt_item != null and not rebuilt_item.visible, "rebuilding a floor should not respawn an already collected relic")
-		merchant = _find_actor(floor_root, "merchant")
-	if player != null and merchant != null:
-		player.position = merchant.position + Vector3(0.0, 0.0, 1.4)
-		game_root._refresh_nearby_reality_actor()
-		_assert_true(game_root._nearby_reality_actor == merchant, "approaching a merchant should select it as the nearby actor")
+		_assert_true(game_root._nearby_reality_actor == doll, "approaching the stitched doll should select it as the nearby actor")
 		_assert_true(game_root._try_reality_interaction(), "F interaction path should open the nearby actor")
 		_assert_true(game_root._reality_interaction_active, "world interaction should enter the dialogue state")
-		_assert_true(game_root._active_reality_actor == merchant, "world interaction should remember the selected actor")
+		_assert_true(game_root._active_reality_actor == doll, "world interaction should remember the discovered doll")
 		var leave_button := _find_node_by_name(game_root, "RealityConversationContinue") as Button
 		var actions_before_leave := int(game_root.game.actions_remaining)
-		_assert_true(leave_button != null and leave_button.visible and leave_button.text == "离开", "merchant and NPC conversations should expose an immediate Leave button")
+		_assert_true(leave_button != null and leave_button.visible and leave_button.text == "离开", "doll and NPC conversations should expose an immediate Leave button")
 		if leave_button != null:
 			leave_button.pressed.emit()
 		_assert_true(not game_root._reality_interaction_active, "Leave should close a conversation before the player speaks")
@@ -438,26 +425,6 @@ func _run() -> void:
 	var floor_two_fog_density := float(floor_root.get_meta("fog_density", 0.0))
 	var floor_two_ambient_energy := float(floor_root.get_meta("ambient_light_energy", 0.0))
 
-	game_root.game.tower_floor = 5
-	game_root._ensure_reality_floor_current()
-	floor_root = game_root.get_node_or_null("RealityFloor") as Node3D
-	await physics_frame
-	_assert_eq(int(floor_root.get_meta("room_count", 0)), 14, "fifth floor should grow to fourteen rooms")
-	_assert_true(float(floor_root.get_meta("map_length", 0.0)) > map_length, "higher floors should lengthen the same shared street as lots are added")
-	_assert_eq(str(floor_root.get_meta("layout_mode", "")), "shared_street", "higher floors should preserve the shared-street layout")
-	_assert_eq(int(floor_root.get_meta("air_wall_count", 0)), 4, "expanded floors should rebuild their four perimeter air walls")
-	_assert_eq(int(floor_root.get_meta("ordinary_npc_count", 0)), 0, "highest floor should remove ordinary NPCs while retaining the merchant")
-	_assert_eq(_count_actors(floor_root, "npc"), 0, "fifth-floor actor population should match its metadata")
-	_assert_true(_find_actor(floor_root, "merchant") != null, "merchant should persist on the highest floor")
-	_assert_eq(str(floor_root.get_meta("atmosphere_mode", "")), "slow_burn_suspense", "highest floor should preserve the suspense system")
-	_assert_true(float(floor_root.get_meta("fog_density", 0.0)) > floor_two_fog_density, "fog should deepen with each ascent after floor two")
-	_assert_true(_centerline_collision(floor_root, player).is_empty(), "fifth-floor housing and occluders should preserve the central walking lane")
-	_assert_eq(str(floor_root.get_meta("district_style", "")), "night_white_blocks", "fifth floor should rotate back to the night white-block district")
-	_assert_true(_find_node_by_name(floor_root, "WhiteHouse") != null and _find_node_by_name(floor_root, "WarmPool") != null, "night district should contain white cubic homes and warm streetlights")
-	var night_house := _find_node_by_name(floor_root, "WhiteHouse") as Node3D
-	if night_house != null:
-		_assert_true(absf(night_house.position.x) <= 7.2, "night houses should crowd the path like the supplied reference instead of leaving a broad empty plaza")
-
 	game_root.game.tower_floor = 3
 	game_root._ensure_reality_floor_current()
 	floor_root = game_root.get_node_or_null("RealityFloor") as Node3D
@@ -528,8 +495,10 @@ func _run() -> void:
 	game_root._ensure_reality_floor_current()
 	floor_root = game_root.get_node_or_null("RealityFloor") as Node3D
 	await physics_frame
-	_assert_eq(int(floor_root.get_meta("ordinary_npc_count", 0)), 1, "fourth floor should leave one ordinary NPC")
-	_assert_eq(_count_actors(floor_root, "npc"), 1, "fourth-floor actor population should match its metadata")
+	_assert_eq(int(floor_root.get_meta("ordinary_npc_count", 0)), 0, "hidden floor four should remove ordinary social contact")
+	_assert_eq(_count_actors(floor_root, "npc"), 0, "hidden-floor actor population should match its metadata")
+	_assert_true(_find_actor(floor_root, "doll") == null, "hidden floor should not repeat a normal-floor frame reward")
+	_assert_true(_find_actor(floor_root, "merchant") == null, "hidden floor must remain free of the removed merchant")
 	_assert_eq(str(floor_root.get_meta("atmosphere_mode", "")), "slow_burn_suspense", "returning district geometry should retain the darker post-floor-two treatment")
 	_assert_true(float(floor_root.get_meta("fog_density", 0.0)) > floor_three_fog_density, "fourth-floor fog should continue the floor-by-floor progression")
 	_assert_true(int(floor_root.get_meta("suspense_occluder_count", 0)) >= 5, "fourth floor should retain the non-blocking occlusion rhythm")

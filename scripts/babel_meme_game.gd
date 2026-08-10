@@ -36,6 +36,7 @@ const POLLUTION_PALETTE_5 := {
 
 const PHONE_DOWN_BACKDROP_PATH := "res://assets/generated/world/phone_down_backdrop.png"
 const PLAYER_CHARACTER_PATH := "res://assets/generated/characters/protagonist_operator.png"
+const GUIDE_DOLL_CHARACTER_PATH := "res://assets/generated/characters/guide_doll.png"
 const NPC_CHARACTER_PATHS := [
 	"res://assets/generated/characters/npc_late_arrival.png",
 	"res://assets/generated/characters/npc_echo_tenant.png",
@@ -224,7 +225,7 @@ const DAY_PLANS := [
 			]},
 			{"id": "d1_b", "handle": "课桌下的账号", "text": "别急着懂。先把它转出去，懂会在后面补票。", "tokens": [
 				{"id": "phrase", "text": "懂会在后面补票", "tags": ["反问", "日常"], "rarity": 1},
-				{"id": "understand", "text": "懂", "tags": ["清晰"], "rarity": 1},
+				{"id": "understand", "text": "懂", "tags": ["追问"], "rarity": 1},
 			]},
 		],
 	},
@@ -261,18 +262,18 @@ const DAY_PLANS := [
 		],
 	},
 	{
-		"title": "解释开始收费",
+		"title": "解释开始回收",
 		"trends": ["反问", "禁问", "哈吉米"],
-		"speaker": "梗店店员",
+		"speaker": "抄写员",
 		"line": "如果不用它，你还剩下什么表达？",
 		"feed": [
 			{"id": "d4_a", "handle": "付费问答残页", "text": "为什么智者不说话？你为什么需要他说话？", "tokens": [
 				{"id": "phrase", "text": "你为什么需要他说话", "tags": ["反问", "禁问"], "rarity": 2},
 				{"id": "why", "text": "为什么", "tags": ["追问"], "rarity": 1},
 			]},
-			{"id": "d4_b", "handle": "旧语言清仓", "text": "普通话库存不足，剩余词义按污染价处理。", "tokens": [
-				{"id": "phrase", "text": "词义按污染价处理", "tags": ["清晰", "禁问"], "rarity": 3},
-				{"id": "price", "text": "污染价", "tags": ["禁问"], "rarity": 1},
+			{"id": "d4_b", "handle": "旧语言回收站", "text": "普通话的边角被退了回来，剩下的词义按污染分拣。", "tokens": [
+				{"id": "phrase", "text": "词义按污染分拣", "tags": ["空位", "禁问"], "rarity": 3},
+				{"id": "pollution", "text": "污染", "tags": ["禁问"], "rarity": 1},
 			]},
 		],
 	},
@@ -1045,11 +1046,14 @@ func _rebuild_reality_floor() -> void:
 		"key_npc": key_npc_texture,
 		"key_npc_label": str(key_dialogue.get("actor_label", "关键住户")),
 		"npcs": npc_textures,
+		"doll": _load_runtime_texture(GUIDE_DOLL_CHARACTER_PATH),
+		"doll_encounter": LanguageCorruptionContentScript.get_doll_encounter_for_floor(clampi(game.tower_floor, 1, 3)),
 	}
 	var prerequisite_item: Dictionary = game.get_prerequisite_item_for_floor(game.tower_floor)
 	_reality_floor.rebuild(game.tower_floor, _active_palette(), actor_textures, game.day, game.has_seen_cover_watcher(game.tower_floor), prerequisite_item)
 	_reality_floor.sync_collected_items(game.collected_world_item_ids)
 	_reality_floor.sync_prerequisite_items(game.revealed_prerequisite_item_ids, game.collected_prerequisite_item_ids)
+	_reality_floor.sync_claimed_dolls(game.claimed_doll_ids)
 	_reality_built_floor = game.tower_floor
 	_reality_built_day = game.day
 	_reality_interaction_active = false
@@ -1191,7 +1195,7 @@ func _try_reality_interaction() -> bool:
 	var actor_direction: Vector3 = _active_reality_actor.position - _reality_player.position
 	if actor_direction.length_squared() > 0.001:
 		_reality_yaw = rad_to_deg(atan2(-actor_direction.x, -actor_direction.z))
-		_reality_pitch = -2.0
+		_reality_pitch = -30.0 if actor_type == "doll" else -2.0
 	_reality_interaction_active = true
 	_reality_hover_choice_id = ""
 	_set_reality_mouse_look(false)
@@ -2017,7 +2021,6 @@ func _build_ui() -> void:
 	for app in [
 		{"id": "babel", "label": "塔\n楼层档案"},
 		{"id": "social", "label": "帖\n信号瀑布"},
-		{"id": "shop", "label": "店\n梗框商店"},
 		{"id": "notebook", "label": "本\n语言工坊"},
 	]:
 		var button := Button.new()
@@ -2060,7 +2063,6 @@ func _build_ui() -> void:
 
 	_build_app_window("social", "社交媒体 App", "SocialAppWindow", -835.0, 18.0, -397.0, 910.0)
 	_build_app_window("babel", "巴别塔 App", "BabelAppWindow", -1032.0, 96.0, -592.0, 676.0)
-	_build_app_window("shop", "信号商店", "ShopAppWindow", -1000.0, 124.0, -560.0, 704.0)
 	_build_app_window("notebook", "笔记本 App", "NotebookAppWindow", -968.0, 152.0, -528.0, 732.0)
 	_build_social_detail_window()
 
@@ -3532,6 +3534,7 @@ func _render() -> void:
 	_ensure_reality_floor_current()
 	if _reality_floor != null:
 		_reality_floor.sync_prerequisite_items(game.revealed_prerequisite_item_ids, game.collected_prerequisite_item_ids)
+		_reality_floor.sync_claimed_dolls(game.claimed_doll_ids)
 	_render_status()
 	_render_world_prompt()
 	_render_app()
@@ -3585,7 +3588,7 @@ func _render_world_prompt() -> void:
 
 
 func _render_app() -> void:
-	for app_id in ["social", "babel", "shop", "notebook"]:
+	for app_id in ["social", "babel", "notebook"]:
 		if not _app_bodies.has(app_id):
 			continue
 		_app_body = _app_bodies[app_id] as VBoxContainer
@@ -3594,9 +3597,6 @@ func _render_app() -> void:
 			"babel":
 				_app_title.text = "巴别塔 App"
 				_render_babel_app()
-			"shop":
-				_app_title.text = "信号商店"
-				_render_shop_app()
 			"notebook":
 				_app_title.text = "笔记本 App"
 				_render_notebook_app()
@@ -3622,15 +3622,6 @@ func _render_babel_app() -> void:
 		_app_body.add_child(card_line)
 	_app_body.add_child(_label("资金 %d  /  通过发布完整表达获得" % game.money, 16, _theme_color("accent")))
 	_app_body.add_child(_label("污染 %d%%  /  拾词、合成、融合与发布会明确增加" % game.pollution, 16, _theme_color("accent")))
-	var found_count := game.collected_prerequisite_item_ids.size()
-	_app_body.add_child(_label("已找到的异物 %d / 3" % found_count, 17, _theme_color("ink")))
-	for floor_number in [1, 2, 3]:
-		var item: Dictionary = game.get_prerequisite_item_for_floor(floor_number)
-		var item_id := str(item.get("id", ""))
-		if item_id in game.collected_prerequisite_item_ids:
-			_app_body.add_child(_label("%d  %s" % [floor_number, str(item.get("label", "未命名物件"))], 14, _theme_color("ink")))
-		elif game.is_prerequisite_item_revealed(item_id):
-			_app_body.add_child(_label("%d  地点已被说出" % floor_number, 14, _theme_color("accent")))
 	_app_body.add_child(_label("遗产规则", 18, _theme_color("accent")))
 	if game.legacy_rules.is_empty():
 		_app_body.add_child(_label("还没有上一层语言留下来。", 16, _theme_color("accent")))
@@ -4379,44 +4370,6 @@ func _scroll_social_feed(feed_scroll: ScrollContainer, delta: int) -> void:
 	feed_scroll.scroll_vertical = clampi(feed_scroll.scroll_vertical + delta, 0, max_scroll)
 
 
-func _render_shop_app() -> void:
-	_clear(_app_body)
-	var shop_content := _app_body
-	shop_content.name = "ShopContent"
-	shop_content.add_theme_constant_override("separation", 12)
-	var heading := HBoxContainer.new()
-	heading.add_theme_constant_override("separation", 8)
-	shop_content.add_child(heading)
-	var title := _label("梗框 / MEME FRAME", 20, _theme_color("accent"))
-	title.size_flags_horizontal = Control.SIZE_EXPAND_FILL
-	heading.add_child(title)
-	heading.add_child(_label("持有 %d" % game.owned_meme_frames, 15, _theme_color("accent")))
-	var offer := game.get_daily_meme_frame_offer()
-	if offer.is_empty():
-		var absent := _label("今天货架是空的。梗框每三天补一次。", 16, _theme_color("accent"))
-		absent.name = "MemeFrameUnavailableLabel"
-		absent.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
-		shop_content.add_child(absent)
-		return
-	var frame_panel := _panel()
-	frame_panel.name = "DailyMemeFramePanel"
-	shop_content.add_child(frame_panel)
-	var frame_box := VBoxContainer.new()
-	frame_box.add_theme_constant_override("separation", 8)
-	frame_panel.add_child(frame_box)
-	frame_box.add_child(_label("一个空框。只够装下一个字。", 17, _theme_color("ink")))
-	var hint := _label("购买后去笔记本，把拾到的单字拖进去。", 14, _theme_color("accent"))
-	hint.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
-	frame_box.add_child(hint)
-	var buy := Button.new()
-	buy.name = "DailyMemeFrameBuyButton"
-	buy.text = "已售出" if game.daily_meme_frame_bought else "购买梗框  %d 热币" % int(offer.get("price", 0))
-	buy.custom_minimum_size.y = 54
-	buy.disabled = game.daily_meme_frame_bought or game.money < int(offer.get("price", 0)) or not game.can_spend_action()
-	buy.pressed.connect(_on_buy_meme_frame_pressed)
-	frame_box.add_child(buy)
-
-
 func _render_notebook_app() -> void:
 	_clear(_app_body)
 
@@ -4496,6 +4449,10 @@ func _render_notebook_app() -> void:
 
 
 func _render_notebook_frame_tab(notebook_content: VBoxContainer) -> void:
+	var doll_hint := _label("在现实区域找到缝线布偶。听完它的话，梗框会留在这里。", 14, _theme_color("accent"))
+	doll_hint.name = "NotebookDollFrameHint"
+	doll_hint.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
+	notebook_content.add_child(doll_hint)
 	notebook_content.add_child(_label("拾取字", 18, _theme_color("accent")))
 	var token_row := HFlowContainer.new()
 	token_row.name = "NotebookTokenFlow"
@@ -4667,9 +4624,13 @@ func _render_reality() -> void:
 			if _viewport_size().x < 760.0:
 				button.add_theme_font_size_override("font_size", 13)
 			button.set_meta("reality_response_choice", true)
+			button.disabled = bool(choice.get("locked", false))
+			if button.disabled:
+				button.tooltip_text = "这部分还听不清。"
 			button.mouse_entered.connect(_on_reality_choice_hovered.bind(choice_id))
 			button.mouse_exited.connect(_on_reality_choice_unhovered.bind(choice_id))
-			button.pressed.connect(_on_reality_choice_selected.bind(choice_id))
+			if not button.disabled:
+				button.pressed.connect(_on_reality_choice_selected.bind(choice_id))
 			_reality_choice_row.add_child(button)
 		if _reality_hover_choice_id.is_empty():
 			_set_dialogue_text(_reality_intent_preview, "")
@@ -4777,6 +4738,8 @@ func _advance_typed_reality_character() -> bool:
 		_after_effective_action(actions_before)
 	else:
 		_render()
+	if game.conversation_actor_type == "doll" and _reality_floor != null:
+		_reality_floor.sync_claimed_dolls(game.claimed_doll_ids)
 	return true
 
 
@@ -5138,7 +5101,7 @@ func _close_app_window(app_id: String) -> void:
 		_social_detail_open = false
 	if game.active_app_window == app_id:
 		game.active_app_window = ""
-		for candidate in ["social", "babel", "shop", "notebook"]:
+		for candidate in ["social", "babel", "notebook"]:
 			if bool(_open_app_windows.get(candidate, false)):
 				game.active_app = candidate
 				game.active_app_window = candidate
@@ -6023,18 +5986,6 @@ func _on_token_pressed(post_id: String, token: Dictionary) -> void:
 		_render()
 
 
-func _on_buy_meme_frame_pressed() -> void:
-	if _input_locked:
-		return
-	var actions_before: int = int(game.actions_remaining)
-	if game.buy_daily_meme_frame():
-		log_text = "购买梗框：现在可以装入一个字。"
-		_after_effective_action(actions_before)
-	else:
-		log_text = "梗框没有成交。"
-		_render()
-
-
 func _on_note_token_pressed(token_id: String) -> void:
 	if _input_locked:
 		return
@@ -6153,7 +6104,7 @@ func _on_confirm_dialogue_pressed() -> void:
 	var actions_before: int = int(game.actions_remaining)
 	if game.confirm_dialogue():
 		selected_meme_id = ""
-		log_text = "句子发到手机里。热度在塔下回响。"
+		log_text = "句子发出去了。资金到账，污染留下。"
 		_after_effective_action(actions_before)
 	else:
 		log_text = "发布空格里还没有完整梗。"

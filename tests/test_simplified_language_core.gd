@@ -101,12 +101,15 @@ func test_removed_systems_are_absent_from_runtime_ui() -> void:
 	var root := scene.instantiate()
 	get_root().add_child(root)
 	await process_frame
+	root._locale.set_locale("zh")
 	root.new_game()
 	root.game.set_active_app("babel")
 	root._render()
 	var all_text := _collect_control_text(root)
 	for removed_copy in ["塔罗", "牌型", "整数倍率", "传播基础", "BABEL-LINK 98", "输入四位缓存编号"]:
 		_assert_true(not all_text.contains(removed_copy), "runtime UI should not contain removed copy: %s" % removed_copy)
+	for hidden_route_copy in ["已找到的异物", "地点已被说出"]:
+		_assert_true(not all_text.contains(hidden_route_copy), "Tower App must not reveal hidden-floor checklist copy: %s" % hidden_route_copy)
 	_assert_true(_find_node_by_name(root, "SocialPublishContractPanel") == null, "the card-hand panel should be gone")
 	_assert_true(_find_node_by_name(root, "OldWebArchiveCodeInput") == null, "the archive code puzzle should be gone")
 	root.game.set_active_app("social")

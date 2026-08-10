@@ -30,9 +30,6 @@ const POLLUTION_LOCK_THRESHOLD := 70
 const POLLUTION_FLASHBACK_THRESHOLD := 60
 const BASE_ACTIONS_PER_DAY := 5
 
-const MEME_FRAME_PRICE := 7
-const MEME_FRAME_OFFER_INTERVAL := 3
-const NPC_MEME_FRAME_REWARD_CHANCE_PERCENT := 45
 const CLEAN_WORDS := ["我", "想", "正常", "说明", "这件事", "不是", "那个意思", "请", "听我", "说完"]
 const FALLBACK_LEGACY_TEXTS := {
 	1: {"text": "哈吉米，必须补票", "tags": ["哈吉米", "追问"]},
@@ -58,7 +55,7 @@ const REALITY_DIALOGUES_BY_FLOOR := {
 			{"id": "f1n2_stop", "summary": "停止抄写", "sentence": "先别写第四遍，纸可能正在学习怎样删掉人。"},
 		]},
 		{"line": "你刚才抬头了吗？塔上掉下来一片像收据的云。", "result": "无名信徒把那片不存在的纸塞进口袋，动作十分熟练。", "choices": [
-			{"id": "f1n3_sky", "summary": "描述天空", "sentence": "我只看见绿色的天，云上没有价格，也没有日期。"},
+			{"id": "f1n3_sky", "summary": "描述天空", "sentence": "我只看见绿色的天，云上没有刻度，也没有日期。"},
 			{"id": "f1n3_receipt", "summary": "索要收据", "sentence": "如果它真是收据，上面应该写着是谁买下了这座塔。"},
 			{"id": "f1n3_ground", "summary": "看着地面", "sentence": "我没有抬头，我怕地面趁机换掉回去的方向。"},
 		]},
@@ -221,7 +218,7 @@ const EPILOGUE_LINES := [
 	"你把耳朵贴近外壳。里面传来整座城市的声音，每个人都在准确重复别人。",
 	"你想说一句普通的话。每一层却先替你开口。",
 ]
-const SAVE_DATA_VERSION := 3
+const SAVE_DATA_VERSION := 4
 const SAVE_FIELD_NAMES := [
 	"day", "pollution", "tower_floor",
 	"ending_unlocked", "ending_language_choice", "ending_route", "formal_floor_three_complete",
@@ -229,7 +226,8 @@ const SAVE_FIELD_NAMES := [
 	"money", "actions_remaining", "max_actions_per_day",
 	"needs_day_settlement", "day_ended_reason", "pollution_flashback_seen", "pollution_flashback_pending",
 	"view_state", "phone_visible", "phone_open", "active_app", "active_app_window",
-	"notebook_tokens", "draft_slots", "completed_memes", "owned_meme_frames", "daily_meme_frame_bought",
+	"notebook_tokens", "draft_slots", "completed_memes", "owned_meme_frames", "owned_meme_frame_ids",
+	"claimed_doll_ids", "doll_choice_results",
 	"fusion_slots", "fused_meme_pairs", "dialogue_blanks", "published_memes", "last_publish_result",
 	"event_log", "social_followed_handles", "social_liked_post_ids", "collected_world_item_ids",
 	"cover_watcher_seen_floors",
@@ -238,7 +236,6 @@ const SAVE_FIELD_NAMES := [
 	"reality_sentence_slots", "legacy_rules", "last_clean_sentence", "last_polluted_sentence",
 	"npc_understanding", "reality_phase", "relationship_residue", "last_relationship_residue_gain",
 	"last_relationship_money_loss", "reality_dialogue_count",
-	"npc_meme_frame_reward_pity", "npc_meme_frame_reward_attempt_keys", "last_npc_meme_frame_reward",
 ]
 
 var day: int = 1
@@ -269,7 +266,9 @@ var notebook_tokens: Array = []
 var draft_slots: Dictionary = {}
 var completed_memes: Array = []
 var owned_meme_frames: int = 0
-var daily_meme_frame_bought: bool = false
+var owned_meme_frame_ids: Array[String] = []
+var claimed_doll_ids: Array[String] = []
+var doll_choice_results: Dictionary = {}
 var fusion_slots: Dictionary = {}
 var fused_meme_pairs: Array[String] = []
 var dialogue_blanks: Dictionary = {}
@@ -323,9 +322,6 @@ var conversation_interrupted: bool = false
 var conversation_interrupt_line: String = ""
 var conversation_action_spent: bool = false
 var conversation_reward: Dictionary = {}
-var npc_meme_frame_reward_pity: int = 0
-var npc_meme_frame_reward_attempt_keys: Array[String] = []
-var last_npc_meme_frame_reward: Dictionary = {}
 
 
 func new_run() -> void:
@@ -355,7 +351,9 @@ func new_run() -> void:
 	draft_slots = {}
 	completed_memes = []
 	owned_meme_frames = 0
-	daily_meme_frame_bought = false
+	owned_meme_frame_ids = []
+	claimed_doll_ids = []
+	doll_choice_results = {}
 	fusion_slots = {}
 	fused_meme_pairs = []
 	dialogue_blanks = {}
@@ -380,9 +378,6 @@ func new_run() -> void:
 	last_relationship_residue_gain = 0
 	last_relationship_money_loss = 0
 	reality_dialogue_count = 0
-	npc_meme_frame_reward_pity = 0
-	npc_meme_frame_reward_attempt_keys = []
-	last_npc_meme_frame_reward = {}
 	reset_typed_reality_conversation()
 
 
@@ -399,7 +394,7 @@ func to_save_data() -> Dictionary:
 
 func load_save_data(save_data: Dictionary) -> bool:
 	var loaded_version := int(save_data.get("version", -1))
-	if loaded_version not in [1, 2, SAVE_DATA_VERSION]:
+	if loaded_version not in [1, 2, 3, SAVE_DATA_VERSION]:
 		return false
 	var state_data: Variant = save_data.get("state", {})
 	if not state_data is Dictionary:
@@ -430,9 +425,8 @@ func load_save_data(save_data: Dictionary) -> bool:
 		if floor_number not in normalized_watcher_floors:
 			normalized_watcher_floors.append(floor_number)
 	cover_watcher_seen_floors = normalized_watcher_floors
-	# Older saves may contain pity progress. The current rule is a true 45% roll,
-	# so deprecated progress must never alter the effective reward rate.
-	npc_meme_frame_reward_pity = 0
+	_normalize_removed_shop_state()
+	_normalize_doll_state()
 	if view_state != "phone_down" and view_state != "npc_up":
 		view_state = "phone_down"
 	reset_typed_reality_conversation()
@@ -466,6 +460,54 @@ func _migrate_legacy_hidden_route_data(state_data: Dictionary) -> void:
 		var item_id := str(item_ids[floor_number - 1])
 		if item_id not in revealed_prerequisite_item_ids:
 			revealed_prerequisite_item_ids.append(item_id)
+
+
+func _normalize_removed_shop_state() -> void:
+	if active_app == "shop":
+		active_app = "social"
+	if active_app_window == "shop":
+		active_app_window = "social" if phone_open else ""
+
+
+func _normalize_doll_state() -> void:
+	var known_doll_ids: Array[String] = LanguageCorruptionContentScript.get_doll_ids()
+	var normalized_claims: Array[String] = []
+	for doll_id in claimed_doll_ids:
+		var normalized_id := str(doll_id)
+		if normalized_id in known_doll_ids and normalized_id not in normalized_claims:
+			normalized_claims.append(normalized_id)
+	claimed_doll_ids = normalized_claims
+
+	var normalized_results := {}
+	for doll_id in claimed_doll_ids:
+		var result: Variant = doll_choice_results.get(doll_id, {})
+		if not result is Dictionary:
+			continue
+		var encounter: Dictionary = LanguageCorruptionContentScript.get_doll_encounter_by_id(doll_id)
+		var choice_id := str((result as Dictionary).get("choice_id", ""))
+		var choice: Dictionary = _doll_choice_by_id(encounter, choice_id)
+		if choice.is_empty():
+			continue
+		normalized_results[doll_id] = {
+			"choice_id": choice_id,
+			"frame_id": str(choice.get("frame_id", "")),
+			"frame_label": str(choice.get("frame_label", "梗框")),
+			"day": maxi(1, int((result as Dictionary).get("day", 1))),
+			"floor": clampi(int((result as Dictionary).get("floor", 1)), 1, 3),
+		}
+	doll_choice_results = normalized_results
+
+	var normalized_frame_ids: Array[String] = []
+	for frame_id in owned_meme_frame_ids:
+		var normalized_id := str(frame_id).strip_edges()
+		if not normalized_id.is_empty():
+			normalized_frame_ids.append(normalized_id)
+	owned_meme_frame_ids = normalized_frame_ids
+	owned_meme_frames = maxi(0, owned_meme_frames)
+	while owned_meme_frame_ids.size() < owned_meme_frames:
+		owned_meme_frame_ids.append("legacy_frame_%d" % (owned_meme_frame_ids.size() + 1))
+	if owned_meme_frame_ids.size() > owned_meme_frames:
+		owned_meme_frames = owned_meme_frame_ids.size()
 
 
 func set_phone_open(value: bool) -> void:
@@ -738,7 +780,7 @@ func start_typed_reality_conversation(actor_id: String, actor_type: String, acto
 	if not can_spend_action():
 		return false
 	conversation_actor_id = actor_id
-	conversation_actor_type = actor_type if actor_type in ["npc", "key_npc"] else "npc"
+	conversation_actor_type = actor_type if actor_type in ["npc", "key_npc", "doll"] else "npc"
 	conversation_actor_label = actor_label
 	var dialogue := _reality_dialogue_for_actor(actor_id, conversation_actor_type)
 	conversation_turns = [{
@@ -839,6 +881,13 @@ func _load_typed_reality_turn(turn_index: int) -> void:
 	conversation_prompt = str(turn.get("line", "你打算说什么？"))
 	conversation_result_line = str(turn.get("result", "%s移开了视线。" % conversation_actor_label))
 	conversation_choices = (turn.get("choices", []) as Array).duplicate(true)
+	if conversation_actor_type == "doll":
+		for choice_index in conversation_choices.size():
+			var choice: Dictionary = (conversation_choices[choice_index] as Dictionary).duplicate(true)
+			choice["locked"] = _doll_choice_is_locked(choice)
+			if bool(choice["locked"]) and not str(choice.get("locked_summary", "")).is_empty():
+				choice["summary"] = str(choice.get("locked_summary", ""))
+			conversation_choices[choice_index] = choice
 	conversation_selected_choice_id = ""
 	conversation_clean_sentence = ""
 	conversation_revealed_units = []
@@ -858,6 +907,16 @@ func configure_conversation_locale(locale_code: String, localized_legacy_texts: 
 
 func _reality_dialogue_for_actor(actor_id: String, actor_type: String) -> Dictionary:
 	var floor_number := clampi(tower_floor, 1, 3)
+	if actor_type == "doll":
+		var encounter: Dictionary = LanguageCorruptionContentScript.get_doll_encounter_by_id(actor_id)
+		if encounter.is_empty():
+			encounter = LanguageCorruptionContentScript.get_doll_encounter_for_floor(floor_number)
+		var doll_turns: Array = encounter.get("turns", [])
+		if doll_turns.is_empty():
+			return {"line": "布偶的缝线动了一下。", "result": "它没有留下任何东西。", "choices": []}
+		var first_doll_turn: Dictionary = (doll_turns[0] as Dictionary).duplicate(true)
+		first_doll_turn["continuation_turns"] = doll_turns.slice(1).duplicate(true)
+		return first_doll_turn
 	if actor_type == "key_npc":
 		var key_dialogue: Dictionary = LanguageCorruptionContentScript.get_key_npc_dialogue_for_floor(floor_number)
 		var key_turns: Array = key_dialogue.get("turns", [])
@@ -887,6 +946,8 @@ func _reality_actor_index(actor_id: String) -> int:
 func preview_typed_reality_choice(choice_id: String) -> String:
 	for choice in conversation_choices:
 		if str(choice.get("id", "")) == choice_id:
+			if bool(choice.get("locked", false)):
+				return ""
 			return _sentence_with_legacy(str(choice.get("sentence", "")))
 	return ""
 
@@ -894,6 +955,9 @@ func preview_typed_reality_choice(choice_id: String) -> String:
 func select_typed_reality_choice(choice_id: String) -> bool:
 	if conversation_phase != "choosing":
 		return false
+	for choice: Dictionary in conversation_choices:
+		if str(choice.get("id", "")) == choice_id and bool(choice.get("locked", false)):
+			return false
 	var sentence := preview_typed_reality_choice(choice_id)
 	if sentence.is_empty():
 		return false
@@ -944,7 +1008,8 @@ func advance_typed_reality_character() -> Dictionary:
 
 	result["completed"] = true
 	var is_key_npc_final_turn := conversation_actor_type == "key_npc" and conversation_turn_index + 1 >= conversation_turns.size()
-	var should_spend_now := conversation_actor_type != "key_npc" or is_key_npc_final_turn
+	var is_claimed_doll_repeat := conversation_actor_type == "doll" and is_doll_claimed(conversation_actor_id)
+	var should_spend_now := (conversation_actor_type != "key_npc" or is_key_npc_final_turn) and not is_claimed_doll_repeat
 	if not conversation_action_spent and should_spend_now:
 		if not spend_action("typed-reality-dialogue"):
 			conversation_phase = "result"
@@ -960,7 +1025,7 @@ func advance_typed_reality_character() -> Dictionary:
 	last_clean_sentence = conversation_clean_sentence
 	last_polluted_sentence = get_typed_reality_spoken_sentence()
 	var understood := true
-	if conversation_actor_type == "key_npc":
+	if conversation_actor_type in ["key_npc", "doll"]:
 		conversation_understanding_rolls = []
 		npc_understanding = 100
 	else:
@@ -1002,11 +1067,10 @@ func advance_typed_reality_character() -> Dictionary:
 		conversation_reward = _resolve_key_npc_clue_attempt()
 		result["reward"] = conversation_reward.duplicate(true)
 		conversation_feedback += "\n" + str(conversation_reward.get("feedback", ""))
-	elif conversation_actor_type == "npc":
-		conversation_reward = _resolve_npc_meme_frame_reward(conversation_actor_id)
+	elif conversation_actor_type == "doll":
+		conversation_reward = _resolve_doll_choice_attempt()
 		result["reward"] = conversation_reward.duplicate(true)
-		if bool(conversation_reward.get("awarded", false)):
-			conversation_feedback += "\n对方把一个梗框留在你手边。框沿没有商人的价签。"
+		conversation_feedback += "\n" + str(conversation_reward.get("feedback", ""))
 	return result
 
 
@@ -1053,6 +1117,72 @@ func _resolve_key_npc_clue_attempt() -> Dictionary:
 		"newly_revealed": newly_revealed,
 		"feedback": feedback,
 	}
+
+
+func is_doll_claimed(doll_id: String) -> bool:
+	return doll_id in claimed_doll_ids
+
+
+func get_doll_choice_result(doll_id: String) -> Dictionary:
+	return (doll_choice_results.get(doll_id, {}) as Dictionary).duplicate(true)
+
+
+func _doll_choice_by_id(encounter: Dictionary, choice_id: String) -> Dictionary:
+	for turn: Dictionary in encounter.get("turns", []):
+		for choice: Dictionary in turn.get("choices", []):
+			if str(choice.get("id", "")) == choice_id:
+				return choice.duplicate(true)
+	return {}
+
+
+func _doll_choice_is_locked(choice: Dictionary) -> bool:
+	var minimum_pollution := int(choice.get("required_pollution_min", 0))
+	var maximum_pollution := int(choice.get("required_pollution_max", 100))
+	return pollution < minimum_pollution or pollution > maximum_pollution
+
+
+func _resolve_doll_choice_attempt() -> Dictionary:
+	var encounter: Dictionary = LanguageCorruptionContentScript.get_doll_encounter_by_id(conversation_actor_id)
+	var choice: Dictionary = _doll_choice_by_id(encounter, conversation_selected_choice_id)
+	var frame_id := str(choice.get("frame_id", ""))
+	var frame_label := str(choice.get("frame_label", "梗框"))
+	var reward := {
+		"kind": "doll_meme_frame",
+		"doll_id": conversation_actor_id,
+		"choice_id": conversation_selected_choice_id,
+		"frame_id": frame_id,
+		"frame_label": frame_label,
+		"awarded": false,
+		"duplicate": false,
+		"locked": false,
+		"feedback": "布偶没有松开手里的东西。",
+	}
+	if encounter.is_empty() or choice.is_empty() or frame_id.is_empty():
+		return reward
+	if is_doll_claimed(conversation_actor_id):
+		reward["duplicate"] = true
+		reward["feedback"] = str(encounter.get("repeat_line", "布偶已经把能留下的东西交给你了。"))
+		return reward
+	if _doll_choice_is_locked(choice):
+		reward["locked"] = true
+		reward["feedback"] = "那一段声音还没有变成你能拿住的形状。"
+		return reward
+
+	var result_record := {
+		"choice_id": conversation_selected_choice_id,
+		"frame_id": frame_id,
+		"frame_label": frame_label,
+		"day": day,
+		"floor": clampi(tower_floor, 1, 3),
+	}
+	claimed_doll_ids.append(conversation_actor_id)
+	doll_choice_results[conversation_actor_id] = result_record
+	owned_meme_frame_ids.append(frame_id)
+	owned_meme_frames = owned_meme_frame_ids.size()
+	reward["awarded"] = true
+	reward["feedback"] = "它把%s留在你手里。线头还温着。" % frame_label
+	event_log.push_front("你从缝线布偶那里留下了%s。" % frame_label)
+	return reward
 
 
 func get_typed_reality_spoken_sentence() -> String:
@@ -1136,61 +1266,6 @@ func _conversation_roll(channel: String, character_index: int, check_index: int)
 	return posmod(int(hash(key)), 100)
 
 
-func get_npc_meme_frame_reward_rules() -> Dictionary:
-	return {
-		"chance_percent": NPC_MEME_FRAME_REWARD_CHANCE_PERCENT,
-		"pity_enabled": false,
-		"pity_limit": 0,
-		"pity_progress": 0,
-		"successes_until_guarantee": 0,
-		"dedup_scope": "actor_per_day",
-	}
-
-
-func get_last_npc_meme_frame_reward() -> Dictionary:
-	return last_npc_meme_frame_reward.duplicate(true)
-
-
-func _npc_meme_frame_reward_roll(actor_id: String, reward_day: int = -1) -> int:
-	var resolved_day := day if reward_day < 0 else reward_day
-	return posmod(int(hash("npc-meme-frame|%d|%s" % [resolved_day, actor_id])), 100)
-
-
-func _resolve_npc_meme_frame_reward(actor_id: String) -> Dictionary:
-	var attempt_key := "%d|%s" % [day, actor_id]
-	var reward := {
-		"eligible": true,
-		"awarded": false,
-		"duplicate": false,
-		"guaranteed": false,
-		"actor_id": actor_id,
-		"day": day,
-		"chance_percent": NPC_MEME_FRAME_REWARD_CHANCE_PERCENT,
-		"roll": -1,
-		"pity_before": 0,
-		"pity_after": 0,
-		"reason": "none",
-	}
-	if attempt_key in npc_meme_frame_reward_attempt_keys:
-		reward["eligible"] = false
-		reward["duplicate"] = true
-		last_npc_meme_frame_reward = reward.duplicate(true)
-		return reward
-
-	npc_meme_frame_reward_attempt_keys.append(attempt_key)
-	var roll := _npc_meme_frame_reward_roll(actor_id, day)
-	var awarded := roll < NPC_MEME_FRAME_REWARD_CHANCE_PERCENT
-	reward["roll"] = roll
-	reward["awarded"] = awarded
-	npc_meme_frame_reward_pity = 0
-	if awarded:
-		owned_meme_frames += 1
-		reward["reason"] = "chance"
-		event_log.push_front("现实交流奖励：获得一个梗框（%s）。" % "概率命中")
-	last_npc_meme_frame_reward = reward.duplicate(true)
-	return reward
-
-
 func settle_day_if_needed() -> bool:
 	if not needs_day_settlement:
 		return false
@@ -1206,7 +1281,6 @@ func settle_day_if_needed() -> bool:
 	reality_sentence_slots.clear()
 	reset_reality_phase_for_day()
 	reset_typed_reality_conversation()
-	daily_meme_frame_bought = false
 	return true
 
 
@@ -1236,33 +1310,6 @@ func pick_token(post_id: String, token: Dictionary) -> bool:
 	return true
 
 
-func get_daily_meme_frame_offer() -> Dictionary:
-	var available := day == 1 or posmod(day - 1, MEME_FRAME_OFFER_INTERVAL) == 0
-	if not available:
-		return {}
-	return {
-		"id": "meme-frame-day-%d" % day,
-		"label": "梗框",
-		"price": MEME_FRAME_PRICE + maxi(0, tower_floor - 1) * 2,
-		"available": true,
-		"bought": daily_meme_frame_bought,
-	}
-
-
-func buy_daily_meme_frame() -> bool:
-	var offer := get_daily_meme_frame_offer()
-	if offer.is_empty() or daily_meme_frame_bought:
-		return false
-	var price := int(offer.get("price", MEME_FRAME_PRICE))
-	if money < price or not spend_action("buy-meme-frame"):
-		return false
-	money -= price
-	owned_meme_frames += 1
-	daily_meme_frame_bought = true
-	event_log.push_front("你买到一个梗框。它只能容纳一个字。")
-	return true
-
-
 func get_craft_slots() -> Array:
 	return [{"id": "glyph", "label": "梗框", "placeholder": "放入一个字", "required": true}]
 
@@ -1281,7 +1328,11 @@ func confirm_craft() -> bool:
 		return false
 	if not spend_action("craft-meme"):
 		return false
-	owned_meme_frames -= 1
+	if not owned_meme_frame_ids.is_empty():
+		owned_meme_frame_ids.pop_front()
+	owned_meme_frames = maxi(0, owned_meme_frames - 1)
+	if not owned_meme_frame_ids.is_empty():
+		owned_meme_frames = owned_meme_frame_ids.size()
 	var tags: Array = _unique(_find_token_tags(token_id))
 	var meme := {
 		"id": "meme-%d-%d" % [day, completed_memes.size() + 1],

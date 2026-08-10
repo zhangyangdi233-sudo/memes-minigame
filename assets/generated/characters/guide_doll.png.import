@@ -2,16 +2,16 @@
 
 importer="texture"
 type="CompressedTexture2D"
-uid="uid://da28uupvj0mdi"
-path="res://.godot/imported/current_dialogue_view.png-0897fb2e34f20674ac9316e0ff0f24a2.ctex"
+uid="uid://q6ikuuan85qo"
+path="res://.godot/imported/guide_doll.png-acef6d3e9011b72b0a1cea9907aa8723.ctex"
 metadata={
 "vram_texture": false
 }
 
 [deps]
 
-source_file="res://tools/current_dialogue_view.png"
-dest_files=["res://.godot/imported/current_dialogue_view.png-0897fb2e34f20674ac9316e0ff0f24a2.ctex"]
+source_file="res://assets/generated/characters/guide_doll.png"
+dest_files=["res://.godot/imported/guide_doll.png-acef6d3e9011b72b0a1cea9907aa8723.ctex"]
 
 [params]
 

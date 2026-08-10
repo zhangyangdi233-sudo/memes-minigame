@@ -29,16 +29,22 @@ func test_five_action_phone_day_creates_next_day_legacy_reality_prompt() -> void
 
 	_assert_true(game.pick_token("d1_a", {"id": "hajimi", "text": "哈吉米", "tags": ["哈吉米"], "rarity": 1}), "first action should pick one character from a phrase")
 	_assert_eq(game.notebook_tokens[0].get("text", ""), "哈", "picked fragments should be normalized to one character")
-	_assert_true(game.buy_daily_meme_frame(), "second action should buy the sparse daily meme frame")
+	_assert_true(game.start_typed_reality_conversation("doll_small_moon", "doll", "缝线布偶"), "second action should begin the physical doll discovery")
+	var doll_choice_id := str(game.get_typed_reality_choices()[0].get("id", ""))
+	_assert_true(game.select_typed_reality_choice(doll_choice_id), "the player should choose which frame meaning to keep")
+	while game.conversation_phase == "typing":
+		game.advance_typed_reality_character()
+	_assert_true(bool(game.conversation_reward.get("awarded", false)), "finishing the doll conversation should grant the run's first frame")
+	_assert_eq(game.owned_meme_frames, 1, "the doll-granted frame should be available to the notebook")
 	game.place_token_in_slot("glyph", "d1_a-hajimi-1")
-	_assert_true(game.confirm_craft(), "third action should put the character into the meme frame")
+	_assert_true(game.confirm_craft(), "third action should put the character into the doll-granted frame")
 	_assert_eq(game.completed_memes.size(), 1, "crafted meme should exist before publishing")
 	game.place_meme_in_blank("blank_1", str(game.completed_memes[0]["id"]))
 	_assert_true(game.confirm_dialogue(), "fourth action should publish the one-character meme")
 	_assert_true(game.pick_token("d1_b", {"id": "tower", "text": "塔下", "tags": ["巴别塔"], "rarity": 1}), "fifth action should pick another one-character fragment")
 	_assert_eq(game.actions_remaining, 0, "publishing should deplete all five daily actions")
 	_assert_true(game.needs_day_settlement, "fifth action should request automatic day settlement")
-	game.heat = 180
+	game.change_pollution(25 - game.pollution)
 	_assert_true(game.settle_day_if_needed(), "settlement should run after the fifth action")
 
 	_assert_eq(game.day, 2, "settlement should advance to day two")
@@ -46,11 +52,7 @@ func test_five_action_phone_day_creates_next_day_legacy_reality_prompt() -> void
 	_assert_eq(game.tower_floor, 2, "strong first-day post should raise the tower to floor two")
 	_assert_eq(game.legacy_rules.size(), 1, "ascent should convert previous floor hot meme into a legacy rule")
 	_assert_eq(str(game.legacy_rules[0]["required_text"]), "哈", "legacy rule should preserve the published one-character meme")
-	_assert_eq(game.get_pending_ascent_reward_choices().size(), 3, "reaching floor two should pause on a three-choice permanent reward")
-	_assert_true(not game.spend_action("blocked-before-reward"), "effective actions should wait until the ascent reward is chosen")
-	var reward_id := str(game.get_pending_ascent_reward_choices()[0].get("id", ""))
-	_assert_true(game.choose_ascent_reward(reward_id), "the playthrough should choose one ascent reward before continuing")
-	_assert_eq(game.actions_remaining, 5, "choosing the reward should not spend an action")
+	_assert_true(game.can_spend_action(), "the next floor should remain playable without a removed ascent-reward gate")
 
 	game.place_reality_tile("slot_0", "clean:我")
 	game.place_reality_tile("slot_1", "clean:想")
