@@ -20,46 +20,72 @@ func _run() -> void:
 	_assert_true(_state_script != null, "meme game state script should exist")
 	if _state_script == null:
 		return
-	test_five_action_phone_day_creates_next_day_legacy_reality_prompt()
+	test_five_action_phone_day_carries_published_words_into_doctor_dialogue()
 
 
-func test_five_action_phone_day_creates_next_day_legacy_reality_prompt() -> void:
+func test_five_action_phone_day_carries_published_words_into_doctor_dialogue() -> void:
 	var game: RefCounted = _state_script.new()
 	game.new_run()
 
-	_assert_true(game.pick_token("d1_a", {"id": "hajimi", "text": "哈吉米", "tags": ["哈吉米"], "rarity": 1}), "first action should pick one character from a phrase")
-	_assert_eq(game.notebook_tokens[0].get("text", ""), "哈", "picked fragments should be normalized to one character")
-	_assert_true(game.buy_daily_meme_frame(), "second action should buy the sparse daily meme frame")
-	game.place_token_in_slot("glyph", "d1_a-hajimi-1")
-	_assert_true(game.confirm_craft(), "third action should put the character into the meme frame")
-	_assert_eq(game.completed_memes.size(), 1, "crafted meme should exist before publishing")
+	_assert_true(game.pick_token("d1", _token("subject", "我", "speaker.self", "subject", "本账号", "患者")), "first action should pick a subject")
+	_assert_true(game.pick_token("d1", _token("action", "看见", "perceive.see", "action", "捕获", "报告")), "second action should pick an action")
+	_assert_true(game.pick_token("d1", _token("object", "塔", "place.tower", "object", "信号塔", "病区")), "third action should pick an object")
+	_assert_eq(game.pollution, 0, "collecting words alone should not increase pollution")
+	_assert_true(game.place_token_in_slot("subject", "d1-subject-1"), "subject should enter the sentence")
+	_assert_true(game.place_token_in_slot("action", "d1-action-1"), "action should enter the sentence")
+	_assert_true(game.place_token_in_slot("object", "d1-object-1"), "object should enter the sentence")
+	_assert_true(game.confirm_craft(), "fourth action should compose a complete phone sentence")
+	_assert_eq(str(game.completed_memes[0].get("clean_text", "")), "我看见塔。", "crafted data should preserve the player's clean sentence")
+	_assert_eq(str(game.completed_memes[0].get("text", "")), "本账号捕获信号塔。", "the phone world should display its authored wording")
 	game.place_meme_in_blank("blank_1", str(game.completed_memes[0]["id"]))
-	_assert_true(game.confirm_dialogue(), "fourth action should publish the one-character meme")
-	_assert_true(game.pick_token("d1_b", {"id": "tower", "text": "塔下", "tags": ["巴别塔"], "rarity": 1}), "fifth action should pick another one-character fragment")
-	_assert_eq(game.actions_remaining, 0, "publishing should deplete all five daily actions")
-	_assert_true(game.needs_day_settlement, "fifth action should request automatic day settlement")
-	game.heat = 180
-	_assert_true(game.settle_day_if_needed(), "settlement should run after the fifth action")
+	_assert_true(game.confirm_dialogue(), "fifth action should publish the complete sentence")
+	_assert_eq(game.actions_remaining, 0, "three pickups, one composition, and one publish should deplete the day")
+	_assert_true(game.needs_day_settlement, "the fifth effective action should request automatic day settlement")
+	for token: Dictionary in game.notebook_tokens:
+		_assert_true("phone" in token.get("used_worlds", []), "all three published words should become phone-world language")
+	game.change_pollution(25 - game.pollution)
+	_assert_true(game.settle_day_if_needed(), "settlement should run after the fifth effective action")
 
 	_assert_eq(game.day, 2, "settlement should advance to day two")
 	_assert_eq(game.actions_remaining, 5, "new day should restore five actions")
-	_assert_eq(game.tower_floor, 2, "strong first-day post should raise the tower to floor two")
-	_assert_eq(game.legacy_rules.size(), 1, "ascent should convert previous floor hot meme into a legacy rule")
-	_assert_eq(str(game.legacy_rules[0]["required_text"]), "哈", "legacy rule should preserve the published one-character meme")
-	_assert_eq(game.get_pending_ascent_reward_choices().size(), 3, "reaching floor two should pause on a three-choice permanent reward")
-	_assert_true(not game.spend_action("blocked-before-reward"), "effective actions should wait until the ascent reward is chosen")
-	var reward_id := str(game.get_pending_ascent_reward_choices()[0].get("id", ""))
-	_assert_true(game.choose_ascent_reward(reward_id), "the playthrough should choose one ascent reward before continuing")
-	_assert_eq(game.actions_remaining, 5, "choosing the reward should not spend an action")
+	_assert_eq(game.tower_floor, 2, "the 25 percent boundary should advance to level two")
+	_assert_true(not game.has_method("get_required_legacy_tiles"), "the next level should not impose an inherited phrase")
 
-	game.place_reality_tile("slot_0", "clean:我")
-	game.place_reality_tile("slot_1", "clean:想")
-	_assert_true(not game.confirm_reality_dialogue(), "reality dialogue should reject a sentence missing the legacy tile")
-	_assert_eq(game.actions_remaining, 5, "failed reality sentence should not spend an action")
-	game.place_reality_tile("slot_2", "legacy:%s" % game.legacy_rules[0]["id"])
-	_assert_true(game.confirm_reality_dialogue(), "reality dialogue should accept a sentence containing the legacy tile")
-	_assert_eq(game.actions_remaining, 4, "confirmed reality dialogue should spend one action")
-	_assert_true(game.last_clean_sentence.contains(str(game.legacy_rules[0]["required_text"])), "accepted clean sentence should include legacy text")
+	_assert_true(game.start_typed_reality_conversation("doctor_floor2", "doctor", "医生"), "the level-two doctor should accept a sentence")
+	_assert_eq(game.get_language_token_options("doctor").size(), 3, "only the three published words should be available in the doctor world")
+	_assert_true(game.place_language_token("subject", "d1-subject-1", "doctor"), "published subject should cross worlds")
+	_assert_true(game.place_language_token("action", "d1-action-1", "doctor"), "published action should cross worlds")
+	_assert_true(game.place_language_token("object", "d1-object-1", "doctor"), "published object should cross worlds")
+	var doctor_preview: Dictionary = game.get_language_sentence_preview("doctor")
+	_assert_eq(str(doctor_preview.get("world_sentence", "")), "患者报告病区。", "the same lexemes should become an authored doctor sentence")
+	var money_before: int = game.money
+	var pollution_before: int = game.pollution
+	_assert_true(game.confirm_doctor_sentence(), "doctor sentence should resolve without any legacy tile")
+	_assert_eq(game.actions_remaining, 4, "doctor confirmation should spend one action")
+	_assert_eq(game.money, money_before, "doctor dialogue should not change money")
+	_assert_true(game.pollution > pollution_before, "cross-world reuse should increase pollution")
+	_assert_eq(str(game.sentence_records[0].get("clean_sentence", "")), "我看见塔。", "the sentence record should preserve what the player originally assembled")
+
+
+func _token(
+	token_id: String,
+	text: String,
+	lexeme_id: String,
+	role: String,
+	phone_surface: String,
+	doctor_surface: String
+) -> Dictionary:
+	return {
+		"id": token_id,
+		"text": text,
+		"lexeme_id": lexeme_id,
+		"grammar_roles": [role],
+		"phone_surface": phone_surface,
+		"doctor_surface": doctor_surface,
+		"doll_surface": text,
+		"tags": ["test"],
+		"rarity": 1,
+	}
 
 
 func _assert_true(value: bool, message: String) -> void:

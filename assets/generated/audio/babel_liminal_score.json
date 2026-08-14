@@ -1,0 +1,347 @@
+{
+  "format_version": 2,
+  "title": "Babel Liminal Score",
+  "authoring": "Project-original deterministic synthesis; no samples, recordings, or extracted melodies",
+  "license": "Project-owned original asset",
+  "seed": 80199611,
+  "bpm": 80,
+  "bars": 32,
+  "duration_seconds": 96.0,
+  "loop_begin": 0,
+  "loop_end": 2116800,
+  "creative_direction": {
+    "reference_scope": "High-level mood and production traits only",
+    "traits": [
+      "hazy",
+      "empty",
+      "dreamlike",
+      "lost",
+      "uncanny",
+      "cold"
+    ]
+  },
+  "originality": {
+    "motif_origin": "Composed for this project from the interval and rhythm values declared in the generator",
+    "melody_transcribed": false,
+    "samples_used": false,
+    "recordings_used": false,
+    "third_party_audio_used": false,
+    "synthesis": "Mathematical oscillators, deterministic envelopes, FM, and seeded periodic noise"
+  },
+  "composition": {
+    "motif": {
+      "name": "cold_window_five",
+      "root_midi": 64,
+      "intervals_semitones": [
+        0,
+        3,
+        7,
+        2,
+        5
+      ],
+      "onsets_beats": [
+        0.0,
+        1.5,
+        2.25,
+        4.0,
+        6.5
+      ],
+      "durations_beats": [
+        1.1,
+        0.5,
+        1.25,
+        1.8,
+        1.0
+      ],
+      "reality_phrase_bars": [
+        1,
+        9,
+        17,
+        25
+      ],
+      "reality_variants": [
+        [
+          0,
+          3,
+          7,
+          2,
+          5
+        ],
+        [
+          0,
+          3,
+          7,
+          2,
+          4
+        ],
+        [
+          0,
+          3,
+          8,
+          2,
+          5
+        ],
+        [
+          0,
+          3,
+          7,
+          2,
+          5
+        ]
+      ]
+    },
+    "harmony": {
+      "field_bars": 4,
+      "fields": [
+        "E5(add9)",
+        "Cmaj7/E",
+        "G6",
+        "Dsus2(b6)",
+        "Em7(no3)",
+        "Am(add9)",
+        "Cmaj7(#11)",
+        "B7sus4(b5)"
+      ],
+      "variation_plan": [
+        "single-line statement",
+        "lower-fifth shadow ending",
+        "raised-apex upper-third bloom",
+        "octave-memory return"
+      ]
+    },
+    "transformations": {
+      "reality": {
+        "intervals_semitones": [
+          0,
+          3,
+          7,
+          2,
+          5
+        ],
+        "method": "slow glass-tone statements with changing harmony voices",
+        "time_scale": 1.0
+      },
+      "phone": {
+        "intervals_semitones": [
+          0,
+          3,
+          -5,
+          2,
+          5
+        ],
+        "method": "octave-folded quarter-time FM packet fragmentation",
+        "time_scale": 0.25
+      },
+      "pollution": {
+        "intervals_semitones": [
+          0,
+          -3,
+          -7,
+          -2,
+          -5
+        ],
+        "method": "interval inversion, lower-register displacement, and half-bar offset",
+        "time_scale": 0.65
+      }
+    }
+  },
+  "adaptive_mix": {
+    "phase_aligned": true,
+    "independent_stems": true,
+    "shared_start_frame": 0,
+    "shared_end_frame": 2116800,
+    "master_peak_dbfs": -3.0,
+    "verified_scenario_peak_dbfs": {
+      "phone_default": -10.508,
+      "reality_default": -12.971,
+      "reality_intimate": -10.0,
+      "phone_max_pollution": -4.62,
+      "reality_max_pollution": -5.609,
+      "intimate_max_pollution": -4.974
+    }
+  },
+  "stems": {
+    "reality": {
+      "file": "babel_reality_liminal.wav",
+      "sha256": "39b5bc85c5c62c77af894ce471ff29d5602ab956e48b21064f364d55b6e8071a",
+      "frames": 2116800,
+      "sample_rate": 22050,
+      "channels": 2,
+      "seam_delta_pcm": 621,
+      "seam_reference_pcm": 1650,
+      "seam_delta_ratio": 0.376,
+      "peak_dbfs": -3.0,
+      "rms_dbfs": -16.251
+    },
+    "phone": {
+      "file": "babel_phone_signal.wav",
+      "sha256": "be1e497be9cc9131ae1e261c3494e2fcf310e01393c2dfdf3a81b07851c87de3",
+      "frames": 2116800,
+      "sample_rate": 22050,
+      "channels": 2,
+      "seam_delta_pcm": 433,
+      "seam_reference_pcm": 12949,
+      "seam_delta_ratio": 0.033,
+      "peak_dbfs": -3.0,
+      "rms_dbfs": -22.515
+    },
+    "pollution": {
+      "file": "babel_pollution_rot.wav",
+      "sha256": "fdbc86759e9173c7b16e595c9326a9e9bfef676fac6cbc4c63fc2556cccb6b42",
+      "frames": 2116800,
+      "sample_rate": 22050,
+      "channels": 2,
+      "seam_delta_pcm": 245,
+      "seam_reference_pcm": 3506,
+      "seam_delta_ratio": 0.07,
+      "peak_dbfs": -3.0,
+      "rms_dbfs": -20.567
+    }
+  },
+  "phone_floors": {
+    "contract_version": 1,
+    "shared_start_frame": 0,
+    "shared_end_frame": 2116800,
+    "duration_seconds": 96.0,
+    "sample_rate": 22050,
+    "channels": 2,
+    "originality": {
+      "project_original_audio_only": true,
+      "commercial_game_music_used": false,
+      "samples_used": false,
+      "recordings_used": false,
+      "generated_method": "Mathematical oscillators, deterministic envelopes, FM, and seeded periodic noise"
+    },
+    "preservation": {
+      "reality_sha256": "39b5bc85c5c62c77af894ce471ff29d5602ab956e48b21064f364d55b6e8071a",
+      "floor_1_git_blob": "f671f7d3fc892e4d216a6f4bb95fd63a1da43127",
+      "floor_1_sha256": "e361ea4b487e2ea0ef15a8d970a245429cdbf7fb9cb7fad69192cf6a7b04f698",
+      "floor_2_sha256": "be1e497be9cc9131ae1e261c3494e2fcf310e01393c2dfdf3a81b07851c87de3"
+    },
+    "distinctness": {
+      "metric": "absolute full-loop stereo Pearson correlation",
+      "maximum_allowed": 0.45,
+      "maximum_measured": 0.142407,
+      "pairwise_abs_correlations": {
+        "floor_1__floor_2": 0.142407,
+        "floor_1__floor_3": 0.000114,
+        "floor_1__floor_4": 0.000399,
+        "floor_1__floor_5": 0.0,
+        "floor_2__floor_3": 3.9e-05,
+        "floor_2__floor_4": 0.000352,
+        "floor_2__floor_5": 1e-06,
+        "floor_3__floor_4": 0.002466,
+        "floor_3__floor_5": 1.5e-05,
+        "floor_4__floor_5": 0.004896
+      }
+    },
+    "layers": {
+      "floor_1": {
+        "floor": 1,
+        "title": "Recovered Carrier",
+        "source": "project_git_history",
+        "design": "The earlier project-original phone carrier restored byte-for-byte from its Git blob",
+        "palette": [
+          "narrowband carrier",
+          "packet chimes",
+          "cold static"
+        ],
+        "file": "babel_phone_signal_floor_1.wav",
+        "sha256": "e361ea4b487e2ea0ef15a8d970a245429cdbf7fb9cb7fad69192cf6a7b04f698",
+        "frames": 2116800,
+        "sample_rate": 22050,
+        "channels": 2,
+        "seam_delta_pcm": 411,
+        "seam_reference_pcm": 8253,
+        "seam_delta_ratio": 0.05,
+        "peak_dbfs": -3.0,
+        "rms_dbfs": -21.184,
+        "git_blob": "f671f7d3fc892e4d216a6f4bb95fd63a1da43127"
+      },
+      "floor_2": {
+        "floor": 2,
+        "title": "Cold Window Signal",
+        "source": "preserved_project_asset",
+        "design": "The existing active phone signal retained byte-for-byte as the second floor",
+        "palette": [
+          "FM packet fragments",
+          "soft clock",
+          "wideband signal dust"
+        ],
+        "file": "babel_phone_signal.wav",
+        "sha256": "be1e497be9cc9131ae1e261c3494e2fcf310e01393c2dfdf3a81b07851c87de3",
+        "frames": 2116800,
+        "sample_rate": 22050,
+        "channels": 2,
+        "seam_delta_pcm": 433,
+        "seam_reference_pcm": 12949,
+        "seam_delta_ratio": 0.033,
+        "peak_dbfs": -3.0,
+        "rms_dbfs": -22.515
+      },
+      "floor_3": {
+        "floor": 3,
+        "title": "Abandoned Switchboard",
+        "source": "deterministic_synthesis",
+        "design": "Beatless low-frequency exchange hum with sparse descending hollow tolls",
+        "palette": [
+          "substation drone",
+          "descending tolls",
+          "electromagnetic fog"
+        ],
+        "file": "babel_phone_signal_floor_3.wav",
+        "sha256": "658dc19d12850fd94fd5c150a77f741d2a07b0b28f153b8b1889e0354bc31d3f",
+        "frames": 2116800,
+        "sample_rate": 22050,
+        "channels": 2,
+        "seam_delta_pcm": 163,
+        "seam_reference_pcm": 1061,
+        "seam_delta_ratio": 0.154,
+        "peak_dbfs": -4.001,
+        "rms_dbfs": -17.717
+      },
+      "floor_4": {
+        "floor": 4,
+        "title": "Relay Service Level",
+        "source": "deterministic_synthesis",
+        "design": "Five-step industrial relay motion with dry impacts and inharmonic metal decay",
+        "palette": [
+          "five-step relay",
+          "motor pulse",
+          "metallic service alarm"
+        ],
+        "file": "babel_phone_signal_floor_4.wav",
+        "sha256": "73e0374907d6e9fbe10fbb4be951d9415ab2b210883664e0e0d81263b5f2b011",
+        "frames": 2116800,
+        "sample_rate": 22050,
+        "channels": 2,
+        "seam_delta_pcm": 562,
+        "seam_reference_pcm": 3298,
+        "seam_delta_ratio": 0.17,
+        "peak_dbfs": -4.001,
+        "rms_dbfs": -24.034
+      },
+      "floor_5": {
+        "floor": 5,
+        "title": "The Unanswered Choir",
+        "source": "deterministic_synthesis",
+        "design": "Slow synthetic formant clusters, reverse-breath swells, and a distant subharmonic void",
+        "palette": [
+          "synthetic formants",
+          "reverse breath",
+          "subharmonic void"
+        ],
+        "file": "babel_phone_signal_floor_5.wav",
+        "sha256": "0d79332034563d58489b248688988712a977bb0f7088a929864fe1bbeb30138f",
+        "frames": 2116800,
+        "sample_rate": 22050,
+        "channels": 2,
+        "seam_delta_pcm": 380,
+        "seam_reference_pcm": 2565,
+        "seam_delta_ratio": 0.148,
+        "peak_dbfs": -4.001,
+        "rms_dbfs": -15.827
+      }
+    }
+  }
+}

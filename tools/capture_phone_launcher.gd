@@ -20,6 +20,7 @@ func _capture() -> void:
 		return
 	var main := scene.instantiate()
 	root.add_child(main)
+	main._locale.set_locale("zh")
 	main.new_game()
 	main._skip_prologue()
 	main._close_app_window("social")

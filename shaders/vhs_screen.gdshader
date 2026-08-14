@@ -29,9 +29,10 @@ void fragment() {
 	uv.x += (row_noise - 0.5) * burst * (0.012 + pollution * 0.01);
 	uv = clamp(uv, vec2(0.001), vec2(0.999));
 
+	vec3 center_color = texture(screen_texture, uv).rgb;
 	float chroma = (0.0008 + pollution * 0.0015) * intensity;
 	float red = texture(screen_texture, clamp(uv + vec2(chroma, 0.0), vec2(0.001), vec2(0.999))).r;
-	float green = texture(screen_texture, uv).g;
+	float green = center_color.g;
 	float blue = texture(screen_texture, clamp(uv - vec2(chroma, 0.0), vec2(0.001), vec2(0.999))).b;
 	vec3 color = vec3(red, green, blue);
 
@@ -46,6 +47,8 @@ void fragment() {
 	color += snow * (0.035 + pollution * 0.045) * intensity;
 	color += dropout * 0.13 * intensity;
 	color = mix(color, color * phosphor_tint, 0.16 + pollution * 0.18);
+	float black_ink_guard = 1.0 - smoothstep(0.018, 0.09, max(center_color.r, max(center_color.g, center_color.b)));
+	color = mix(color, center_color, black_ink_guard);
 
 	vec2 centered = uv * 2.0 - 1.0;
 	float vignette = 1.0 - dot(centered * vec2(0.30, 0.22), centered);

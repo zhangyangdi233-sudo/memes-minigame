@@ -1,10 +1,15 @@
 extends Node3D
 
 const MemeGameStateScript = preload("res://scripts/meme_game_state.gd")
+const GameLocaleScript = preload("res://scripts/localization/game_locale.gd")
+const LanguageCorruptionContentScript = preload("res://scripts/narrative/language_corruption_content.gd")
 const DraggableButtonScript = preload("res://scripts/ui/draggable_button.gd")
 const DropButtonScript = preload("res://scripts/ui/drop_button.gd")
+const RadialMemeRingScript = preload("res://scripts/ui/radial_meme_ring.gd")
 const RealityFloorGeneratorScript = preload("res://scripts/reality_floor_generator.gd")
 const RicherTextLabelScript = preload("res://addons/richtext2/richer_text_label.gd")
+const HandTrackingReceiverScript = preload("res://scripts/integrations/hand_tracking_receiver.gd")
+const HandXRayOverlayScript = preload("res://scripts/ui/hand_xray_overlay.gd")
 
 const PALETTE_1 := {
 	"name": "palette_1",
@@ -30,138 +35,179 @@ const POLLUTION_PALETTE_5 := {
 }
 
 const PHONE_DOWN_BACKDROP_PATH := "res://assets/generated/world/phone_down_backdrop.png"
-const NPC_SIGNAL_PORTRAIT_PATH := "res://assets/generated/world/npc_signal_portrait.png"
+const PLAYER_CHARACTER_PATH := "res://assets/generated/characters/protagonist_operator.png"
+const GUIDE_DOLL_CHARACTER_PATH := "res://assets/generated/characters/guide_doll.png"
+const NPC_CHARACTER_PATHS := [
+	"res://assets/generated/characters/npc_late_arrival.png",
+	"res://assets/generated/characters/npc_echo_tenant.png",
+	"res://assets/generated/characters/npc_archive_witness.png",
+]
 const NO_SIGNAL_ICON_PATH := "res://assets/generated/ui/no_signal_icon.png"
-const HUD_DAY_ICON_PATH := "res://assets/generated/ui/hud_day_icon.png"
 const HUD_POLLUTION_ICON_PATH := "res://assets/generated/ui/hud_pollution_icon.png"
 const HUD_MONEY_ICON_PATH := "res://assets/generated/ui/hud_money_icon.png"
 const HUD_SETTINGS_ICON_PATH := "res://assets/generated/ui/hud_settings_icon.png"
 const PHONE_LAUNCHER_WALLPAPER_PATH := "res://assets/generated/1/IMG_4835.PNG"
 const SOCIAL_POSTER_SHEET_PATH := "res://assets/generated/social/poster_sheet.png"
-const PHONE_AMBIENCE_PATH := "res://assets/generated/audio/phone_road_loop.wav"
-const REALITY_AMBIENCE_PATH := "res://assets/generated/audio/reality_room_loop.wav"
+const PHONE_AMBIENCE_PATHS := {
+	1: "res://assets/generated/audio/babel_phone_signal_floor_1.wav",
+	2: "res://assets/generated/audio/babel_phone_signal.wav",
+	3: "res://assets/generated/audio/babel_phone_signal_floor_3.wav",
+	4: "res://assets/generated/audio/babel_phone_signal_floor_4.wav",
+}
+const REALITY_AMBIENCE_PATH := "res://assets/generated/audio/babel_reality_liminal.wav"
+const POLLUTION_AMBIENCE_PATH := "res://assets/generated/audio/babel_pollution_rot.wav"
 const FLASHBACK_AUDIO_PATH := "res://assets/generated/audio/pollution_flashback.wav"
 const ACTION_TICK_AUDIO_PATH := "res://assets/generated/audio/action_tick.wav"
+const COVER_WATCHER_STINGER_PATH := "res://assets/generated/audio/cover_watcher_stinger.wav"
 const SOCIAL_POSTER_COLUMNS := 4
 const SOCIAL_POSTER_ROWS := 3
 const SOCIAL_POSTER_COUNT := SOCIAL_POSTER_COLUMNS * SOCIAL_POSTER_ROWS
 const SOCIAL_FEED_WHEEL_STEP := 2
+const SOCIAL_FEED_POSTER_HEIGHTS := [
+	214.0, 176.0, 238.0, 194.0,
+	226.0, 184.0, 218.0, 202.0,
+	244.0, 188.0, 232.0, 180.0,
+]
+const SOCIAL_FEED_CAPTION_HEIGHT := 62.0
+const SOCIAL_FEED_CARD_CHROME_HEIGHT := 130.0
 const REALITY_MOVE_SPEED := 3.3
+const REALITY_SPRINT_MULTIPLIER := 1.85
 const REALITY_ACCELERATION := 14.0
-const REALITY_MOUSE_SENSITIVITY := 0.085
-const REALITY_TOUCH_SENSITIVITY := 0.11
+const REALITY_MOUSE_SENSITIVITY := 0.064
+const REALITY_TOUCH_SENSITIVITY := 0.082
+const REALITY_TRACKPAD_SENSITIVITY := 1.8
 const REALITY_INTERACTION_DISTANCE := 2.25
 const REALITY_FALL_RECOVERY_Y := -3.0
 const REALITY_SAFE_INSET := 1.2
 const CINEMATIC_ASPECT_RATIO := 2.35
 const CINEMATIC_MAX_BAR_RATIO := 0.12
+const HUD_RAIL_WIDTH := 158.0
+const HUD_RAIL_MAX_HEIGHT := 700.0
+const HUD_RAIL_FRAME_MARGIN := 10.0
+const HUD_DRAWER_EDGE_HIT_WIDTH := 44.0
+const HUD_DRAWER_EDGE_CUE_WIDTH := 5.0
+const HUD_DRAWER_OPEN_DURATION := 0.26
+const HUD_DRAWER_CLOSE_DURATION := 0.18
+const HUD_DRAWER_CLOSE_DELAY := 0.22
+const MEME_BANK_MOTION_TRANSITION := Tween.TRANS_QUINT
+const MEME_BANK_MOTION_EASE := Tween.EASE_OUT
+const MEME_BANK_SCALE_DURATION := 0.28
+const MEME_BANK_ALPHA_DURATION := 0.22
+const SAVE_PATH := "user://babel_meme_save.dat"
+const SAVE_FILE_VERSION := 1
+const SOCIAL_CHANNELS := [
+	{"id": "following", "label": "关注流"},
+	{"id": "discover", "label": "发现"},
+	{"id": "tower_base", "label": "塔下"},
+	{"id": "nearby", "label": "附近"},
+]
 const SOCIAL_POST_CARDS := [
 	{
 		"id": "floor_13", "poster_cell": 0, "caption": "旧教学楼昨晚多出一层", "handle": "塔下施工档案",
-		"text": "实拍：封闭的教学楼昨晚多出一层，末班电梯停在那里。", "tags": ["巴别塔", "空位"], "rarity": 2, "passive": {"id": "floor_draft", "label": "空层底稿", "description": "传播基础 +4", "effect": "base_bonus", "value": 4.0},
+		"text": "实拍：封闭的教学楼昨晚多出一层，末班电梯停在那里。", "tags": ["巴别塔", "空位"], "rarity": 2,
 		"tokens": [
-			{"id": "floor", "text": "不存在的十三层", "tags": ["巴别塔", "空位"], "rarity": 2},
-			{"id": "last_lift", "text": "末班电梯", "tags": ["日常", "巴别塔"], "rarity": 1},
-			{"id": "still_building", "text": "还在施工", "tags": ["刷新", "追问"], "rarity": 2},
+			{"id": "floor", "text": "不存在的十三层", "lexeme_id": "place.unlisted_floor", "grammar_roles": ["object"], "phone_surface": "隐藏楼层", "doctor_surface": "未登记空间", "doll_surface": "不许去的楼上", "tags": ["巴别塔", "空位"], "rarity": 2},
+			{"id": "last_lift", "text": "末班电梯", "lexeme_id": "subject.last_lift", "grammar_roles": ["subject"], "phone_surface": "末班电梯账号", "doctor_surface": "反复梦见电梯的患者", "doll_surface": "回家的电梯", "tags": ["日常", "巴别塔"], "rarity": 1},
+			{"id": "still_building", "text": "停在", "lexeme_id": "action.stop_at", "grammar_roles": ["action"], "phone_surface": "定位到", "doctor_surface": "持续停留于", "doll_surface": "等在", "tags": ["刷新", "追问"], "rarity": 2},
 		],
 	},
 	{
 		"id": "self_call", "poster_cell": 1, "caption": "无信号时收到明天短信", "handle": "无信号通勤",
-		"text": "求证：断网后，我收到明天的自己发来的哈吉米。", "tags": ["哈吉米", "刷新", "追问"], "rarity": 3, "passive": {"id": "callback_resonance", "label": "回拨共鸣", "description": "命中风向时传播基础 +10", "effect": "trend_base", "value": 10},
+		"text": "求证：断网后，我收到明天的自己发来的哈吉米。", "tags": ["哈吉米", "刷新", "追问"], "rarity": 3,
 		"tokens": [
-			{"id": "no_signal", "text": "无信号", "tags": ["沉默", "空位"], "rarity": 1},
-			{"id": "self_call", "text": "自己发来的", "tags": ["追问", "反问"], "rarity": 2},
-			{"id": "hajimi", "text": "哈吉米", "tags": ["哈吉米", "刷新"], "rarity": 2},
+			{"id": "no_signal", "text": "无信号的短信", "lexeme_id": "object.no_signal_message", "grammar_roles": ["object"], "phone_surface": "离线消息", "doctor_surface": "无来源记录", "doll_surface": "没有声音的纸条", "tags": ["沉默", "空位"], "rarity": 1},
+			{"id": "self_call", "text": "明天的我", "lexeme_id": "subject.future_self", "grammar_roles": ["subject"], "phone_surface": "未来账号", "doctor_surface": "预期自我", "doll_surface": "明天醒来的你", "tags": ["追问", "反问"], "rarity": 2},
+			{"id": "hajimi", "text": "发来", "lexeme_id": "action.send", "grammar_roles": ["action"], "phone_surface": "推送", "doctor_surface": "投射出", "doll_surface": "塞给我", "tags": ["哈吉米", "刷新"], "rarity": 2},
 		],
 	},
 	{
 		"id": "missing_window", "poster_cell": 2, "caption": "塔下每晚少一个窗口", "handle": "塔下夜巡",
-		"text": "记录：塔下每到午夜，就少一扇亮着的窗。", "tags": ["巴别塔", "沉默"], "rarity": 2, "passive": {"id": "blackout_dividend", "label": "熄灯增益", "description": "污染达到 40% 时基础 +8", "effect": "pollution_base", "value": 8},
+		"text": "记录：塔下每到午夜，就少一扇亮着的窗。", "tags": ["巴别塔", "沉默"], "rarity": 2,
 		"tokens": [
-			{"id": "midnight", "text": "每到午夜", "tags": ["日常", "刷新"], "rarity": 1},
-			{"id": "one_less", "text": "少一扇窗", "tags": ["沉默", "空位"], "rarity": 2},
-			{"id": "under_tower", "text": "塔下", "tags": ["巴别塔", "信徒"], "rarity": 1},
+			{"id": "midnight", "text": "一扇亮窗", "lexeme_id": "subject.lit_window", "grammar_roles": ["subject"], "phone_surface": "在线窗口", "doctor_surface": "视觉对象", "doll_surface": "会眨眼的窗", "tags": ["日常", "刷新"], "rarity": 1},
+			{"id": "one_less", "text": "消失在", "lexeme_id": "action.disappear_at", "grammar_roles": ["action"], "phone_surface": "下线于", "doctor_surface": "从知觉中脱落于", "doll_surface": "躲进", "tags": ["沉默", "空位"], "rarity": 2},
+			{"id": "under_tower", "text": "塔下", "lexeme_id": "place.tower_base", "grammar_roles": ["object"], "phone_surface": "塔下频道", "doctor_surface": "固定场景", "doll_surface": "我们楼下", "tags": ["巴别塔", "信徒"], "rarity": 1},
 		],
 	},
 	{
 		"id": "extra_moon", "poster_cell": 3, "caption": "照片里月亮多了一颗", "handle": "夜空误差簿",
-		"text": "对照：昨晚的照片里，月亮比现实多一颗。", "tags": ["信徒", "圣歌", "追问"], "rarity": 2, "passive": {"id": "moon_buffer", "label": "月相缓冲", "description": "忽略 1 次复读扣减", "effect": "repeat_grace", "value": 1},
+		"text": "对照：昨晚的照片里，月亮比现实多一颗。", "tags": ["信徒", "圣歌", "追问"], "rarity": 2,
 		"tokens": [
-			{"id": "extra_moon", "text": "多一颗月亮", "tags": ["圣歌", "信徒"], "rarity": 2},
-			{"id": "than_reality", "text": "比现实更多", "tags": ["追问", "反问"], "rarity": 2},
-			{"id": "last_night", "text": "昨晚的照片", "tags": ["日常"], "rarity": 1},
+			{"id": "extra_moon", "text": "一颗月亮", "lexeme_id": "object.extra_moon", "grammar_roles": ["object"], "phone_surface": "第二个月亮", "doctor_surface": "重复圆形", "doll_surface": "小月亮", "tags": ["圣歌", "信徒"], "rarity": 2},
+			{"id": "than_reality", "text": "多出", "lexeme_id": "action.appear_extra", "grammar_roles": ["action"], "phone_surface": "自动生成", "doctor_surface": "发生复视", "doll_surface": "偷偷长出", "tags": ["追问", "反问"], "rarity": 2},
+			{"id": "last_night", "text": "昨晚的照片", "lexeme_id": "subject.last_night_photo", "grammar_roles": ["subject"], "phone_surface": "昨夜影像", "doctor_surface": "患者图像记录", "doll_surface": "你藏起来的照片", "tags": ["日常"], "rarity": 1},
 		],
 	},
 	{
 		"id": "last_bus", "poster_cell": 4, "caption": "最后一班车没有终点", "handle": "末班路线图",
-		"text": "旧帖：最后一班车从来没有终点站。", "tags": ["日常", "空位"], "rarity": 2, "passive": {"id": "last_bus_draft", "label": "末班底稿", "description": "传播基础 +5", "effect": "base_bonus", "value": 5.0},
+		"text": "旧帖：最后一班车从来没有终点站。", "tags": ["日常", "空位"], "rarity": 2,
 		"tokens": [
-			{"id": "last_bus", "text": "最后一班车", "tags": ["日常"], "rarity": 1},
-			{"id": "no_terminal", "text": "没有终点", "tags": ["空位", "沉默"], "rarity": 2},
-			{"id": "old_post", "text": "旧帖", "tags": ["刷新", "哈吉米"], "rarity": 1},
+			{"id": "last_bus", "text": "最后一班车", "lexeme_id": "subject.last_bus", "grammar_roles": ["subject"], "phone_surface": "末班路线", "doctor_surface": "反复交通意象", "doll_surface": "接我们回家的车", "tags": ["日常"], "rarity": 1},
+			{"id": "no_terminal", "text": "没有抵达", "lexeme_id": "action.not_arrive", "grammar_roles": ["action"], "phone_surface": "未刷新到", "doctor_surface": "无法到达", "doll_surface": "忘了停在", "tags": ["空位", "沉默"], "rarity": 2},
+			{"id": "old_post", "text": "终点", "lexeme_id": "object.terminal", "grammar_roles": ["object"], "phone_surface": "最终页面", "doctor_surface": "结束条件", "doll_surface": "家的门口", "tags": ["刷新", "哈吉米"], "rarity": 1},
 		],
 	},
 	{
 		"id": "blackout_broadcast", "poster_cell": 5, "caption": "停电后广播喊了我名字", "handle": "废站收音机",
-		"text": "录音：停电以后，废站广播准时报站，然后叫了我的名字。", "tags": ["圣歌", "刷新", "沉默"], "rarity": 3, "passive": {"id": "broadcast_resonance", "label": "广播共鸣", "description": "命中风向时传播基础 +8", "effect": "trend_base", "value": 8},
+		"text": "录音：停电以后，废站广播准时报站，然后叫了我的名字。", "tags": ["圣歌", "刷新", "沉默"], "rarity": 3,
 		"tokens": [
-			{"id": "blackout", "text": "停电以后", "tags": ["沉默", "空位"], "rarity": 1},
-			{"id": "broadcast", "text": "广播喊我名字", "tags": ["圣歌", "刷新"], "rarity": 2},
-			{"id": "dead_station", "text": "废站", "tags": ["巴别塔", "日常"], "rarity": 2},
+			{"id": "blackout", "text": "废站广播", "lexeme_id": "subject.dead_station_radio", "grammar_roles": ["subject"], "phone_surface": "离线广播", "doctor_surface": "听觉内容", "doll_surface": "墙里的喇叭", "tags": ["沉默", "空位"], "rarity": 1},
+			{"id": "broadcast", "text": "喊出", "lexeme_id": "action.call_out", "grammar_roles": ["action"], "phone_surface": "公开了", "doctor_surface": "重复呼唤", "doll_surface": "学会了", "tags": ["圣歌", "刷新"], "rarity": 2},
+			{"id": "dead_station", "text": "我的名字", "lexeme_id": "object.my_name", "grammar_roles": ["object"], "phone_surface": "用户实名", "doctor_surface": "自我称呼", "doll_surface": "我给你的名字", "tags": ["巴别塔", "日常"], "rarity": 2},
 		],
 	},
 	{
 		"id": "station_lit", "poster_cell": 6, "caption": "废站台昨晚重新亮灯", "handle": "封站观察员",
-		"text": "目击：封了十年的站台，昨晚重新亮灯。", "tags": ["巴别塔", "刷新"], "rarity": 2, "passive": {"id": "restart_dividend", "label": "重启增益", "description": "污染达到 40% 时基础 +10", "effect": "pollution_base", "value": 10},
+		"text": "目击：封了十年的站台，昨晚重新亮灯。", "tags": ["巴别塔", "刷新"], "rarity": 2,
 		"tokens": [
-			{"id": "ten_years", "text": "封了十年", "tags": ["禁问", "沉默"], "rarity": 2},
-			{"id": "lit_again", "text": "重新亮灯", "tags": ["刷新", "巴别塔"], "rarity": 2},
-			{"id": "platform", "text": "站台", "tags": ["日常", "空位"], "rarity": 1},
+			{"id": "ten_years", "text": "封闭站台", "lexeme_id": "subject.closed_platform", "grammar_roles": ["subject"], "phone_surface": "停用站点", "doctor_surface": "封闭场景", "doll_surface": "没人等车的地方", "tags": ["禁问", "沉默"], "rarity": 2},
+			{"id": "lit_again", "text": "重新亮起", "lexeme_id": "action.light_again", "grammar_roles": ["action"], "phone_surface": "恢复在线", "doctor_surface": "再次显现", "doll_surface": "又睁开", "tags": ["刷新", "巴别塔"], "rarity": 2},
+			{"id": "platform", "text": "十年前的灯", "lexeme_id": "object.old_light", "grammar_roles": ["object"], "phone_surface": "过期指示灯", "doctor_surface": "陈旧光源记忆", "doll_surface": "你忘掉的小灯", "tags": ["日常", "空位"], "rarity": 1},
 		],
 	},
 	{
 		"id": "no_shadow", "poster_cell": 7, "caption": "便利店店员没有影子", "handle": "凌晨便利店",
-		"text": "路过：店整夜开着，店员却没有影子。", "tags": ["日常", "沉默", "追问"], "rarity": 2, "passive": {"id": "shadow_buffer", "label": "无影缓冲", "description": "忽略 1 次复读扣减", "effect": "repeat_grace", "value": 1},
+		"text": "路过：店整夜开着，店员却没有影子。", "tags": ["日常", "沉默", "追问"], "rarity": 2,
 		"tokens": [
-			{"id": "all_night", "text": "整夜开着", "tags": ["日常"], "rarity": 1},
-			{"id": "no_shadow", "text": "没有影子", "tags": ["沉默", "空位"], "rarity": 2},
-			{"id": "clerk", "text": "店员", "tags": ["追问", "反问"], "rarity": 1},
+			{"id": "all_night", "text": "便利店员", "lexeme_id": "subject.clerk", "grammar_roles": ["subject"], "phone_surface": "夜班账号", "doctor_surface": "无面孔人物", "doll_surface": "替我们看门的人", "tags": ["日常"], "rarity": 1},
+			{"id": "no_shadow", "text": "没有留下", "lexeme_id": "action.leave_none", "grammar_roles": ["action"], "phone_surface": "删除了", "doctor_surface": "未形成", "doll_surface": "不肯带走", "tags": ["沉默", "空位"], "rarity": 2},
+			{"id": "clerk", "text": "影子", "lexeme_id": "object.shadow", "grammar_roles": ["object"], "phone_surface": "在线痕迹", "doctor_surface": "自体投影", "doll_surface": "脚下的黑朋友", "tags": ["追问", "反问"], "rarity": 1},
 		],
 	},
 	{
 		"id": "future_notice", "poster_cell": 8, "caption": "小区群里出现不存在的住户", "handle": "明日群公告",
-		"text": "截图：小区群凌晨多出一个查不到门牌的住户，还发来明天的失踪通知。", "tags": ["刷新", "禁问", "反问"], "rarity": 3, "passive": {"id": "tomorrow_draft", "label": "明日底稿", "description": "传播基础 +6", "effect": "base_bonus", "value": 6.0},
+		"text": "截图：小区群凌晨多出一个查不到门牌的住户，还发来明天的失踪通知。", "tags": ["刷新", "禁问", "反问"], "rarity": 3,
 		"tokens": [
-			{"id": "tomorrow", "text": "明天的通知", "tags": ["刷新", "反问"], "rarity": 2},
-			{"id": "missing", "text": "失踪", "tags": ["禁问", "沉默"], "rarity": 3},
-			{"id": "group", "text": "小区群", "tags": ["日常"], "rarity": 1},
+			{"id": "tomorrow", "text": "明天的通知", "lexeme_id": "subject.tomorrow_notice", "grammar_roles": ["subject"], "phone_surface": "预约推送", "doctor_surface": "预期记录", "doll_surface": "明天塞进门缝的纸", "tags": ["刷新", "反问"], "rarity": 2},
+			{"id": "missing", "text": "写着", "lexeme_id": "action.write", "grammar_roles": ["action"], "phone_surface": "标记为", "doctor_surface": "诊断为", "doll_surface": "偷偷叫作", "tags": ["禁问", "沉默"], "rarity": 3},
+			{"id": "group", "text": "我的失踪", "lexeme_id": "object.my_disappearance", "grammar_roles": ["object"], "phone_surface": "用户离线", "doctor_surface": "对象缺席", "doll_surface": "你不回家", "tags": ["日常"], "rarity": 1},
 		],
 	},
 	{
 		"id": "old_post_today", "poster_cell": 9, "caption": "十年前旧帖今天回复我", "handle": "旧帖考古队",
-		"text": "考古：十年前的旧帖今天突然回复我，头像是现在的我。", "tags": ["刷新", "哈吉米", "反问"], "rarity": 3, "passive": {"id": "archive_resonance", "label": "旧帖共鸣", "description": "命中风向时传播基础 +12", "effect": "trend_base", "value": 12},
+		"text": "考古：十年前的旧帖今天突然回复我，头像是现在的我。", "tags": ["刷新", "哈吉米", "反问"], "rarity": 3,
 		"tokens": [
-			{"id": "ten_year_post", "text": "十年前的旧帖", "tags": ["刷新", "哈吉米"], "rarity": 2},
-			{"id": "today_me", "text": "今天的我", "tags": ["日常", "追问"], "rarity": 2},
-			{"id": "archaeology", "text": "考古", "tags": ["信徒", "反问"], "rarity": 1},
+			{"id": "ten_year_post", "text": "十年前的旧帖", "lexeme_id": "subject.old_post", "grammar_roles": ["subject"], "phone_surface": "历史缓存", "doctor_surface": "既往记录", "doll_surface": "以前写给你的信", "tags": ["刷新", "哈吉米"], "rarity": 2},
+			{"id": "today_me", "text": "回复了", "lexeme_id": "action.reply", "grammar_roles": ["action"], "phone_surface": "重新推送", "doctor_surface": "回返为", "doll_surface": "开口叫了", "tags": ["日常", "追问"], "rarity": 2},
+			{"id": "archaeology", "text": "今天的我", "lexeme_id": "object.today_self", "grammar_roles": ["object"], "phone_surface": "当前账号", "doctor_surface": "现时自我", "doll_surface": "现在陪我的你", "tags": ["信徒", "反问"], "rarity": 1},
 		],
 	},
 	{
 		"id": "deleted_road", "poster_cell": 10, "caption": "地图上少了一条回家路", "handle": "绿色路线图",
-		"text": "更新：地图删掉了我每天回家的那条路。", "tags": ["空位", "日常", "刷新"], "rarity": 2, "passive": {"id": "lost_road_dividend", "label": "迷路增益", "description": "污染达到 40% 时基础 +8", "effect": "pollution_base", "value": 8},
+		"text": "更新：地图删掉了我每天回家的那条路。", "tags": ["空位", "日常", "刷新"], "rarity": 2,
 		"tokens": [
-			{"id": "deleted", "text": "地图删掉了", "tags": ["刷新", "空位"], "rarity": 2},
-			{"id": "way_home", "text": "回家的路", "tags": ["日常"], "rarity": 1},
-			{"id": "this_road", "text": "这条小路", "tags": ["追问", "空位"], "rarity": 1},
+			{"id": "deleted", "text": "地图", "lexeme_id": "subject.map", "grammar_roles": ["subject"], "phone_surface": "导航服务", "doctor_surface": "空间图式", "doll_surface": "你画的路线", "tags": ["刷新", "空位"], "rarity": 2},
+			{"id": "way_home", "text": "删掉", "lexeme_id": "action.delete", "grammar_roles": ["action"], "phone_surface": "隐藏", "doctor_surface": "压抑", "doll_surface": "擦掉", "tags": ["日常"], "rarity": 1},
+			{"id": "this_road", "text": "回家的路", "lexeme_id": "object.way_home", "grammar_roles": ["object"], "phone_surface": "返程路线", "doctor_surface": "退行路径", "doll_surface": "回到我这里的路", "tags": ["追问", "空位"], "rarity": 1},
 		],
 	},
 	{
 		"id": "access_record", "poster_cell": 11, "caption": "门禁说我没回家我却在屋里", "handle": "门禁空号",
-		"text": "记录：门禁说我没回来，可我一直在屋里。", "tags": ["禁问", "追问", "日常"], "rarity": 2, "passive": {"id": "access_buffer", "label": "门禁缓冲", "description": "忽略 1 次复读扣减", "effect": "repeat_grace", "value": 1},
+		"text": "记录：门禁说我没回来，可我一直在屋里。", "tags": ["禁问", "追问", "日常"], "rarity": 2,
 		"tokens": [
-			{"id": "not_home", "text": "我没回来", "tags": ["禁问", "追问"], "rarity": 2},
-			{"id": "inside", "text": "一直在屋里", "tags": ["日常", "反问"], "rarity": 1},
-			{"id": "access", "text": "门禁记录", "tags": ["巴别塔", "刷新"], "rarity": 1},
+			{"id": "not_home", "text": "门禁记录", "lexeme_id": "subject.access_log", "grammar_roles": ["subject"], "phone_surface": "门禁系统", "doctor_surface": "行为记录", "doll_surface": "门口那只眼睛", "tags": ["禁问", "追问"], "rarity": 2},
+			{"id": "inside", "text": "否认", "lexeme_id": "action.deny", "grammar_roles": ["action"], "phone_surface": "判定异常", "doctor_surface": "否定", "doll_surface": "假装没看见", "tags": ["日常", "反问"], "rarity": 1},
+			{"id": "access", "text": "我在屋里", "lexeme_id": "object.inside_home", "grammar_roles": ["object"], "phone_surface": "用户已在家", "doctor_surface": "对象仍在场", "doll_surface": "你一直陪着我", "tags": ["巴别塔", "刷新"], "rarity": 1},
 		],
 	},
 ]
@@ -179,7 +225,7 @@ const DAY_PLANS := [
 			]},
 			{"id": "d1_b", "handle": "课桌下的账号", "text": "别急着懂。先把它转出去，懂会在后面补票。", "tokens": [
 				{"id": "phrase", "text": "懂会在后面补票", "tags": ["反问", "日常"], "rarity": 1},
-				{"id": "understand", "text": "懂", "tags": ["清晰"], "rarity": 1},
+				{"id": "understand", "text": "懂", "tags": ["追问"], "rarity": 1},
 			]},
 		],
 	},
@@ -216,18 +262,18 @@ const DAY_PLANS := [
 		],
 	},
 	{
-		"title": "解释开始收费",
+		"title": "解释开始回收",
 		"trends": ["反问", "禁问", "哈吉米"],
-		"speaker": "梗店店员",
+		"speaker": "抄写员",
 		"line": "如果不用它，你还剩下什么表达？",
 		"feed": [
 			{"id": "d4_a", "handle": "付费问答残页", "text": "为什么智者不说话？你为什么需要他说话？", "tokens": [
 				{"id": "phrase", "text": "你为什么需要他说话", "tags": ["反问", "禁问"], "rarity": 2},
 				{"id": "why", "text": "为什么", "tags": ["追问"], "rarity": 1},
 			]},
-			{"id": "d4_b", "handle": "旧语言清仓", "text": "普通话库存不足，剩余词义按污染价处理。", "tokens": [
-				{"id": "phrase", "text": "词义按污染价处理", "tags": ["清晰", "禁问"], "rarity": 3},
-				{"id": "price", "text": "污染价", "tags": ["禁问"], "rarity": 1},
+			{"id": "d4_b", "handle": "旧语言回收站", "text": "普通话的边角被退了回来，剩下的词义按污染分拣。", "tokens": [
+				{"id": "phrase", "text": "词义按污染分拣", "tags": ["空位", "禁问"], "rarity": 3},
+				{"id": "pollution", "text": "污染", "tags": ["禁问"], "rarity": 1},
 			]},
 		],
 	},
@@ -265,7 +311,8 @@ const DAY_PLANS := [
 	},
 ]
 
-var game = MemeGameStateScript.new()
+var game: MemeGameState = MemeGameStateScript.new()
+var _locale = GameLocaleScript.new()
 var selected_token_id := ""
 var selected_meme_id := ""
 var log_text := ""
@@ -279,6 +326,7 @@ var _npc: Node3D
 var _reality_player: CharacterBody3D
 var _reality_floor
 var _reality_built_floor := 0
+var _reality_built_day := 0
 var _reality_yaw := 0.0
 var _reality_pitch := 0.0
 var _reality_last_safe_position := Vector3.ZERO
@@ -293,21 +341,36 @@ var _ui_root: Control
 var _texture_cache: Dictionary = {}
 var _phone_down_backdrop_image: TextureRect
 var _hand_phone_image: TextureRect
+var _hand_tracking_receiver
+var _hand_xray_overlay: Control
+var _second_layer_texture: Texture2D
+var _camera_consent_overlay: Control
+var _camera_access_toggle: CheckButton
+var _camera_consent_source_option: OptionButton
+var _camera_computer_button: Button
+var _camera_phone_button: Button
+var _camera_source_button_group: ButtonGroup
+var _camera_status_label: Label
+var _camera_consent_copy: Label
+var _phone_camera_connection_overlay: Control
+var _phone_camera_connection_panel: PanelContainer
+var _phone_camera_connection_status_label: Label
+var _phone_camera_connection_detail_label: Label
+var _phone_camera_connection_retry_button: Button
+var _phone_camera_connection_continue_button: Button
 var _cinematic_top_bar: ColorRect
 var _cinematic_bottom_bar: ColorRect
-var _stats_label: Label
-var _actions_label: Label
 var _hud_panel: PanelContainer
+var _hud_reveal_zone: Control
+var _hud_reveal_indicator: ColorRect
 var _hud_settings_icon: Button
-var _hud_day_value: Label
-var _hud_heat_value: Label
-var _hud_pollution_value: Label
-var _hud_clarity_value: Label
-var _hud_floor_value: Label
-var _hud_money_value: Label
 var _hud_actions_label: Label
 var _hud_tooltip: PanelContainer
 var _hud_tooltip_label: Label
+var _hud_drawer_expanded := false
+var _hud_drawer_touch_pinned := false
+var _hud_drawer_close_countdown := -1.0
+var _hud_drawer_tween: Tween
 var _world_prompt: Label
 var _desk_log: Label
 var _main_menu_layer: Control
@@ -318,8 +381,22 @@ var _prologue_continue_button: Button
 var _prologue_index := 0
 var _settings_window: PanelContainer
 var _settings_content: VBoxContainer
+var _settings_title_label: Label
+var _settings_volume_label: Label
+var _settings_save_button: Button
+var _settings_autoplay_button: CheckButton
+var _settings_history_button: Button
+var _settings_exit_button: Button
 var _volume_slider: HSlider
 var _vhs_toggle: CheckButton
+var _settings_language_option: OptionButton
+var _settings_save_status: Label
+var _exit_confirmation_overlay: Control
+var _history_window: PanelContainer
+var _history_content: VBoxContainer
+var _history_open := false
+var _language_overlay: Control
+var _language_overlay_first_run := false
 var _view_toggle_button: Button
 var _vhs_overlay: Control
 var _vhs_scanlines: Array[ColorRect] = []
@@ -339,9 +416,13 @@ var _publish_blank: DropButton
 var _confirm_publish_button: Button
 var _meme_bank_tab: Button
 var _meme_bank_drag_handle: Label
-var _meme_bank_window: PanelContainer
+var _meme_bank_window: Control
 var _meme_bank_content: Control
-var _bank_list: HBoxContainer
+var _bank_list: Control
+var _meme_bank_ring: Control
+var _meme_bank_focus_label: Label
+var _meme_bank_selected_index := 0
+var _meme_bank_tween: Tween
 var _reality_subtitle_panel: PanelContainer
 var _reality_subtitle_label: RichTextLabel
 var _reality_choice_row: HBoxContainer
@@ -349,11 +430,16 @@ var _reality_intent_preview: RichTextLabel
 var _reality_typing_line: RichTextLabel
 var _reality_typing_progress: Label
 var _reality_continue_button: Button
-var _reality_aid_status: Label
-var _reality_merchant_offer: PanelContainer
-var _reality_merchant_offer_text: Label
-var _reality_merchant_buy_button: Button
 var _reality_hover_choice_id := ""
+var _reality_language_frame: PanelContainer
+var _reality_language_slot_row: HBoxContainer
+var _reality_language_token_flow: HFlowContainer
+var _reality_language_preview: Label
+var _reality_language_confirm: Button
+var _selected_language_token_id := ""
+var _playtest_assist_panel: PanelContainer
+var _playtest_assist_label: Label
+var _playtest_assist_enabled := OS.is_debug_build() or OS.get_environment("BABEL_PLAYTEST_ASSIST") == "1"
 var _flashback_overlay: Control
 var _flashback_noise: ColorRect
 var _flashback_blackout: ColorRect
@@ -361,8 +447,10 @@ var _flashback_words: Array[Label] = []
 var _flashback_tween: Tween
 var _phone_ambience: AudioStreamPlayer
 var _reality_ambience: AudioStreamPlayer
+var _pollution_ambience: AudioStreamPlayer
 var _flashback_audio: AudioStreamPlayer
 var _action_tick_audio: AudioStreamPlayer
+var _cover_watcher_stinger: AudioStreamPlayer
 var _audio_tween: Tween
 var _action_spend_overlay: Control
 var _action_spend_blackout: ColorRect
@@ -373,6 +461,7 @@ var _action_spend_should_settle := false
 var _day_transition_overlay: Control
 var _day_transition_day_label: Label
 var _day_transition_meta_label: Label
+var _day_transition_hint_label: Label
 var _day_transition_rule: ColorRect
 var _day_transition_tween: Tween
 var _day_transition_settled := false
@@ -382,9 +471,10 @@ var _phone_launcher_open := true
 var _meme_bank_layout_mode := ""
 var _open_app_windows: Dictionary = {}
 var _social_screen := "home"
-var _social_channel := "发现"
+var _social_channel := "discover"
 var _social_detail_post_index := 0
 var _social_detail_open := false
+var _notebook_crafting_tab := "frame"
 var _social_detail_window: PanelContainer
 var _social_detail_body: VBoxContainer
 var _social_detail_title: Label
@@ -396,21 +486,46 @@ var _game_started := false
 var _settings_open := false
 var _vhs_enabled := true
 var _master_volume := 80.0
+var _camera_enabled := false
+var _camera_source := "computer"
+var _camera_session_decided := false
+var _camera_tracking_status := "摄像头未启用"
+var _camera_ready_source := ""
+var _camera_ready_index := -1
 var _phone_art_alpha := 0.0
+var _save_path := SAVE_PATH
 
 
 func _ready() -> void:
+	var preferences := _locale.load_preferences(_master_volume, _vhs_enabled)
+	_master_volume = float(preferences.get("master_volume", _master_volume))
+	_vhs_enabled = bool(preferences.get("vhs_enabled", _vhs_enabled))
+	_camera_enabled = bool(preferences.get("camera_enabled", false))
+	_camera_source = str(preferences.get("camera_source", "computer"))
+	_camera_session_decided = false
+	_ensure_hand_tracking_receiver()
+	_apply_master_volume()
 	show_main_menu()
+	if not _locale.language_selected:
+		_build_language_selection_overlay(true)
 
 
 func _process(delta: float) -> void:
+	if _hand_tracking_receiver != null:
+		_hand_tracking_receiver.poll()
 	if _camera == null:
 		return
 	if _game_started:
 		_ensure_reality_floor_current()
 		_refresh_nearby_reality_actor()
 		_apply_responsive_layouts_if_needed()
+		_update_hud_drawer_auto_close(delta)
 	_animate_world(delta)
+
+
+func _exit_tree() -> void:
+	if _hand_tracking_receiver != null:
+		_hand_tracking_receiver.stop()
 
 
 func _physics_process(delta: float) -> void:
@@ -426,7 +541,11 @@ func _input(event: InputEvent) -> void:
 	if _input_locked:
 		_reality_touch_look_index = -1
 		return
+	if _handle_hud_drawer_global_input(event):
+		return
 	if _handle_reality_touch_look(event):
+		return
+	if _handle_reality_trackpad_pan(event):
 		return
 	if _dragged_window == null:
 		return
@@ -476,6 +595,21 @@ func _handle_reality_touch_look(event: InputEvent) -> bool:
 	return false
 
 
+func _handle_reality_trackpad_pan(event: InputEvent) -> bool:
+	if not event is InputEventPanGesture:
+		return false
+	var can_trackpad_look: bool = _game_started and game.view_state == "npc_up" and not _reality_interaction_active
+	if not can_trackpad_look:
+		return false
+	var pan := event as InputEventPanGesture
+	if pan.delta.is_zero_approx():
+		return false
+	# macOS reports pan as content-scroll direction, opposite to the fingers.
+	_apply_reality_look_delta(-pan.delta, REALITY_TRACKPAD_SENSITIVITY)
+	get_viewport().set_input_as_handled()
+	return true
+
+
 func _unhandled_input(event: InputEvent) -> void:
 	if _input_locked or not _game_started:
 		return
@@ -515,22 +649,50 @@ func _unhandled_input(event: InputEvent) -> void:
 
 
 func new_game() -> void:
+	var fresh_state: MemeGameState = MemeGameStateScript.new()
+	fresh_state.new_run()
+	_begin_game_session(fresh_state, {}, true)
+
+
+func continue_game() -> bool:
+	var payload := _load_save_payload()
+	if payload.is_empty():
+		return false
+	var restored_state: MemeGameState = MemeGameStateScript.new()
+	var saved_state: Variant = payload.get("game", {})
+	if not saved_state is Dictionary or not restored_state.load_save_data(saved_state):
+		return false
+	_begin_game_session(restored_state, payload.get("world", {}), false)
+	return true
+
+
+func _begin_game_session(session_state: MemeGameState, world_data: Dictionary, show_prologue: bool) -> void:
 	_game_started = true
 	_settings_open = false
 	_phone_art_alpha = 1.0
-	game = MemeGameStateScript.new()
-	game.new_run()
+	_second_layer_texture = null
+	game = session_state
+	_migrate_social_author_ids()
 	selected_token_id = ""
 	selected_meme_id = ""
 	_meme_bank_open = false
 	_phone_popup_expanded = true
-	_phone_launcher_open = false
+	_phone_launcher_open = game.active_app_window.is_empty()
 	_meme_bank_layout_mode = ""
-	_open_app_windows = {"social": true}
+	if _hud_drawer_tween != null and _hud_drawer_tween.is_valid():
+		_hud_drawer_tween.kill()
+	_hud_drawer_tween = null
+	_hud_drawer_expanded = false
+	_hud_drawer_touch_pinned = false
+	_hud_drawer_close_countdown = -1.0
+	_open_app_windows = {}
+	if not game.active_app_window.is_empty():
+		_open_app_windows[game.active_app_window] = true
 	_social_screen = "home"
-	_social_channel = "发现"
+	_social_channel = "discover"
 	_social_detail_post_index = 0
 	_social_detail_open = false
+	_notebook_crafting_tab = "frame"
 	_app_windows = {}
 	_app_titles = {}
 	_app_bodies = {}
@@ -542,7 +704,8 @@ func new_game() -> void:
 	_drag_offset = Vector2.ZERO
 	_last_responsive_layout_size = Vector2.ZERO
 	_reality_built_floor = 0
-	_reality_yaw = 0.0
+	_reality_built_day = 0
+	_reality_yaw = _reality_floor.start_yaw_degrees()
 	_reality_pitch = 0.0
 	_set_reality_mouse_look(false)
 	_nearby_reality_actor = null
@@ -550,14 +713,23 @@ func new_game() -> void:
 	_active_reality_actor = null
 	_reality_interaction_active = false
 	_prologue_index = 0
-	log_text = "你低头，手机边框从视野下方亮起来。"
+	log_text = "你低头，手机边框从视野下方亮起来。" if show_prologue else "你回到离开时的位置。"
 	_build_world()
+	_restore_saved_world(world_data)
 	_build_ui()
+	if not show_prologue:
+		_skip_prologue()
 	_render()
+	_set_reality_mouse_look(game.view_state == "npc_up")
 	_sync_audio_state(true)
 
 
 func show_main_menu() -> void:
+	if _game_started:
+		if _reality_interaction_active:
+			_exit_reality_interaction(false)
+		_save_progress()
+	_locale.save_preferences(_master_volume, _vhs_enabled, _camera_enabled, _camera_source)
 	_game_started = false
 	_settings_open = false
 	_input_locked = false
@@ -570,12 +742,103 @@ func show_main_menu() -> void:
 	_set_reality_mouse_look(false)
 	_build_world()
 	_build_main_menu()
+	if _locale.language_selected and not _camera_session_decided:
+		_build_camera_consent_overlay()
 	_sync_audio_state(true)
+
+
+func _save_progress() -> bool:
+	if not _game_started or game == null:
+		return false
+	var world_data := {
+		"player_position": _reality_player.position if _reality_player != null else Vector3.ZERO,
+		"yaw": _reality_yaw,
+		"pitch": _reality_pitch,
+		"social_screen": _social_screen,
+		"social_channel": _social_channel,
+		"social_detail_post_index": _social_detail_post_index,
+	}
+	var payload := {
+		"version": SAVE_FILE_VERSION,
+		"game": game.to_save_data(),
+		"world": world_data,
+	}
+	var file := FileAccess.open(_save_path, FileAccess.WRITE)
+	if file == null:
+		push_warning("无法写入存档：%s" % _save_path)
+		return false
+	file.store_var(payload)
+	file.flush()
+	return true
+
+
+func _load_save_payload() -> Dictionary:
+	if not FileAccess.file_exists(_save_path):
+		return {}
+	var file := FileAccess.open(_save_path, FileAccess.READ)
+	if file == null:
+		return {}
+	var payload: Variant = file.get_var()
+	if not payload is Dictionary or int(payload.get("version", -1)) != SAVE_FILE_VERSION:
+		return {}
+	if not payload.get("game", {}) is Dictionary or not payload.get("world", {}) is Dictionary:
+		return {}
+	return payload
+
+
+func _has_save_progress() -> bool:
+	return not _load_save_payload().is_empty()
+
+
+func _restore_saved_world(world_data: Dictionary) -> void:
+	if world_data.is_empty():
+		return
+	var saved_position: Variant = world_data.get("player_position", Vector3.ZERO)
+	if saved_position is Vector3 and _reality_player != null and _reality_floor != null:
+		_reality_last_safe_position = _reality_floor.clamp_to_playable_position(saved_position, REALITY_SAFE_INSET)
+		_reality_player.position = _reality_last_safe_position
+		_reality_player.velocity = Vector3.ZERO
+	_reality_yaw = wrapf(float(world_data.get("yaw", 0.0)), -180.0, 180.0)
+	_reality_pitch = clampf(float(world_data.get("pitch", 0.0)), -68.0, 72.0)
+	_social_screen = str(world_data.get("social_screen", "home"))
+	if _social_screen not in ["home", "detail", "publish", "profile"]:
+		_social_screen = "home"
+	_social_channel = _normalize_social_channel(str(world_data.get("social_channel", "discover")))
+	_social_detail_post_index = clampi(int(world_data.get("social_detail_post_index", 0)), 0, maxi(0, SOCIAL_POST_CARDS.size() - 1))
+
+
+func _normalize_social_channel(channel: String) -> String:
+	var legacy_channels := {
+		"关注": "following",
+		"发现": "discover",
+		"塔下": "tower_base",
+		"附近": "nearby",
+	}
+	var normalized := str(legacy_channels.get(channel, channel))
+	for channel_data in SOCIAL_CHANNELS:
+		if str(channel_data.get("id", "")) == normalized:
+			return normalized
+	return "discover"
+
+
+func _migrate_social_author_ids() -> void:
+	var migrated: Array[String] = []
+	for stored_author in game.social_followed_handles:
+		var stable_id := str(stored_author)
+		for post in SOCIAL_POST_CARDS:
+			if str(post.get("handle", "")) == stable_id:
+				stable_id = str(post.get("id", stable_id))
+				break
+		if stable_id not in migrated:
+			migrated.append(stable_id)
+	game.social_followed_handles = migrated
 
 
 func set_view_state(value: String) -> void:
 	if _input_locked:
 		return
+	if value == "npc_up" and game.view_state == "phone_down":
+		_capture_phone_layer_for_xray()
 	if game.set_view_state(value):
 		_reality_interaction_active = false
 		_active_reality_actor = null
@@ -607,6 +870,21 @@ func _toggle_view_state() -> void:
 		set_view_state("phone_down")
 
 
+func _capture_phone_layer_for_xray() -> bool:
+	if not _game_started or get_viewport() == null or DisplayServer.get_name().to_lower() == "headless":
+		return false
+	var viewport_texture := get_viewport().get_texture()
+	if viewport_texture == null:
+		return false
+	var image := viewport_texture.get_image()
+	if image == null or image.is_empty():
+		return false
+	_second_layer_texture = ImageTexture.create_from_image(image)
+	if _hand_xray_overlay != null:
+		_hand_xray_overlay.set_layer_texture(_second_layer_texture)
+	return true
+
+
 func _set_reality_mouse_look(enabled: bool) -> void:
 	_reality_mouse_look_enabled = enabled
 	if not enabled or game.view_state != "npc_up":
@@ -626,6 +904,21 @@ func _build_world() -> void:
 	if _audio_tween != null and _audio_tween.is_valid():
 		_audio_tween.kill()
 	_audio_tween = null
+	_hand_xray_overlay = null
+	_camera_consent_overlay = null
+	_camera_access_toggle = null
+	_camera_consent_source_option = null
+	_camera_computer_button = null
+	_camera_phone_button = null
+	_camera_source_button_group = null
+	_camera_status_label = null
+	_camera_consent_copy = null
+	_phone_camera_connection_overlay = null
+	_phone_camera_connection_panel = null
+	_phone_camera_connection_status_label = null
+	_phone_camera_connection_detail_label = null
+	_phone_camera_connection_retry_button = null
+	_phone_camera_connection_continue_button = null
 	for child in get_children():
 		remove_child(child)
 		child.free()
@@ -635,6 +928,7 @@ func _build_world() -> void:
 	add_child(_camera)
 	_camera.current = true
 	_camera.fov = 58.0
+	_configure_reality_depth_of_field()
 	_ensure_reality_input_map()
 
 	_reality_player = CharacterBody3D.new()
@@ -652,14 +946,10 @@ func _build_world() -> void:
 	player_collision.position.y = 0.88
 	_reality_player.add_child(player_collision)
 
-	var light := DirectionalLight3D.new()
-	light.name = "StreetLight"
-	light.rotation_degrees = Vector3(-55.0, 20.0, 0.0)
-	light.light_energy = 0.25
-	add_child(light)
-
 	_reality_floor = RealityFloorGeneratorScript.new()
 	_reality_floor.name = "RealityFloor"
+	_reality_floor.cover_watcher_appeared.connect(_on_cover_watcher_appeared)
+	_reality_floor.cover_watcher_vanished.connect(_on_cover_watcher_vanished)
 	add_child(_reality_floor)
 	_rebuild_reality_floor()
 
@@ -730,11 +1020,27 @@ func _build_world() -> void:
 	_build_audio_players()
 
 
+func _configure_reality_depth_of_field() -> void:
+	if _camera == null:
+		return
+	var attributes := CameraAttributesPractical.new()
+	attributes.dof_blur_far_enabled = true
+	attributes.dof_blur_far_distance = 18.0
+	attributes.dof_blur_far_transition = 12.0
+	attributes.dof_blur_amount = 0.08
+	attributes.dof_blur_near_enabled = false
+	_camera.attributes = attributes
+	_camera.set_meta("fixed_focus_profile", "near_clear_far_soft")
+	_camera.set_meta("focus_distance_m", 18.0)
+	_camera.set_meta("far_transition_m", 12.0)
+
+
 func _ensure_reality_input_map() -> void:
 	_set_key_action("reality_forward", [KEY_W, KEY_UP])
 	_set_key_action("reality_back", [KEY_S, KEY_DOWN])
 	_set_key_action("reality_left", [KEY_A, KEY_LEFT])
 	_set_key_action("reality_right", [KEY_D, KEY_RIGHT])
+	_set_key_action("reality_sprint", [KEY_SHIFT])
 	_set_key_action("reality_interact", [KEY_F])
 	_set_key_action("reality_phone", [KEY_TAB])
 
@@ -752,10 +1058,30 @@ func _set_key_action(action_name: StringName, keycodes: Array) -> void:
 func _rebuild_reality_floor() -> void:
 	if _reality_floor == null or game == null:
 		return
-	var npc_texture := _load_runtime_texture(NPC_SIGNAL_PORTRAIT_PATH)
-	_reality_floor.rebuild(game.tower_floor, _active_palette(), npc_texture)
+	var npc_textures: Array[Texture2D] = []
+	for texture_path in NPC_CHARACTER_PATHS:
+		var texture := _load_runtime_texture(str(texture_path))
+		if texture != null:
+			npc_textures.append(texture)
+	var key_dialogue: Dictionary = LanguageCorruptionContentScript.get_key_npc_dialogue_for_floor(clampi(game.tower_floor, 1, 3))
+	var key_npc_texture: Texture2D = null
+	if not npc_textures.is_empty():
+		key_npc_texture = npc_textures[posmod(game.tower_floor - 1, npc_textures.size())]
+	var actor_textures := {
+		"key_npc": key_npc_texture,
+		"key_npc_label": str(key_dialogue.get("actor_label", "关键住户")),
+		"npcs": npc_textures,
+		"doll": _load_runtime_texture(GUIDE_DOLL_CHARACTER_PATH),
+		"doll_encounter": LanguageCorruptionContentScript.get_doll_encounter_for_floor(clampi(game.tower_floor, 1, 3)),
+	}
+	var prerequisite_item: Dictionary = game.get_prerequisite_item_for_floor(game.tower_floor)
+	_reality_floor.rebuild(game.tower_floor, _active_palette(), actor_textures, game.day, game.has_seen_cover_watcher(game.tower_floor), prerequisite_item)
+	_reality_floor.set_playtest_assist_enabled(_playtest_assist_enabled)
 	_reality_floor.sync_collected_items(game.collected_world_item_ids)
+	_reality_floor.sync_prerequisite_items(game.revealed_prerequisite_item_ids, game.collected_prerequisite_item_ids)
+	_reality_floor.sync_claimed_dolls(game.claimed_doll_ids)
 	_reality_built_floor = game.tower_floor
+	_reality_built_day = game.day
 	_reality_interaction_active = false
 	_active_reality_actor = null
 	_nearby_reality_actor = null
@@ -773,6 +1099,9 @@ func _ensure_reality_floor_current() -> void:
 		return
 	if _reality_built_floor != game.tower_floor:
 		_rebuild_reality_floor()
+	elif _reality_built_day != game.day:
+		_reality_floor.configure_authored_events(game.day, _active_palette())
+		_reality_built_day = game.day
 
 
 func _room_count_for_floor(floor_number: int) -> int:
@@ -795,9 +1124,11 @@ func _update_reality_player(delta: float) -> void:
 	var world_direction := Basis(Vector3.UP, deg_to_rad(_reality_yaw)) * local_direction
 	if world_direction.length_squared() > 0.001:
 		world_direction = world_direction.normalized()
-	var target_velocity := world_direction * REALITY_MOVE_SPEED
-	_reality_player.velocity.x = move_toward(_reality_player.velocity.x, target_velocity.x, REALITY_ACCELERATION * delta)
-	_reality_player.velocity.z = move_toward(_reality_player.velocity.z, target_velocity.z, REALITY_ACCELERATION * delta)
+	var speed_multiplier := REALITY_SPRINT_MULTIPLIER if can_walk and Input.is_action_pressed("reality_sprint") else 1.0
+	var target_velocity := world_direction * REALITY_MOVE_SPEED * speed_multiplier
+	var acceleration := REALITY_ACCELERATION * speed_multiplier
+	_reality_player.velocity.x = move_toward(_reality_player.velocity.x, target_velocity.x, acceleration * delta)
+	_reality_player.velocity.z = move_toward(_reality_player.velocity.z, target_velocity.z, acceleration * delta)
 	if not _reality_player.is_on_floor():
 		_reality_player.velocity.y -= 18.0 * delta
 	else:
@@ -882,14 +1213,17 @@ func _try_reality_interaction() -> bool:
 	_active_reality_actor = _nearby_reality_actor
 	var actor_id := str(_active_reality_actor.get_meta("actor_id", "actor"))
 	var actor_type := str(_active_reality_actor.get_meta("actor_type", "npc"))
-	var actor_label := str(_active_reality_actor.get_meta("display_name", "对方"))
+	var actor_label := _locale.translate(str(_active_reality_actor.get_meta("display_name", "对方")))
 	if not game.start_typed_reality_conversation(actor_id, actor_type, actor_label):
 		_active_reality_actor = null
 		return false
+	if actor_type == "doll":
+		game.notify_tutorial("guide_found", {"actor_id": actor_id})
+	_localize_active_conversation()
 	var actor_direction: Vector3 = _active_reality_actor.position - _reality_player.position
 	if actor_direction.length_squared() > 0.001:
 		_reality_yaw = rad_to_deg(atan2(-actor_direction.x, -actor_direction.z))
-		_reality_pitch = -2.0
+		_reality_pitch = -30.0 if actor_type == "doll" else -2.0
 	_reality_interaction_active = true
 	_reality_hover_choice_id = ""
 	_set_reality_mouse_look(false)
@@ -897,6 +1231,20 @@ func _try_reality_interaction() -> bool:
 	_render()
 	_sync_audio_state(false)
 	return true
+
+
+func _localize_active_conversation() -> void:
+	game.conversation_actor_label = _locale.translate(game.conversation_actor_label)
+	game.conversation_prompt = _locale.translate(game.conversation_prompt)
+	game.conversation_result_line = _locale.translate(game.conversation_result_line)
+	var localized_choices: Array = []
+	for choice in game.conversation_choices:
+		var localized_choice: Dictionary = (choice as Dictionary).duplicate(true)
+		localized_choice["summary"] = _locale.translate(str(localized_choice.get("summary", "")))
+		localized_choice["sentence"] = _locale.translate(str(localized_choice.get("sentence", "")))
+		localized_choices.append(localized_choice)
+	game.conversation_choices = localized_choices
+	game.configure_conversation_locale(_locale.current_locale)
 
 
 func _collect_nearby_reality_item() -> bool:
@@ -927,6 +1275,7 @@ func _exit_reality_interaction(should_render: bool = true) -> void:
 	_reality_interaction_active = false
 	_active_reality_actor = null
 	_reality_hover_choice_id = ""
+	_selected_language_token_id = ""
 	game.reset_typed_reality_conversation()
 	if game.view_state == "npc_up":
 		_set_reality_mouse_look(true)
@@ -937,16 +1286,34 @@ func _exit_reality_interaction(should_render: bool = true) -> void:
 
 func _active_actor_display_name() -> String:
 	if _active_reality_actor == null:
-		return "对方"
-	return str(_active_reality_actor.get_meta("display_name", "对方"))
+		return _locale.translate("对方")
+	return _locale.translate(str(_active_reality_actor.get_meta("display_name", "对方")))
 
 
 func _build_audio_players() -> void:
-	_phone_ambience = _make_audio_player("PhoneRoadAmbience", PHONE_AMBIENCE_PATH, true, -60.0)
+	var initial_floor := 1 if game == null else clampi(int(game.tower_floor), 1, MemeGameStateScript.MAX_TOWER_FLOOR)
+	_phone_ambience = _make_audio_player("PhoneRoadAmbience", _phone_music_path_for_floor(initial_floor), true, -60.0)
+	_phone_ambience.set_meta("phone_music_floor", initial_floor)
 	_reality_ambience = _make_audio_player("RealityRoomAmbience", REALITY_AMBIENCE_PATH, true, -60.0)
+	_pollution_ambience = _make_audio_player("PollutionMusicLayer", POLLUTION_AMBIENCE_PATH, true, -60.0)
 	_flashback_audio = _make_audio_player("PollutionFlashbackAudio", FLASHBACK_AUDIO_PATH, false, -8.0)
 	_action_tick_audio = _make_audio_player("ActionTickAudio", ACTION_TICK_AUDIO_PATH, false, -15.0)
+	_cover_watcher_stinger = _make_audio_player("CoverWatcherStinger", COVER_WATCHER_STINGER_PATH, false, -9.0)
 	_sync_audio_state(true)
+
+
+func _on_cover_watcher_appeared(floor_number: int) -> void:
+	if game != null:
+		game.mark_cover_watcher_seen(floor_number)
+	if _cover_watcher_stinger != null and _cover_watcher_stinger.stream != null and is_inside_tree():
+		_cover_watcher_stinger.stop()
+		_cover_watcher_stinger.play()
+
+
+func _on_cover_watcher_vanished(_floor_number: int) -> void:
+	# The stinger is intentionally allowed to finish after the figure has withdrawn.
+	if game != null:
+		game.event_log.push_front("掩体后的人影缩了回去。它没有留下脸。")
 
 
 func _make_audio_player(node_name: String, path: String, looped: bool, volume_db: float) -> AudioStreamPlayer:
@@ -973,59 +1340,103 @@ func _load_generated_wav(path: String, looped: bool) -> AudioStreamWAV:
 	return stream
 
 
+func _phone_music_path_for_floor(floor_number: int) -> String:
+	var safe_floor := clampi(floor_number, 1, MemeGameStateScript.MAX_TOWER_FLOOR)
+	return str(PHONE_AMBIENCE_PATHS.get(safe_floor, PHONE_AMBIENCE_PATHS[1]))
+
+
+func _ensure_phone_music_for_floor(floor_number: int) -> void:
+	if _phone_ambience == null:
+		return
+	var safe_floor := clampi(floor_number, 1, MemeGameStateScript.MAX_TOWER_FLOOR)
+	var target_path := _phone_music_path_for_floor(safe_floor)
+	if str(_phone_ambience.get_meta("generated_audio_path", "")) == target_path:
+		_phone_ambience.set_meta("phone_music_floor", safe_floor)
+		return
+	var phase := 0.0
+	if _reality_ambience != null and _reality_ambience.playing:
+		phase = _reality_ambience.get_playback_position()
+	elif _phone_ambience.playing:
+		phase = _phone_ambience.get_playback_position()
+	var was_playing := _phone_ambience.playing
+	_phone_ambience.stop()
+	_phone_ambience.stream = _load_generated_wav(target_path, true)
+	_phone_ambience.set_meta("generated_audio_path", target_path)
+	_phone_ambience.set_meta("phone_music_floor", safe_floor)
+	if is_inside_tree() and was_playing and _phone_ambience.stream != null:
+		_phone_ambience.play(phase)
+
+
 func _sync_audio_state(immediate: bool = false) -> void:
-	if _phone_ambience == null or _reality_ambience == null:
+	if _phone_ambience == null or _reality_ambience == null or _pollution_ambience == null:
 		return
 	if not _game_started or game == null:
-		_phone_ambience.set_meta("target_volume_db", -60.0)
-		_reality_ambience.set_meta("target_volume_db", -60.0)
+		for player in [_phone_ambience, _reality_ambience, _pollution_ambience]:
+			player.set_meta("target_volume_db", -60.0)
 		if is_inside_tree():
-			_phone_ambience.stop()
-			_reality_ambience.stop()
+			for player in [_phone_ambience, _reality_ambience, _pollution_ambience]:
+				player.stop()
 			if _flashback_audio != null:
 				_flashback_audio.stop()
+			if _cover_watcher_stinger != null:
+				_cover_watcher_stinger.stop()
 		return
+	_ensure_phone_music_for_floor(int(game.tower_floor))
 	var in_phone: bool = game.view_state == "phone_down"
-	var phone_target: float = -18.0 if in_phone else -48.0
+	var phone_target: float = -8.0 if in_phone else -42.0
 	var intimate_typing: bool = _reality_interaction_active and game.conversation_phase == "typing"
-	var reality_target: float = -48.0 if in_phone else (-16.0 if intimate_typing else -21.0)
+	var reality_target: float = -26.0 if in_phone else (-7.0 if intimate_typing else -10.0)
+	var pollution_target := _pollution_music_target(int(game.pollution))
 	_phone_ambience.set_meta("target_volume_db", phone_target)
 	_reality_ambience.set_meta("target_volume_db", reality_target)
-	_phone_ambience.set_meta("flashback_ducked", false)
-	_reality_ambience.set_meta("flashback_ducked", false)
+	_pollution_ambience.set_meta("target_volume_db", pollution_target)
+	for player in [_phone_ambience, _reality_ambience, _pollution_ambience]:
+		player.set_meta("flashback_ducked", false)
 	if _audio_tween != null and _audio_tween.is_valid():
 		_audio_tween.kill()
 	_audio_tween = null
 	if immediate:
 		_phone_ambience.volume_db = phone_target
 		_reality_ambience.volume_db = reality_target
+		_pollution_ambience.volume_db = pollution_target
 	if not is_inside_tree():
 		return
-	if not _phone_ambience.playing:
-		_phone_ambience.play()
-	if not _reality_ambience.playing:
-		_reality_ambience.play()
+	for player in [_phone_ambience, _reality_ambience, _pollution_ambience]:
+		if not player.playing:
+			player.play()
 	if immediate:
 		return
 	_audio_tween = create_tween().set_parallel(true)
 	_audio_tween.tween_property(_phone_ambience, "volume_db", phone_target, 0.55).set_trans(Tween.TRANS_QUINT).set_ease(Tween.EASE_IN_OUT)
 	_audio_tween.tween_property(_reality_ambience, "volume_db", reality_target, 0.55).set_trans(Tween.TRANS_QUINT).set_ease(Tween.EASE_IN_OUT)
+	_audio_tween.tween_property(_pollution_ambience, "volume_db", pollution_target, 2.4).set_trans(Tween.TRANS_SINE).set_ease(Tween.EASE_IN_OUT)
+
+
+func _pollution_music_target(pollution_value: int) -> float:
+	var pollution := clampi(pollution_value, 0, 100)
+	if pollution <= 40:
+		return -60.0
+	if pollution <= 60:
+		return remap(float(pollution), 41.0, 60.0, -42.0, -24.0)
+	if pollution <= 80:
+		return remap(float(pollution), 60.0, 80.0, -24.0, -10.0)
+	return remap(float(pollution), 80.0, 100.0, -10.0, -3.0)
 
 
 func _duck_ambience_for_flashback() -> void:
 	if _audio_tween != null and _audio_tween.is_valid():
 		_audio_tween.kill()
 	_audio_tween = null
-	for player in [_phone_ambience, _reality_ambience]:
+	for player in [_phone_ambience, _reality_ambience, _pollution_ambience]:
 		if player != null:
 			player.set_meta("flashback_ducked", true)
 	if not is_inside_tree():
-		for player in [_phone_ambience, _reality_ambience]:
+		for player in [_phone_ambience, _reality_ambience, _pollution_ambience]:
 			if player != null:
 				player.volume_db = -44.0
 		return
 	_audio_tween = create_tween().set_parallel(true)
-	for player in [_phone_ambience, _reality_ambience]:
+	for player in [_phone_ambience, _reality_ambience, _pollution_ambience]:
 		if player != null:
 			_audio_tween.tween_property(player, "volume_db", -44.0, 0.10).set_trans(Tween.TRANS_QUINT).set_ease(Tween.EASE_OUT)
 
@@ -1103,9 +1514,18 @@ func _build_main_menu() -> void:
 	buttons.add_theme_constant_override("separation", 18)
 	title_stack.add_child(buttons)
 
+	var continue_button := Button.new()
+	continue_button.name = "MainMenuContinueButton"
+	continue_button.text = "继续游戏"
+	continue_button.custom_minimum_size = Vector2(168, 54)
+	continue_button.disabled = not _has_save_progress()
+	continue_button.tooltip_text = "回到上次离开的位置" if not continue_button.disabled else "暂无自动存档"
+	continue_button.pressed.connect(continue_game, CONNECT_DEFERRED)
+	buttons.add_child(continue_button)
+
 	var start_button := Button.new()
 	start_button.name = "MainMenuStartButton"
-	start_button.text = "开始游戏"
+	start_button.text = "新游戏"
 	start_button.custom_minimum_size = Vector2(168, 54)
 	start_button.pressed.connect(new_game, CONNECT_DEFERRED)
 	buttons.add_child(start_button)
@@ -1113,9 +1533,17 @@ func _build_main_menu() -> void:
 	var exit_button := Button.new()
 	exit_button.name = "MainMenuExitButton"
 	exit_button.text = "退出游戏"
+	exit_button.set_meta("skip_localization", true)
 	exit_button.custom_minimum_size = Vector2(168, 54)
-	exit_button.pressed.connect(_quit_game)
+	exit_button.pressed.connect(_request_quit_game)
 	buttons.add_child(exit_button)
+
+	var language_button := Button.new()
+	language_button.name = "MainMenuLanguageButton"
+	language_button.text = "语言"
+	language_button.custom_minimum_size = Vector2(132, 54)
+	language_button.pressed.connect(_build_language_selection_overlay.bind(false))
+	buttons.add_child(language_button)
 
 	var mark := Control.new()
 	mark.name = "MainMenuCornerMark"
@@ -1152,6 +1580,357 @@ func _build_main_menu() -> void:
 		mark.add_child(base)
 
 	_apply_ui_theme()
+	_refresh_localized_ui()
+	_build_exit_confirmation_overlay()
+
+
+func _build_language_selection_overlay(first_run: bool = false) -> void:
+	if _ui_root == null:
+		return
+	if _language_overlay != null and is_instance_valid(_language_overlay):
+		_language_overlay.queue_free()
+	_language_overlay_first_run = first_run
+	_language_overlay = Control.new()
+	_language_overlay.name = "LanguageSelectionOverlay"
+	_language_overlay.set_anchors_preset(Control.PRESET_FULL_RECT)
+	_language_overlay.z_index = 190
+	_ui_root.add_child(_language_overlay)
+
+	var blackout := ColorRect.new()
+	blackout.name = "LanguageSelectionBackdrop"
+	blackout.color = Color(_theme_color("ink"), 0.92)
+	blackout.set_anchors_preset(Control.PRESET_FULL_RECT)
+	_language_overlay.add_child(blackout)
+
+	var center := CenterContainer.new()
+	center.set_anchors_preset(Control.PRESET_FULL_RECT)
+	_language_overlay.add_child(center)
+	var panel := PanelContainer.new()
+	panel.name = "LanguageSelectionPanel"
+	panel.custom_minimum_size = Vector2(620, 390)
+	panel.add_theme_stylebox_override("panel", _soft_style(_theme_color("surface"), _theme_color("accent")))
+	center.add_child(panel)
+	var box := VBoxContainer.new()
+	box.add_theme_constant_override("separation", 18)
+	panel.add_child(box)
+
+	var eyebrow := Label.new()
+	eyebrow.text = "BABEL PHONE  /  LANGUAGE"
+	eyebrow.add_theme_font_size_override("font_size", 15)
+	eyebrow.add_theme_color_override("font_color", _theme_color("accent"))
+	box.add_child(eyebrow)
+	var title := Label.new()
+	title.name = "LanguageSelectionTitle"
+	title.text = "选择语言  /  言語を選択  /  CHOOSE LANGUAGE"
+	title.add_theme_font_size_override("font_size", 27)
+	title.add_theme_color_override("font_color", _theme_color("ink"))
+	title.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
+	box.add_child(title)
+	var rule := HSeparator.new()
+	box.add_child(rule)
+
+	var choices := VBoxContainer.new()
+	choices.name = "LanguageSelectionChoices"
+	choices.add_theme_constant_override("separation", 10)
+	box.add_child(choices)
+	for locale_code in GameLocaleScript.SUPPORTED_LOCALES:
+		var choice := Button.new()
+		choice.name = "LanguageChoice%s" % str(locale_code).to_upper()
+		choice.text = _locale.native_language_name(str(locale_code))
+		choice.custom_minimum_size = Vector2(500, 58)
+		choice.set_meta("skip_localization", true)
+		choice.pressed.connect(_on_language_selected.bind(str(locale_code)))
+		choices.add_child(choice)
+
+	if not first_run:
+		var cancel := Button.new()
+		cancel.name = "LanguageSelectionCancel"
+		cancel.text = "返回"
+		cancel.custom_minimum_size.y = 50
+		cancel.pressed.connect(_close_language_selection_overlay)
+		box.add_child(cancel)
+	_refresh_localized_ui()
+
+
+func _on_language_selected(locale_code: String) -> void:
+	if not _locale.select_language(locale_code):
+		return
+	_locale.save_preferences(_master_volume, _vhs_enabled, _camera_enabled, _camera_source)
+	_close_language_selection_overlay()
+	if _game_started:
+		_render()
+	else:
+		_build_main_menu()
+		if not _camera_session_decided:
+			_build_camera_consent_overlay()
+	_refresh_localized_ui()
+
+
+func _close_language_selection_overlay() -> void:
+	if _language_overlay_first_run and not _locale.language_selected:
+		return
+	if _language_overlay != null and is_instance_valid(_language_overlay):
+		_language_overlay.queue_free()
+	_language_overlay = null
+	_language_overlay_first_run = false
+
+
+func _build_camera_consent_overlay() -> void:
+	if _ui_root == null or _camera_session_decided:
+		return
+	if _camera_consent_overlay != null and is_instance_valid(_camera_consent_overlay):
+		_camera_consent_overlay.queue_free()
+	_camera_consent_overlay = Control.new()
+	_camera_consent_overlay.name = "CameraConsentOverlay"
+	_camera_consent_overlay.set_anchors_preset(Control.PRESET_FULL_RECT)
+	_camera_consent_overlay.mouse_filter = Control.MOUSE_FILTER_STOP
+	_camera_consent_overlay.z_index = 210
+	_ui_root.add_child(_camera_consent_overlay)
+
+	var blackout := ColorRect.new()
+	blackout.name = "CameraConsentBackdrop"
+	blackout.color = Color(_theme_color("ink"), 0.94)
+	blackout.set_anchors_preset(Control.PRESET_FULL_RECT)
+	blackout.mouse_filter = Control.MOUSE_FILTER_STOP
+	_camera_consent_overlay.add_child(blackout)
+
+	var center := CenterContainer.new()
+	center.set_anchors_preset(Control.PRESET_FULL_RECT)
+	_camera_consent_overlay.add_child(center)
+	var panel := PanelContainer.new()
+	panel.name = "CameraConsentPanel"
+	panel.custom_minimum_size = Vector2(720, 520)
+	panel.add_theme_stylebox_override("panel", _soft_style(_theme_color("surface"), _theme_color("accent")))
+	center.add_child(panel)
+	var box := VBoxContainer.new()
+	box.add_theme_constant_override("separation", 18)
+	panel.add_child(box)
+
+	var eyebrow := _label("LOCAL VISION  /  FOUR FINGERTIPS", 15, _theme_color("accent"))
+	eyebrow.name = "CameraConsentEyebrow"
+	box.add_child(eyebrow)
+	var title := _label("摄像头与 X-RAY", 30, _theme_color("ink"))
+	title.name = "CameraConsentTitle"
+	box.add_child(title)
+	_camera_consent_copy = _label(
+		"用双手拇指与食指的四个指尖框出矩形区域，区域内会显示手机层。视频只在本机用于关键点计算，不写入存档。",
+		18,
+		_theme_color("ink")
+	)
+	_camera_consent_copy.name = "CameraConsentPrivacyCopy"
+	_camera_consent_copy.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
+	_camera_consent_copy.custom_minimum_size.y = 110
+	box.add_child(_camera_consent_copy)
+	var source_guidance := _label("默认使用电脑摄像头；手机只作为没有电脑镜头时的备用。", 15, _theme_color("accent"))
+	source_guidance.name = "CameraConsentSourceGuidance"
+	box.add_child(source_guidance)
+	var source_label := _label("摄像头来源", 16, _theme_color("ink"))
+	box.add_child(source_label)
+	_camera_consent_source_option = OptionButton.new()
+	_camera_consent_source_option.name = "CameraConsentSourceOption"
+	_camera_consent_source_option.set_meta("skip_localization", true)
+	_camera_consent_source_option.custom_minimum_size = Vector2(440, 52)
+	_populate_camera_source_option(_camera_consent_source_option)
+	_camera_consent_source_option.item_selected.connect(_on_camera_source_selected.bind(_camera_consent_source_option))
+	box.add_child(_camera_consent_source_option)
+	var previous_choice := _label(
+		"上次设置为允许；本次仍需要你确认。" if _camera_enabled else "镜头默认关闭，点击允许后才会启动。",
+		15,
+		_theme_color("accent")
+	)
+	previous_choice.name = "CameraConsentPreviousChoice"
+	box.add_child(previous_choice)
+
+	var actions := HBoxContainer.new()
+	actions.alignment = BoxContainer.ALIGNMENT_CENTER
+	actions.add_theme_constant_override("separation", 14)
+	box.add_child(actions)
+	var allow_button := Button.new()
+	allow_button.name = "CameraConsentAllowButton"
+	allow_button.text = "允许并打开摄像头"
+	allow_button.custom_minimum_size = Vector2(260, 58)
+	allow_button.pressed.connect(_resolve_camera_consent.bind(true))
+	actions.add_child(allow_button)
+	var skip_button := Button.new()
+	skip_button.name = "CameraConsentSkipButton"
+	skip_button.text = "暂不使用"
+	skip_button.custom_minimum_size = Vector2(190, 58)
+	skip_button.pressed.connect(_resolve_camera_consent.bind(false))
+	actions.add_child(skip_button)
+	_apply_ui_theme()
+	_refresh_localized_ui()
+
+
+func _resolve_camera_consent(allowed: bool) -> void:
+	_camera_session_decided = true
+	_set_camera_enabled(allowed, true)
+	if _camera_consent_overlay != null and is_instance_valid(_camera_consent_overlay):
+		_camera_consent_overlay.queue_free()
+	_camera_consent_overlay = null
+
+
+func _ensure_hand_tracking_receiver() -> void:
+	if _hand_tracking_receiver != null:
+		return
+	_hand_tracking_receiver = HandTrackingReceiverScript.new()
+	_hand_tracking_receiver.camera_source = _camera_source
+	_hand_tracking_receiver.frame_received.connect(_on_hand_tracking_frame)
+	_hand_tracking_receiver.status_changed.connect(_on_hand_tracking_status_changed)
+	_hand_tracking_receiver.source_ready.connect(_on_camera_source_ready)
+
+
+func _set_camera_enabled(value: bool, persist: bool = true) -> void:
+	_camera_enabled = value
+	_camera_ready_source = ""
+	_camera_ready_index = -1
+	_ensure_hand_tracking_receiver()
+	_hand_tracking_receiver.camera_source = _camera_source
+	if value:
+		_hand_tracking_receiver.start(true)
+		_camera_tracking_status = _hand_tracking_receiver.get_status()
+	else:
+		_hand_tracking_receiver.stop()
+		_camera_tracking_status = "摄像头未启用"
+	if _camera_access_toggle != null:
+		_camera_access_toggle.set_pressed_no_signal(value)
+	if _hand_xray_overlay != null:
+		_hand_xray_overlay.set_tracking_enabled(value)
+	_refresh_camera_source_buttons()
+	_refresh_camera_status_ui()
+	if value and _camera_source == "phone":
+		_show_phone_camera_connection_overlay()
+	elif not value:
+		_hide_phone_camera_connection_overlay()
+	_refresh_phone_camera_connection_ui()
+	if persist:
+		_locale.save_preferences(_master_volume, _vhs_enabled, _camera_enabled, _camera_source)
+
+
+func _set_camera_source(value: String, persist: bool = true) -> void:
+	var normalized := value if value in ["computer", "phone"] else "computer"
+	var changed := _camera_source != normalized
+	_camera_source = normalized
+	if changed:
+		_camera_ready_source = ""
+		_camera_ready_index = -1
+	_ensure_hand_tracking_receiver()
+	_hand_tracking_receiver.camera_source = _camera_source
+	if changed and _camera_enabled:
+		_hand_tracking_receiver.stop()
+		_hand_tracking_receiver.start(true)
+		_camera_tracking_status = _hand_tracking_receiver.get_status()
+	_sync_camera_source_options()
+	_refresh_camera_source_buttons()
+	_refresh_camera_status_ui()
+	if _camera_source == "computer":
+		_hide_phone_camera_connection_overlay()
+	elif _camera_enabled:
+		_show_phone_camera_connection_overlay()
+	_refresh_phone_camera_connection_ui()
+	if persist:
+		_locale.save_preferences(_master_volume, _vhs_enabled, _camera_enabled, _camera_source)
+
+
+func _populate_camera_source_option(option: OptionButton) -> void:
+	if option == null:
+		return
+	option.clear()
+	for entry in [
+		{"id": "computer", "label": "电脑摄像头（默认）"},
+		{"id": "phone", "label": "手机摄像头（备用）"},
+	]:
+		option.add_item(_locale.translate(str(entry["label"])))
+		var item_index := option.item_count - 1
+		option.set_item_metadata(item_index, entry["id"])
+		if str(entry["id"]) == _camera_source:
+			option.select(item_index)
+
+
+func _sync_camera_source_options() -> void:
+	for option in [_camera_consent_source_option]:
+		if option == null:
+			continue
+		for item_index in option.item_count:
+			if str(option.get_item_metadata(item_index)) == _camera_source:
+				option.select(item_index)
+				break
+
+
+func _refresh_camera_source_option_labels() -> void:
+	for option in [_camera_consent_source_option]:
+		if option == null or option.item_count < 2:
+			continue
+		option.set_item_text(0, _locale.translate("电脑摄像头（默认）"))
+		option.set_item_text(1, _locale.translate("手机摄像头（备用）"))
+
+
+func _on_camera_source_selected(index: int, option: OptionButton) -> void:
+	if option == null or index < 0 or index >= option.item_count:
+		return
+	_set_camera_source(str(option.get_item_metadata(index)), true)
+
+
+func _activate_camera_source(source: String) -> void:
+	var normalized := source if source in ["computer", "phone"] else "computer"
+	_camera_session_decided = true
+	if _camera_enabled:
+		_set_camera_enabled(false, false)
+	_set_camera_source(normalized, false)
+	_set_camera_enabled(true, true)
+	if normalized == "phone":
+		_show_phone_camera_connection_overlay()
+	else:
+		_hide_phone_camera_connection_overlay()
+
+
+func _refresh_camera_source_buttons() -> void:
+	if _camera_computer_button != null:
+		_camera_computer_button.set_pressed_no_signal(_camera_enabled and _camera_source == "computer")
+		_camera_computer_button.set_meta("camera_source_selected", _camera_enabled and _camera_source == "computer")
+		_camera_computer_button.set_meta("camera_source_ready", _camera_ready_source == "computer")
+	if _camera_phone_button != null:
+		_camera_phone_button.set_pressed_no_signal(_camera_enabled and _camera_source == "phone")
+		_camera_phone_button.set_meta("camera_source_selected", _camera_enabled and _camera_source == "phone")
+		_camera_phone_button.set_meta("camera_source_ready", _camera_ready_source == "phone")
+
+
+func _on_hand_tracking_frame(hands: Array, _timestamp_msec: int) -> void:
+	var frame_locked := false
+	if _hand_xray_overlay != null:
+		frame_locked = _hand_xray_overlay.ingest_hands(hands, Time.get_ticks_msec())
+	var receiver_status: String = str(_hand_tracking_receiver.get_status()) if _hand_tracking_receiver != null else ""
+	if frame_locked:
+		_camera_tracking_status = "已锁定指尖窗口"
+	elif receiver_status in ["摄像头不可用或权限被拒绝", "手部追踪程序发生错误"]:
+		_camera_tracking_status = receiver_status
+	else:
+		_camera_tracking_status = "等待双手四指框选"
+	_refresh_camera_status_ui()
+
+
+func _on_hand_tracking_status_changed(status: String) -> void:
+	_camera_tracking_status = status
+	if status in ["摄像头不可用或权限被拒绝", "手部追踪程序发生错误", "无法启动手部追踪程序"]:
+		_camera_ready_source = ""
+		_camera_ready_index = -1
+	_refresh_camera_source_buttons()
+	_refresh_camera_status_ui()
+	_refresh_phone_camera_connection_ui()
+
+
+func _on_camera_source_ready(source: String, selected_index: int) -> void:
+	if source not in ["computer", "phone"]:
+		return
+	_camera_ready_source = source
+	_camera_ready_index = selected_index
+	_refresh_camera_source_buttons()
+	_refresh_phone_camera_connection_ui()
+
+
+func _refresh_camera_status_ui() -> void:
+	if _camera_status_label != null:
+		_camera_status_label.text = _camera_tracking_status
+		_set_localized_property(_camera_status_label, "text")
 
 
 func _build_ui() -> void:
@@ -1186,6 +1965,7 @@ func _build_ui() -> void:
 	_phone_down_backdrop_image.z_index = 1
 	_ui_root.add_child(_phone_down_backdrop_image)
 	_hand_phone_image = null
+	_build_hand_xray_overlay()
 	_build_cinematic_bars()
 
 	_build_apple_hud()
@@ -1219,12 +1999,7 @@ func _build_ui() -> void:
 	phone_shell.add_theme_constant_override("separation", 0)
 	_phone_panel.add_child(phone_shell)
 
-	_phone_tab = Button.new()
-	_phone_tab.name = "PhoneTab"
-	_phone_tab.text = "PHONE\n打开"
-	_phone_tab.custom_minimum_size = Vector2(78, 168)
-	_phone_tab.pressed.connect(_open_phone_launcher)
-	phone_shell.add_child(_phone_tab)
+	_phone_tab = null
 
 	_phone_content = VBoxContainer.new()
 	_phone_content.name = "PhoneContent"
@@ -1312,7 +2087,6 @@ func _build_ui() -> void:
 	for app in [
 		{"id": "babel", "label": "塔\n楼层档案"},
 		{"id": "social", "label": "帖\n信号瀑布"},
-		{"id": "shop", "label": "店\n梗框商店"},
 		{"id": "notebook", "label": "本\n语言工坊"},
 	]:
 		var button := Button.new()
@@ -1355,7 +2129,6 @@ func _build_ui() -> void:
 
 	_build_app_window("social", "社交媒体 App", "SocialAppWindow", -835.0, 18.0, -397.0, 910.0)
 	_build_app_window("babel", "巴别塔 App", "BabelAppWindow", -1032.0, 96.0, -592.0, 676.0)
-	_build_app_window("shop", "信号商店", "ShopAppWindow", -1000.0, 124.0, -560.0, 704.0)
 	_build_app_window("notebook", "笔记本 App", "NotebookAppWindow", -968.0, 152.0, -528.0, 732.0)
 	_build_social_detail_window()
 
@@ -1389,6 +2162,7 @@ func _build_ui() -> void:
 	_reality_choice_row.offset_right = -290
 	_reality_choice_row.offset_bottom = -206
 	_reality_choice_row.add_theme_constant_override("separation", 14)
+	_reality_choice_row.clip_contents = true
 	_reality_choice_row.z_index = 15
 	_ui_root.add_child(_reality_choice_row)
 
@@ -1422,43 +2196,6 @@ func _build_ui() -> void:
 	_reality_typing_progress.z_index = 15
 	_ui_root.add_child(_reality_typing_progress)
 
-	_reality_aid_status = _label("", 14, _theme_color("muted"))
-	_reality_aid_status.name = "RealityAidStatus"
-	_reality_aid_status.set_meta("on_dark", true)
-	_reality_aid_status.set_anchors_preset(Control.PRESET_BOTTOM_WIDE)
-	_reality_aid_status.offset_left = 520
-	_reality_aid_status.offset_top = -204
-	_reality_aid_status.offset_right = -460
-	_reality_aid_status.offset_bottom = -180
-	_reality_aid_status.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
-	_reality_aid_status.z_index = 15
-	_ui_root.add_child(_reality_aid_status)
-
-	_reality_merchant_offer = _panel()
-	_reality_merchant_offer.name = "RealityMerchantOffer"
-	_reality_merchant_offer.set_anchors_preset(Control.PRESET_BOTTOM_WIDE)
-	_reality_merchant_offer.offset_left = 480
-	_reality_merchant_offer.offset_top = -330
-	_reality_merchant_offer.offset_right = -420
-	_reality_merchant_offer.offset_bottom = -210
-	_reality_merchant_offer.z_index = 15
-	_ui_root.add_child(_reality_merchant_offer)
-	var merchant_offer_box := HBoxContainer.new()
-	merchant_offer_box.add_theme_constant_override("separation", 14)
-	_reality_merchant_offer.add_child(merchant_offer_box)
-	_reality_merchant_offer_text = _label("", 17, _theme_color("ink"))
-	_reality_merchant_offer_text.name = "RealityMerchantOfferText"
-	_reality_merchant_offer_text.custom_minimum_size = Vector2(120, 80)
-	_reality_merchant_offer_text.size_flags_horizontal = Control.SIZE_EXPAND_FILL
-	_reality_merchant_offer_text.autowrap_mode = TextServer.AUTOWRAP_ARBITRARY
-	_reality_merchant_offer_text.clip_text = true
-	merchant_offer_box.add_child(_reality_merchant_offer_text)
-	_reality_merchant_buy_button = Button.new()
-	_reality_merchant_buy_button.name = "RealityMerchantBuyButton"
-	_reality_merchant_buy_button.custom_minimum_size = Vector2(132, 56)
-	_reality_merchant_buy_button.pressed.connect(_on_buy_communication_item)
-	merchant_offer_box.add_child(_reality_merchant_buy_button)
-
 	_reality_subtitle_panel = PanelContainer.new()
 	_reality_subtitle_panel.name = "RealitySubtitlePanel"
 	_reality_subtitle_panel.set_meta("movie_subtitle", true)
@@ -1491,51 +2228,72 @@ func _build_ui() -> void:
 	_reality_continue_button.name = "RealityConversationContinue"
 	_reality_continue_button.text = "结束"
 	_reality_continue_button.custom_minimum_size = Vector2(92, 48)
-	_reality_continue_button.pressed.connect(_exit_reality_interaction)
+	_reality_continue_button.pressed.connect(_on_reality_continue_pressed)
 	subtitle_box.add_child(_reality_continue_button)
+	_build_reality_language_composer()
 
-	_meme_bank_window = _panel()
+	_meme_bank_window = Control.new()
 	_meme_bank_window.name = "MemeBankPopup"
 	_meme_bank_window.set_meta("meme_bank_popup", true)
+	_meme_bank_window.set_meta("radial_meme_bank", true)
+	_meme_bank_window.mouse_filter = Control.MOUSE_FILTER_PASS
 	_meme_bank_window.z_index = 18
 	_ui_root.add_child(_meme_bank_window)
 	_apply_meme_bank_popup_layout("peek")
-	var bank_box := VBoxContainer.new()
-	bank_box.name = "MemeBankShell"
-	bank_box.add_theme_constant_override("separation", 8)
-	_meme_bank_window.add_child(bank_box)
 
-	var bank_header := HBoxContainer.new()
-	bank_header.name = "MemeBankHeader"
-	bank_header.add_theme_constant_override("separation", 6)
-	bank_box.add_child(bank_header)
+	_meme_bank_ring = RadialMemeRingScript.new()
+	_meme_bank_ring.name = "MemeBankRadialRing"
+	_meme_bank_ring.set_anchors_preset(Control.PRESET_FULL_RECT)
+	_meme_bank_ring.set_palette(_theme_color("surface"), Color(_theme_color("muted"), 0.88), _theme_color("accent"))
+	_meme_bank_ring.selection_changed.connect(_on_meme_ring_selection_changed)
+	_meme_bank_window.add_child(_meme_bank_ring)
+	_bank_list = _meme_bank_ring
 
 	_meme_bank_tab = Button.new()
 	_meme_bank_tab.name = "MemeBankTab"
-	_meme_bank_tab.text = "›"
+	_meme_bank_tab.text = "梗"
 	_meme_bank_tab.set_meta("meme_bank_tab", true)
-	_meme_bank_tab.custom_minimum_size = Vector2(52, 52)
+	_meme_bank_tab.set_meta("radial_center_button", true)
+	_meme_bank_tab.set_anchors_preset(Control.PRESET_CENTER_RIGHT)
+	_meme_bank_tab.offset_left = -142.0
+	_meme_bank_tab.offset_top = -58.0
+	_meme_bank_tab.offset_right = -22.0
+	_meme_bank_tab.offset_bottom = 58.0
+	_meme_bank_tab.custom_minimum_size = Vector2(120, 116)
 	_meme_bank_tab.pressed.connect(_toggle_meme_bank)
-	bank_header.add_child(_meme_bank_tab)
+	_meme_bank_window.add_child(_meme_bank_tab)
 
-	_meme_bank_drag_handle = _label("拖拽", 14, _theme_color("accent"))
+	_meme_bank_drag_handle = _label("≡", 24, _theme_color("accent"))
 	_meme_bank_drag_handle.name = "MemeBankDragHandle"
+	_meme_bank_drag_handle.tooltip_text = "拖动梗仓库"
 	_meme_bank_drag_handle.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
 	_meme_bank_drag_handle.vertical_alignment = VERTICAL_ALIGNMENT_CENTER
-	_meme_bank_drag_handle.custom_minimum_size = Vector2(54, 52)
-	_meme_bank_drag_handle.size_flags_horizontal = Control.SIZE_EXPAND_FILL
-	bank_header.add_child(_meme_bank_drag_handle)
+	_meme_bank_drag_handle.set_anchors_preset(Control.PRESET_TOP_RIGHT)
+	_meme_bank_drag_handle.offset_left = -70.0
+	_meme_bank_drag_handle.offset_top = 14.0
+	_meme_bank_drag_handle.offset_right = -26.0
+	_meme_bank_drag_handle.offset_bottom = 58.0
+	_meme_bank_drag_handle.custom_minimum_size = Vector2(44, 44)
+	_meme_bank_window.add_child(_meme_bank_drag_handle)
 	_make_draggable_window(_meme_bank_window, "bank", _meme_bank_drag_handle)
 
-	_meme_bank_content = VBoxContainer.new()
+	_meme_bank_content = Control.new()
 	_meme_bank_content.name = "MemeBankContent"
-	(_meme_bank_content as VBoxContainer).add_theme_constant_override("separation", 8)
-	bank_box.add_child(_meme_bank_content)
-	var bank_title := _label("完整梗文件", 18, _theme_color("accent"))
-	_meme_bank_content.add_child(bank_title)
-	_bank_list = HBoxContainer.new()
-	_bank_list.add_theme_constant_override("separation", 8)
-	_meme_bank_content.add_child(_bank_list)
+	_meme_bank_content.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	_meme_bank_content.set_anchors_preset(Control.PRESET_FULL_RECT)
+	_meme_bank_window.add_child(_meme_bank_content)
+	_meme_bank_focus_label = _label("还没有完整梗", 16, _theme_color("accent"))
+	_meme_bank_focus_label.name = "MemeBankFocusLabel"
+	_meme_bank_focus_label.set_anchors_preset(Control.PRESET_BOTTOM_LEFT)
+	_meme_bank_focus_label.offset_left = 24.0
+	_meme_bank_focus_label.offset_top = -92.0
+	_meme_bank_focus_label.offset_right = 286.0
+	_meme_bank_focus_label.offset_bottom = -26.0
+	_meme_bank_focus_label.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
+	_meme_bank_focus_label.max_lines_visible = 1
+	_meme_bank_focus_label.text_overrun_behavior = TextServer.OVERRUN_TRIM_ELLIPSIS
+	_meme_bank_focus_label.vertical_alignment = VERTICAL_ALIGNMENT_CENTER
+	_meme_bank_content.add_child(_meme_bank_focus_label)
 
 	_desk_log = _label("", 16, _theme_color("accent"))
 	_desk_log.name = "DeskLog"
@@ -1546,13 +2304,108 @@ func _build_ui() -> void:
 	_desk_log.offset_bottom = -112
 	_desk_log.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
 	_ui_root.add_child(_desk_log)
+	_build_playtest_assist_panel()
 
 	_build_action_spend_overlay()
 	_build_settings_window()
+	_build_phone_camera_connection_overlay()
+	_build_history_window()
+	_build_exit_confirmation_overlay()
 	_build_day_transition_overlay()
 	_build_flashback_overlay()
 	_build_prologue_overlay()
 	_apply_responsive_layouts_if_needed(true)
+
+
+func _build_reality_language_composer() -> void:
+	_reality_language_frame = _panel()
+	_reality_language_frame.name = "RealityLanguagePuzzleFrame"
+	_reality_language_frame.set_meta("soft_panel", true)
+	_reality_language_frame.set_anchors_preset(Control.PRESET_BOTTOM_WIDE)
+	_reality_language_frame.offset_left = 300.0
+	_reality_language_frame.offset_top = -520.0
+	_reality_language_frame.offset_right = -240.0
+	_reality_language_frame.offset_bottom = -190.0
+	_reality_language_frame.z_index = 16
+	_reality_language_frame.visible = false
+	_ui_root.add_child(_reality_language_frame)
+
+	var composer_box := VBoxContainer.new()
+	composer_box.name = "RealityLanguagePuzzleContent"
+	composer_box.add_theme_constant_override("separation", 10)
+	_reality_language_frame.add_child(composer_box)
+
+	var heading := _label("把发布过的词重新说给医生", 20, _theme_color("ink"))
+	heading.name = "RealityLanguagePuzzleHeading"
+	composer_box.add_child(heading)
+	var hint := _label("同一个词到了这里会换一种说法。拖拽词块，或先点词块再点句槽。", 14, _theme_color("accent"))
+	hint.name = "RealityLanguagePuzzleHint"
+	hint.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
+	composer_box.add_child(hint)
+
+	_reality_language_token_flow = HFlowContainer.new()
+	_reality_language_token_flow.name = "RealityLanguageTokenFlow"
+	_reality_language_token_flow.custom_minimum_size.y = 76.0
+	_reality_language_token_flow.add_theme_constant_override("h_separation", 8)
+	_reality_language_token_flow.add_theme_constant_override("v_separation", 8)
+	composer_box.add_child(_reality_language_token_flow)
+
+	_reality_language_slot_row = HBoxContainer.new()
+	_reality_language_slot_row.name = "RealityLanguageSlots"
+	_reality_language_slot_row.add_theme_constant_override("separation", 8)
+	composer_box.add_child(_reality_language_slot_row)
+
+	_reality_language_preview = _label("", 16, _theme_color("ink"))
+	_reality_language_preview.name = "RealityLanguagePreview"
+	_reality_language_preview.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
+	composer_box.add_child(_reality_language_preview)
+
+	_reality_language_confirm = Button.new()
+	_reality_language_confirm.name = "RealityLanguageConfirm"
+	_reality_language_confirm.text = "对医生说出口"
+	_reality_language_confirm.custom_minimum_size.y = 54.0
+	_reality_language_confirm.pressed.connect(_on_confirm_doctor_sentence_pressed)
+	composer_box.add_child(_reality_language_confirm)
+
+
+func _build_playtest_assist_panel() -> void:
+	_playtest_assist_panel = _panel()
+	_playtest_assist_panel.name = "PlaytestAssistPanel"
+	_playtest_assist_panel.set_meta("dark_rail", true)
+	_playtest_assist_panel.set_anchors_preset(Control.PRESET_TOP_RIGHT)
+	_playtest_assist_panel.offset_left = -474.0
+	_playtest_assist_panel.offset_top = 24.0
+	_playtest_assist_panel.offset_right = -24.0
+	_playtest_assist_panel.offset_bottom = 178.0
+	_playtest_assist_panel.z_index = 44
+	_playtest_assist_panel.visible = true
+	_ui_root.add_child(_playtest_assist_panel)
+	var assist_box := VBoxContainer.new()
+	assist_box.add_theme_constant_override("separation", 6)
+	_playtest_assist_panel.add_child(assist_box)
+	var title := _label("缝线布偶 / GUIDE", 13, _theme_color("muted"))
+	title.set_meta("on_dark", true)
+	assist_box.add_child(title)
+	_playtest_assist_label = _label("", 15, _theme_color("surface"))
+	_playtest_assist_label.name = "PlaytestAssistLabel"
+	_playtest_assist_label.set_meta("on_dark", true)
+	_playtest_assist_label.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
+	_playtest_assist_label.size_flags_vertical = Control.SIZE_EXPAND_FILL
+	assist_box.add_child(_playtest_assist_label)
+
+
+func _build_hand_xray_overlay() -> void:
+	_hand_xray_overlay = HandXRayOverlayScript.new()
+	_hand_xray_overlay.name = "HandXRayOverlay"
+	_hand_xray_overlay.set_anchors_preset(Control.PRESET_FULL_RECT)
+	_hand_xray_overlay.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	_hand_xray_overlay.z_index = 9
+	_ui_root.add_child(_hand_xray_overlay)
+	var initial_texture: Texture2D = _second_layer_texture
+	if initial_texture == null and _phone_down_backdrop_image != null:
+		initial_texture = _phone_down_backdrop_image.texture
+	_hand_xray_overlay.set_layer_texture(initial_texture)
+	_hand_xray_overlay.set_tracking_enabled(_camera_enabled)
 
 
 func _build_prologue_overlay() -> void:
@@ -1644,34 +2497,63 @@ func _skip_prologue() -> void:
 
 
 func _build_apple_hud() -> void:
+	_hud_drawer_expanded = false
+	_hud_drawer_touch_pinned = false
+	_hud_drawer_close_countdown = -1.0
 	_hud_panel = _panel()
 	_hud_panel.name = "InternationalHUDRail"
 	_hud_panel.set_meta("dark_rail", true)
+	_hud_panel.set_meta("drawer_state", "collapsed")
+	_hud_panel.set_meta("slide_direction", "left_to_right")
+	_hud_panel.set_meta("open_duration", HUD_DRAWER_OPEN_DURATION)
+	_hud_panel.set_meta("close_duration", HUD_DRAWER_CLOSE_DURATION)
 	_hud_panel.set_anchors_preset(Control.PRESET_TOP_LEFT)
-	_hud_panel.offset_left = 0
-	_hud_panel.offset_top = 0
-	_hud_panel.offset_right = 158
-	_hud_panel.offset_bottom = 720
+	_hud_panel.offset_left = 0.0
+	_hud_panel.offset_top = 0.0
+	_hud_panel.offset_right = HUD_RAIL_WIDTH
+	_hud_panel.offset_bottom = HUD_RAIL_MAX_HEIGHT
 	_hud_panel.z_index = 40
+	_hud_panel.mouse_filter = Control.MOUSE_FILTER_STOP
 	_hud_panel.add_theme_stylebox_override("panel", _style(_theme_color("ink"), Color(_theme_color("muted"), 0.22)))
 	_ui_root.add_child(_hud_panel)
+	_hud_panel.mouse_entered.connect(_on_hud_drawer_pointer_entered)
+	_hud_panel.mouse_exited.connect(_schedule_hud_drawer_close)
+
+	_hud_reveal_zone = Control.new()
+	_hud_reveal_zone.name = "HUDRevealZone"
+	_hud_reveal_zone.set_meta("hover_reveals", true)
+	_hud_reveal_zone.set_meta("touch_reveals", true)
+	_hud_reveal_zone.set_meta("touch_target_width", HUD_DRAWER_EDGE_HIT_WIDTH)
+	_hud_reveal_zone.mouse_filter = Control.MOUSE_FILTER_STOP
+	_hud_reveal_zone.mouse_default_cursor_shape = Control.CURSOR_POINTING_HAND
+	_hud_reveal_zone.tooltip_text = "打开状态栏"
+	_hud_reveal_zone.z_index = 39
+	_hud_reveal_zone.mouse_entered.connect(_on_hud_reveal_zone_entered)
+	_hud_reveal_zone.mouse_exited.connect(_schedule_hud_drawer_close)
+	_hud_reveal_zone.gui_input.connect(_on_hud_reveal_zone_gui_input)
+	_ui_root.add_child(_hud_reveal_zone)
+
+	_hud_reveal_indicator = ColorRect.new()
+	_hud_reveal_indicator.name = "HUDRevealIndicator"
+	_hud_reveal_indicator.color = _theme_color("muted")
+	_hud_reveal_indicator.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	_hud_reveal_indicator.set_anchors_preset(Control.PRESET_CENTER_LEFT)
+	_hud_reveal_indicator.offset_left = 0.0
+	_hud_reveal_indicator.offset_top = -46.0
+	_hud_reveal_indicator.offset_right = HUD_DRAWER_EDGE_CUE_WIDTH
+	_hud_reveal_indicator.offset_bottom = 46.0
+	_hud_reveal_indicator.set_meta("edge_cue", true)
+	_hud_reveal_zone.add_child(_hud_reveal_indicator)
+
+	var center := CenterContainer.new()
+	center.name = "InternationalHUDCenter"
+	_hud_panel.add_child(center)
 
 	var box := VBoxContainer.new()
-	box.add_theme_constant_override("separation", 18)
-	_hud_panel.add_child(box)
+	box.name = "InternationalHUDStack"
+	box.add_theme_constant_override("separation", 14)
+	center.add_child(box)
 
-	_hud_day_value = null
-	_hud_heat_value = null
-	_hud_pollution_value = null
-	_hud_clarity_value = null
-	_hud_floor_value = null
-	_hud_money_value = null
-
-	var spacer := Control.new()
-	spacer.custom_minimum_size.y = 34
-	box.add_child(spacer)
-
-	_add_hud_icon(box, "HUDDayIcon", "day", HUD_DAY_ICON_PATH)
 	_add_hud_icon(box, "HUDPollutionIcon", "pollution", HUD_POLLUTION_ICON_PATH)
 	_add_hud_icon(box, "HUDMoneyIcon", "money", HUD_MONEY_ICON_PATH)
 
@@ -1682,22 +2564,21 @@ func _build_apple_hud() -> void:
 	box.add_child(action_divider)
 
 	var action_spacer := Control.new()
-	action_spacer.custom_minimum_size.y = 10
+	action_spacer.custom_minimum_size.y = 6
 	box.add_child(action_spacer)
 
-	_hud_actions_label = _label("", 20, _theme_color("muted"))
+	_hud_actions_label = _label("", 18, _theme_color("muted"))
 	_hud_actions_label.name = "HUDActionsLabel"
 	_hud_actions_label.set_meta("action_animation_mode", "inline_pulse")
 	_hud_actions_label.set_meta("hud_action_label", true)
-	_hud_actions_label.custom_minimum_size = Vector2(118, 70)
+	_hud_actions_label.custom_minimum_size = Vector2(118, 64)
 	_hud_actions_label.size_flags_horizontal = Control.SIZE_SHRINK_CENTER
 	_hud_actions_label.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
 	_hud_actions_label.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
 	box.add_child(_hud_actions_label)
-	_actions_label = _hud_actions_label
 
 	var settings_spacer := Control.new()
-	settings_spacer.custom_minimum_size.y = 20
+	settings_spacer.custom_minimum_size.y = 10
 	box.add_child(settings_spacer)
 	_hud_settings_icon = _add_hud_icon(box, "HUDSettingsIcon", "settings", HUD_SETTINGS_ICON_PATH)
 	_hud_settings_icon.pressed.connect(_toggle_settings_window)
@@ -1712,6 +2593,7 @@ func _build_apple_hud() -> void:
 	_hud_tooltip_label = _label("", 19, _theme_color("ink"))
 	_hud_tooltip_label.name = "HUDTooltipLabel"
 	_hud_tooltip.add_child(_hud_tooltip_label)
+	_layout_hud_rail()
 
 
 func _add_hud_icon(parent: VBoxContainer, node_name: String, kind: String, texture_path: String) -> Button:
@@ -1720,7 +2602,7 @@ func _add_hud_icon(parent: VBoxContainer, node_name: String, kind: String, textu
 	icon.set_meta("hud_icon", true)
 	icon.text = ""
 	icon.icon = _load_runtime_texture(texture_path)
-	icon.custom_minimum_size = Vector2(68, 68)
+	icon.custom_minimum_size = Vector2(60, 60)
 	icon.size_flags_horizontal = Control.SIZE_SHRINK_CENTER
 	icon.focus_mode = Control.FOCUS_ALL
 	icon.mouse_default_cursor_shape = Control.CURSOR_POINTING_HAND
@@ -1735,8 +2617,6 @@ func _show_hud_tooltip(kind: String, source: Control) -> void:
 	if _hud_tooltip == null or _hud_tooltip_label == null or source == null:
 		return
 	match kind:
-		"day":
-			_hud_tooltip_label.text = "DAY %d" % game.day
 		"pollution":
 			_hud_tooltip_label.text = "污染 %d%%" % game.pollution
 		"money":
@@ -1750,6 +2630,131 @@ func _show_hud_tooltip(kind: String, source: Control) -> void:
 
 
 func _hide_hud_tooltip() -> void:
+	if _hud_tooltip != null:
+		_hud_tooltip.visible = false
+	_schedule_hud_drawer_close()
+
+
+func _is_hud_drawer_expanded() -> bool:
+	return _hud_drawer_expanded
+
+
+func _set_hud_drawer_expanded(expanded: bool, animate: bool = true) -> void:
+	if _hud_panel == null:
+		return
+	_hud_drawer_expanded = expanded
+	_hud_drawer_close_countdown = -1.0
+	_hud_panel.set_meta("drawer_state", "expanded" if expanded else "collapsed")
+	_hud_panel.set_meta("motion_easing", "easeOutQuint" if expanded else "easeInQuint")
+	if not expanded:
+		_hide_hud_tooltip_immediately()
+	if _hud_drawer_tween != null and _hud_drawer_tween.is_valid():
+		_hud_drawer_tween.kill()
+	_hud_drawer_tween = null
+	var target_position := Vector2(_hud_drawer_x(expanded), _hud_panel.position.y)
+	if not animate or not is_inside_tree():
+		_hud_panel.position = target_position
+		_hud_panel.set_meta("motion_phase", "idle")
+		return
+	_hud_panel.set_meta("motion_phase", "opening" if expanded else "closing")
+	var duration := HUD_DRAWER_OPEN_DURATION if expanded else HUD_DRAWER_CLOSE_DURATION
+	var ease := Tween.EASE_OUT if expanded else Tween.EASE_IN
+	_hud_drawer_tween = create_tween()
+	_hud_drawer_tween.tween_property(_hud_panel, "position", target_position, duration).set_trans(Tween.TRANS_QUINT).set_ease(ease)
+	_hud_drawer_tween.finished.connect(_finish_hud_drawer_motion.bind(_hud_drawer_tween), CONNECT_ONE_SHOT)
+
+
+func _finish_hud_drawer_motion(completed_tween: Tween) -> void:
+	if completed_tween != _hud_drawer_tween or _hud_panel == null:
+		return
+	_hud_panel.position.x = _hud_drawer_x(_hud_drawer_expanded)
+	_hud_panel.set_meta("motion_phase", "idle")
+	_hud_drawer_tween = null
+
+
+func _hud_drawer_x(expanded: bool) -> float:
+	return 0.0 if expanded else -HUD_RAIL_WIDTH
+
+
+func _on_hud_reveal_zone_entered() -> void:
+	if _input_locked or not _game_started:
+		return
+	_hud_drawer_touch_pinned = false
+	_set_hud_drawer_expanded(true)
+
+
+func _on_hud_drawer_pointer_entered() -> void:
+	if _input_locked or not _game_started:
+		return
+	_hud_drawer_close_countdown = -1.0
+	if not _hud_drawer_expanded:
+		_set_hud_drawer_expanded(true)
+
+
+func _schedule_hud_drawer_close() -> void:
+	if not _hud_drawer_expanded or _hud_drawer_touch_pinned:
+		return
+	_hud_drawer_close_countdown = HUD_DRAWER_CLOSE_DELAY
+
+
+func _update_hud_drawer_auto_close(delta: float) -> void:
+	if not _hud_drawer_expanded or _hud_drawer_touch_pinned or _hud_panel == null:
+		return
+	if _is_pointer_over_hud_drawer():
+		_hud_drawer_close_countdown = -1.0
+		return
+	if _hud_drawer_close_countdown < 0.0:
+		_hud_drawer_close_countdown = HUD_DRAWER_CLOSE_DELAY
+		return
+	_hud_drawer_close_countdown -= delta
+	if _hud_drawer_close_countdown <= 0.0:
+		_set_hud_drawer_expanded(false)
+
+
+func _is_pointer_over_hud_drawer() -> bool:
+	var pointer := get_viewport().get_mouse_position()
+	if _hud_panel != null and _hud_panel.visible and _hud_panel.get_global_rect().has_point(pointer):
+		return true
+	if _hud_reveal_zone != null and _hud_reveal_zone.visible and _hud_reveal_zone.get_global_rect().has_point(pointer):
+		return true
+	if _hud_tooltip != null and _hud_tooltip.visible and _hud_tooltip.get_global_rect().has_point(pointer):
+		return true
+	return false
+
+
+func _on_hud_reveal_zone_gui_input(event: InputEvent) -> void:
+	var pressed := false
+	if event is InputEventScreenTouch:
+		pressed = (event as InputEventScreenTouch).pressed
+	elif event is InputEventMouseButton:
+		var mouse_event := event as InputEventMouseButton
+		pressed = mouse_event.button_index == MOUSE_BUTTON_LEFT and mouse_event.pressed
+	if not pressed or _input_locked or not _game_started:
+		return
+	_hud_drawer_touch_pinned = true
+	_set_hud_drawer_expanded(true)
+	get_viewport().set_input_as_handled()
+
+
+func _handle_hud_drawer_global_input(event: InputEvent) -> bool:
+	if not _hud_drawer_expanded or not _hud_drawer_touch_pinned or not event is InputEventScreenTouch:
+		return false
+	var touch := event as InputEventScreenTouch
+	if not touch.pressed:
+		return false
+	if _hud_panel != null and _hud_panel.get_global_rect().has_point(touch.position):
+		return false
+	if _hud_tooltip != null and _hud_tooltip.visible and _hud_tooltip.get_global_rect().has_point(touch.position):
+		return false
+	if _settings_window != null and _settings_window.visible and _settings_window.get_global_rect().has_point(touch.position):
+		return false
+	_hud_drawer_touch_pinned = false
+	_set_hud_drawer_expanded(false)
+	get_viewport().set_input_as_handled()
+	return true
+
+
+func _hide_hud_tooltip_immediately() -> void:
 	if _hud_tooltip != null:
 		_hud_tooltip.visible = false
 
@@ -1818,8 +2823,7 @@ func _layout_cinematic_bars() -> void:
 	if _cinematic_top_bar == null or _cinematic_bottom_bar == null:
 		return
 	var viewport_size := _viewport_size()
-	var picture_height := viewport_size.x / CINEMATIC_ASPECT_RATIO
-	var bar_height := clampf((viewport_size.y - picture_height) * 0.5, 0.0, viewport_size.y * CINEMATIC_MAX_BAR_RATIO)
+	var bar_height := _cinematic_bar_height(viewport_size)
 	_cinematic_top_bar.set_anchors_preset(Control.PRESET_TOP_WIDE)
 	_cinematic_top_bar.offset_left = 0.0
 	_cinematic_top_bar.offset_top = 0.0
@@ -1834,35 +2838,73 @@ func _layout_cinematic_bars() -> void:
 	_cinematic_bottom_bar.set_meta("target_aspect_ratio", CINEMATIC_ASPECT_RATIO)
 
 
+func _cinematic_bar_height(viewport_size: Vector2) -> float:
+	var picture_height := viewport_size.x / CINEMATIC_ASPECT_RATIO
+	return clampf((viewport_size.y - picture_height) * 0.5, 0.0, viewport_size.y * CINEMATIC_MAX_BAR_RATIO)
+
+
+func _layout_hud_rail() -> void:
+	if _hud_panel == null:
+		return
+	var viewport_size := _viewport_size()
+	var uses_cinematic_frame: bool = _game_started and game != null and game.view_state == "npc_up"
+	var frame_inset := _cinematic_bar_height(viewport_size) if uses_cinematic_frame else 0.0
+	var top_limit := frame_inset + HUD_RAIL_FRAME_MARGIN
+	var bottom_limit := viewport_size.y - frame_inset - HUD_RAIL_FRAME_MARGIN
+	var available_height := maxf(1.0, bottom_limit - top_limit)
+	var rail_height := minf(HUD_RAIL_MAX_HEIGHT, available_height)
+	var center_y := (top_limit + bottom_limit) * 0.5
+	var rail_x := _hud_drawer_x(_hud_drawer_expanded)
+	if _hud_drawer_tween != null and _hud_drawer_tween.is_valid():
+		rail_x = _hud_panel.position.x
+	_hud_panel.set_anchors_preset(Control.PRESET_TOP_LEFT)
+	_hud_panel.offset_left = rail_x
+	_hud_panel.offset_top = center_y - rail_height * 0.5
+	_hud_panel.offset_right = rail_x + HUD_RAIL_WIDTH
+	_hud_panel.offset_bottom = center_y + rail_height * 0.5
+	_hud_panel.set_meta("cinematic_safe_top", top_limit)
+	_hud_panel.set_meta("cinematic_safe_bottom", bottom_limit)
+	_hud_panel.set_meta("collapsed_x", _hud_drawer_x(false))
+	_hud_panel.set_meta("expanded_x", _hud_drawer_x(true))
+	if _hud_reveal_zone != null:
+		_hud_reveal_zone.set_anchors_preset(Control.PRESET_TOP_LEFT)
+		_hud_reveal_zone.offset_left = 0.0
+		_hud_reveal_zone.offset_top = center_y - rail_height * 0.5
+		_hud_reveal_zone.offset_right = HUD_DRAWER_EDGE_HIT_WIDTH
+		_hud_reveal_zone.offset_bottom = center_y + rail_height * 0.5
+
+
 func _build_settings_window() -> void:
 	_settings_window = _panel()
 	_settings_window.name = "SettingsWindow"
 	_settings_window.set_anchors_preset(Control.PRESET_TOP_LEFT)
 	_settings_window.offset_left = 180
-	_settings_window.offset_top = 410
-	_settings_window.offset_right = 500
-	_settings_window.offset_bottom = 664
+	_settings_window.offset_top = 16
+	_settings_window.offset_right = 610
+	_settings_window.offset_bottom = 884
 	_settings_window.z_index = 30
 	_settings_window.visible = false
 	_ui_root.add_child(_settings_window)
+	_layout_settings_window()
 
-	_settings_content = VBoxContainer.new()
-	_settings_content.name = "SettingsContent"
-	_settings_content.add_theme_constant_override("separation", 12)
-	_settings_window.add_child(_settings_content)
+	var settings_shell := Control.new()
+	settings_shell.name = "SettingsShell"
+	settings_shell.set_anchors_preset(Control.PRESET_FULL_RECT)
+	_settings_window.add_child(settings_shell)
 
 	var title_bar := HBoxContainer.new()
 	title_bar.name = "SettingsTitleBar"
-	title_bar.custom_minimum_size.y = 48
+	title_bar.set_anchors_preset(Control.PRESET_TOP_WIDE)
+	title_bar.offset_bottom = 56
 	title_bar.add_theme_constant_override("separation", 8)
-	_settings_content.add_child(title_bar)
+	settings_shell.add_child(title_bar)
 	_make_draggable_window(_settings_window, "settings", title_bar)
 
-	var title := _label("设置", 24, _theme_color("accent"))
-	title.name = "SettingsWindowHandle"
-	title.size_flags_horizontal = Control.SIZE_EXPAND_FILL
-	title_bar.add_child(title)
-	_make_draggable_window(_settings_window, "settings", title)
+	_settings_title_label = _label("设置", 24, _theme_color("accent"))
+	_settings_title_label.name = "SettingsWindowHandle"
+	_settings_title_label.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+	title_bar.add_child(_settings_title_label)
+	_make_draggable_window(_settings_window, "settings", _settings_title_label)
 	var close := Button.new()
 	close.name = "SettingsCloseButton"
 	close.text = "X"
@@ -1870,14 +2912,34 @@ func _build_settings_window() -> void:
 	close.pressed.connect(_close_settings_window)
 	title_bar.add_child(close)
 
-	var volume_label := _label("音量", 17, _theme_color("ink"))
-	_settings_content.add_child(volume_label)
+	var settings_scroll := ScrollContainer.new()
+	settings_scroll.name = "SettingsScroll"
+	settings_scroll.set_anchors_preset(Control.PRESET_FULL_RECT)
+	settings_scroll.offset_top = 66
+	settings_scroll.offset_bottom = -108
+	settings_scroll.horizontal_scroll_mode = ScrollContainer.SCROLL_MODE_DISABLED
+	settings_shell.add_child(settings_scroll)
+
+	_settings_content = VBoxContainer.new()
+	_settings_content.name = "SettingsContent"
+	_settings_content.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+	_settings_content.add_theme_constant_override("separation", 8)
+	settings_scroll.add_child(_settings_content)
+
+	_settings_volume_label = _label("音量", 17, _theme_color("ink"))
+	_settings_volume_label.name = "SettingsVolumeLabel"
+	_settings_volume_label.set_meta("functional_label_only", true)
+	_settings_content.add_child(_settings_volume_label)
 	_volume_slider = HSlider.new()
 	_volume_slider.name = "SettingsVolumeSlider"
+	_volume_slider.set_meta("must_remain_functional", true)
 	_volume_slider.min_value = 0
 	_volume_slider.max_value = 100
 	_volume_slider.step = 1
 	_volume_slider.value = _master_volume
+	_volume_slider.editable = true
+	_volume_slider.mouse_filter = Control.MOUSE_FILTER_STOP
+	_volume_slider.focus_mode = Control.FOCUS_ALL
 	_volume_slider.custom_minimum_size = Vector2(260, 44)
 	_volume_slider.value_changed.connect(_on_volume_changed)
 	_settings_content.add_child(_volume_slider)
@@ -1890,12 +2952,440 @@ func _build_settings_window() -> void:
 	_vhs_toggle.toggled.connect(_on_vhs_toggled)
 	_settings_content.add_child(_vhs_toggle)
 
+	var camera_rule := HSeparator.new()
+	_settings_content.add_child(camera_rule)
+	_camera_access_toggle = CheckButton.new()
+	_camera_access_toggle.name = "SettingsCameraAccessToggle"
+	_camera_access_toggle.text = "允许访问摄像头"
+	_camera_access_toggle.button_pressed = _camera_enabled
+	_camera_access_toggle.custom_minimum_size.y = 48
+	_camera_access_toggle.set_meta("privacy_control", true)
+	_camera_access_toggle.toggled.connect(_on_camera_access_toggled)
+	_settings_content.add_child(_camera_access_toggle)
+	var camera_source_label := _label("摄像头来源", 15, _theme_color("ink"))
+	camera_source_label.name = "SettingsCameraSourceLabel"
+	_settings_content.add_child(camera_source_label)
+	_camera_source_button_group = ButtonGroup.new()
+	_camera_source_button_group.allow_unpress = false
+	_camera_computer_button = Button.new()
+	_camera_computer_button.name = "SettingsOpenComputerCameraButton"
+	_camera_computer_button.text = "打开电脑摄像头并开启 X-ray"
+	_camera_computer_button.tooltip_text = "只会选择电脑内置或 USB 摄像头。"
+	_camera_computer_button.toggle_mode = true
+	_camera_computer_button.button_group = _camera_source_button_group
+	_camera_computer_button.set_meta("camera_source_id", "computer")
+	_camera_computer_button.custom_minimum_size.y = 52
+	_camera_computer_button.pressed.connect(_activate_camera_source.bind("computer"))
+	_settings_content.add_child(_camera_computer_button)
+	_camera_phone_button = Button.new()
+	_camera_phone_button.name = "SettingsConnectPhoneCameraButton"
+	_camera_phone_button.text = "连接手机摄像头并开启 X-ray"
+	_camera_phone_button.tooltip_text = "只会选择手机连续互通或虚拟摄像头。"
+	_camera_phone_button.toggle_mode = true
+	_camera_phone_button.button_group = _camera_source_button_group
+	_camera_phone_button.set_meta("camera_source_id", "phone")
+	_camera_phone_button.custom_minimum_size.y = 52
+	_camera_phone_button.pressed.connect(_activate_camera_source.bind("phone"))
+	_settings_content.add_child(_camera_phone_button)
+	_refresh_camera_source_buttons()
+	var phone_fallback_note := _label("手机备用会优先寻找连续互通相机或虚拟摄像头。", 13, _theme_color("ink"))
+	phone_fallback_note.name = "SettingsPhoneCameraFallbackNote"
+	phone_fallback_note.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
+	_settings_content.add_child(phone_fallback_note)
+	var camera_privacy := _label("镜头仅在启用时由本地 MediaPipe 读取。", 13, _theme_color("ink"))
+	camera_privacy.name = "SettingsCameraPrivacyNote"
+	camera_privacy.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
+	_settings_content.add_child(camera_privacy)
+	_camera_status_label = _label(_camera_tracking_status, 14, _theme_color("accent"))
+	_camera_status_label.name = "SettingsCameraStatus"
+	_camera_status_label.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
+	_settings_content.add_child(_camera_status_label)
+
+	var language_label := _label("语言", 17, _theme_color("ink"))
+	_settings_content.add_child(language_label)
+	_settings_language_option = OptionButton.new()
+	_settings_language_option.name = "SettingsLanguageOption"
+	_settings_language_option.set_meta("skip_localization", true)
+	_settings_language_option.custom_minimum_size = Vector2(300, 50)
+	for locale_code in GameLocaleScript.SUPPORTED_LOCALES:
+		_settings_language_option.add_item(_locale.native_language_name(str(locale_code)))
+		_settings_language_option.set_item_metadata(_settings_language_option.item_count - 1, locale_code)
+		if str(locale_code) == _locale.current_locale:
+			_settings_language_option.select(_settings_language_option.item_count - 1)
+	_settings_language_option.item_selected.connect(_on_settings_language_selected)
+	_settings_content.add_child(_settings_language_option)
+
+	_settings_save_button = Button.new()
+	_settings_save_button.name = "SettingsManualSaveButton"
+	_settings_save_button.text = "保存"
+	_settings_save_button.set_meta("skip_localization", true)
+	_settings_save_button.custom_minimum_size.y = 50
+	_settings_save_button.pressed.connect(_on_manual_save_pressed)
+	_settings_content.add_child(_settings_save_button)
+	_settings_save_status = _label("", 14, _theme_color("accent"))
+	_settings_save_status.name = "SettingsSaveStatus"
+	_settings_content.add_child(_settings_save_status)
+
+	_settings_autoplay_button = CheckButton.new()
+	_settings_autoplay_button.name = "SettingsAutoplayButton"
+	_settings_autoplay_button.text = "自动播放"
+	_settings_autoplay_button.set_meta("skip_localization", true)
+	_settings_autoplay_button.button_pressed = game.autoplay_enabled
+	_settings_autoplay_button.custom_minimum_size.y = 50
+	_settings_autoplay_button.toggled.connect(_on_autoplay_toggled)
+	_settings_content.add_child(_settings_autoplay_button)
+
+	_settings_history_button = Button.new()
+	_settings_history_button.name = "SettingsHistoryButton"
+	_settings_history_button.text = "历史记录"
+	_settings_history_button.set_meta("skip_localization", true)
+	_settings_history_button.custom_minimum_size.y = 50
+	_settings_history_button.pressed.connect(_toggle_history_window)
+	_settings_content.add_child(_settings_history_button)
+
 	var main_menu_button := Button.new()
 	main_menu_button.name = "SettingsReturnMainButton"
 	main_menu_button.text = "退回主画面"
 	main_menu_button.custom_minimum_size.y = 50
 	main_menu_button.pressed.connect(_on_return_main_menu_pressed)
 	_settings_content.add_child(main_menu_button)
+
+	var system_footer := VBoxContainer.new()
+	system_footer.name = "SettingsSystemFooter"
+	system_footer.set_anchors_preset(Control.PRESET_BOTTOM_WIDE)
+	system_footer.offset_top = -100
+	system_footer.add_theme_constant_override("separation", 6)
+	settings_shell.add_child(system_footer)
+	var system_rule := HSeparator.new()
+	system_rule.name = "SettingsSystemDivider"
+	system_footer.add_child(system_rule)
+	var system_label := _label("系统", 14, _theme_color("accent"))
+	system_label.name = "SettingsSystemLabel"
+	system_footer.add_child(system_label)
+	_settings_exit_button = Button.new()
+	_settings_exit_button.name = "SettingsExitGameButton"
+	_settings_exit_button.text = "退出游戏"
+	_settings_exit_button.set_meta("skip_localization", true)
+	_settings_exit_button.set_meta("reliable_system_command", true)
+	_settings_exit_button.custom_minimum_size.y = 52
+	_settings_exit_button.pressed.connect(_request_quit_game)
+	system_footer.add_child(_settings_exit_button)
+	_refresh_language_menu_labels()
+
+
+func _build_phone_camera_connection_overlay() -> void:
+	if _ui_root == null:
+		return
+	_phone_camera_connection_overlay = Control.new()
+	_phone_camera_connection_overlay.name = "PhoneCameraConnectionOverlay"
+	_phone_camera_connection_overlay.set_anchors_preset(Control.PRESET_FULL_RECT)
+	_phone_camera_connection_overlay.mouse_filter = Control.MOUSE_FILTER_STOP
+	_phone_camera_connection_overlay.z_index = 205
+	_phone_camera_connection_overlay.visible = false
+	_ui_root.add_child(_phone_camera_connection_overlay)
+
+	var blackout := ColorRect.new()
+	blackout.name = "PhoneCameraConnectionBackdrop"
+	blackout.color = Color(0.01, 0.025, 0.015, 0.82)
+	blackout.set_anchors_preset(Control.PRESET_FULL_RECT)
+	blackout.mouse_filter = Control.MOUSE_FILTER_STOP
+	_phone_camera_connection_overlay.add_child(blackout)
+
+	var center := CenterContainer.new()
+	center.set_anchors_preset(Control.PRESET_FULL_RECT)
+	center.offset_left = 24.0
+	center.offset_top = 24.0
+	center.offset_right = -24.0
+	center.offset_bottom = -24.0
+	_phone_camera_connection_overlay.add_child(center)
+
+	_phone_camera_connection_panel = _panel()
+	_phone_camera_connection_panel.name = "PhoneCameraConnectionPanel"
+	_phone_camera_connection_panel.custom_minimum_size = Vector2(680.0, 460.0)
+	center.add_child(_phone_camera_connection_panel)
+
+	var box := VBoxContainer.new()
+	box.name = "PhoneCameraConnectionContent"
+	box.add_theme_constant_override("separation", 14)
+	_phone_camera_connection_panel.add_child(box)
+
+	var eyebrow := _label("REMOTE LENS  /  LOCAL PROCESSING", 14, _theme_color("accent"))
+	eyebrow.name = "PhoneCameraConnectionEyebrow"
+	box.add_child(eyebrow)
+	var title := _label("手机镜头连接", 30, _theme_color("ink"))
+	title.name = "PhoneCameraConnectionTitle"
+	box.add_child(title)
+
+	_phone_camera_connection_status_label = _label("正在寻找手机镜头…", 21, _theme_color("accent"))
+	_phone_camera_connection_status_label.name = "PhoneCameraConnectionStatus"
+	box.add_child(_phone_camera_connection_status_label)
+	_phone_camera_connection_detail_label = _label("", 16, _theme_color("ink"))
+	_phone_camera_connection_detail_label.name = "PhoneCameraConnectionDetail"
+	_phone_camera_connection_detail_label.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
+	_phone_camera_connection_detail_label.custom_minimum_size.y = 128.0
+	box.add_child(_phone_camera_connection_detail_label)
+
+	var privacy_note := _label("画面只交给本机 MediaPipe 计算关键点；游戏不保存视频。", 14, _theme_color("accent"))
+	privacy_note.name = "PhoneCameraConnectionPrivacyNote"
+	privacy_note.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
+	box.add_child(privacy_note)
+
+	var actions := HBoxContainer.new()
+	actions.name = "PhoneCameraConnectionActions"
+	actions.alignment = BoxContainer.ALIGNMENT_CENTER
+	actions.add_theme_constant_override("separation", 10)
+	box.add_child(actions)
+	_phone_camera_connection_retry_button = Button.new()
+	_phone_camera_connection_retry_button.name = "PhoneCameraConnectionRetryButton"
+	_phone_camera_connection_retry_button.text = "重新扫描手机镜头"
+	_phone_camera_connection_retry_button.custom_minimum_size = Vector2(210.0, 54.0)
+	_phone_camera_connection_retry_button.pressed.connect(_retry_phone_camera_connection)
+	actions.add_child(_phone_camera_connection_retry_button)
+	_phone_camera_connection_continue_button = Button.new()
+	_phone_camera_connection_continue_button.name = "PhoneCameraConnectionContinueButton"
+	_phone_camera_connection_continue_button.text = "继续游戏"
+	_phone_camera_connection_continue_button.custom_minimum_size = Vector2(150.0, 54.0)
+	_phone_camera_connection_continue_button.pressed.connect(_hide_phone_camera_connection_overlay)
+	actions.add_child(_phone_camera_connection_continue_button)
+	var disable_button := Button.new()
+	disable_button.name = "PhoneCameraConnectionDisableButton"
+	disable_button.text = "关闭摄像头"
+	disable_button.custom_minimum_size = Vector2(150.0, 54.0)
+	disable_button.pressed.connect(_disable_phone_camera_from_connection)
+	actions.add_child(disable_button)
+
+	_refresh_phone_camera_connection_ui()
+	if _camera_enabled and _camera_source == "phone":
+		_show_phone_camera_connection_overlay()
+
+
+func _show_phone_camera_connection_overlay() -> void:
+	if _phone_camera_connection_overlay == null or not is_instance_valid(_phone_camera_connection_overlay):
+		return
+	_phone_camera_connection_overlay.visible = true
+	_phone_camera_connection_overlay.move_to_front()
+	_refresh_phone_camera_connection_ui()
+
+
+func _hide_phone_camera_connection_overlay() -> void:
+	if _phone_camera_connection_overlay != null and is_instance_valid(_phone_camera_connection_overlay):
+		_phone_camera_connection_overlay.visible = false
+
+
+func _retry_phone_camera_connection() -> void:
+	_activate_camera_source("phone")
+
+
+func _disable_phone_camera_from_connection() -> void:
+	_set_camera_enabled(false, true)
+	_hide_phone_camera_connection_overlay()
+
+
+func _refresh_phone_camera_connection_ui() -> void:
+	if _phone_camera_connection_overlay == null or _phone_camera_connection_status_label == null or _phone_camera_connection_detail_label == null:
+		return
+	var state := "off"
+	var status_text := "手机镜头未启用"
+	var detail_text := "返回设置，点击“连接手机摄像头并开启 X-ray”后再试。"
+	if _camera_enabled and _camera_source == "phone":
+		if _camera_ready_source == "phone":
+			state = "ready"
+			status_text = "手机镜头已连入"
+			detail_text = "已从系统摄像头编号 %d 收到画面。放下游戏内手机，用双手拇指与食指的四个指尖框出矩形。" % _camera_ready_index
+		elif _camera_tracking_has_error():
+			state = "error"
+			status_text = "手机镜头连接失败"
+			detail_text = "没有收到手机画面：%s。请解锁手机，确认系统摄像头权限，再重新扫描。" % _camera_tracking_status
+		else:
+			state = "searching"
+			status_text = "正在寻找手机镜头…"
+			detail_text = "当前测试版会在系统摄像头列表中寻找 Continuity Camera 或虚拟摄像头。请先解锁手机，并允许电脑把它作为摄像头。"
+	_phone_camera_connection_overlay.set_meta("connection_state", state)
+	_phone_camera_connection_overlay.set_meta("camera_source", _camera_source)
+	_phone_camera_connection_overlay.set_meta("selected_index", _camera_ready_index)
+	_phone_camera_connection_status_label.text = status_text
+	_phone_camera_connection_detail_label.text = detail_text
+	_set_localized_property(_phone_camera_connection_status_label, "text")
+	_set_localized_property(_phone_camera_connection_detail_label, "text")
+	if _phone_camera_connection_panel != null:
+		var border_color := _theme_color("muted")
+		if state == "ready":
+			border_color = _theme_color("accent")
+		elif state == "error":
+			border_color = Color("9f493f")
+		_phone_camera_connection_panel.add_theme_stylebox_override(
+			"panel",
+			_soft_style(_theme_color("surface"), border_color)
+		)
+	if _phone_camera_connection_retry_button != null:
+		_phone_camera_connection_retry_button.disabled = not _camera_enabled or _camera_source != "phone"
+	if _phone_camera_connection_continue_button != null:
+		_phone_camera_connection_continue_button.text = "进入 X-ray 玩法" if state == "ready" else "继续游戏"
+		_set_localized_property(_phone_camera_connection_continue_button, "text")
+
+
+func _camera_tracking_has_error() -> bool:
+	return _camera_tracking_status in [
+		"手部追踪端口不可用",
+		"手部追踪数据版本不匹配",
+		"缺少手部追踪程序",
+		"缺少手部追踪模型",
+		"缺少 MediaPipe 环境",
+		"无法启动手部追踪程序",
+		"摄像头不可用或权限被拒绝",
+		"手部追踪程序发生错误",
+	]
+
+
+func _layout_settings_window() -> void:
+	if _settings_window == null:
+		return
+	var viewport_size := _viewport_size()
+	var margin := 16.0
+	var window_width := minf(430.0, maxf(320.0, viewport_size.x - margin * 2.0))
+	var window_height := minf(868.0, maxf(420.0, viewport_size.y - margin * 2.0))
+	var left := clampf(180.0, margin, maxf(margin, viewport_size.x - window_width - margin))
+	var top := maxf(margin, (viewport_size.y - window_height) * 0.5)
+	_settings_window.position = Vector2(left, top)
+	_settings_window.size = Vector2(window_width, window_height)
+
+
+func _build_history_window() -> void:
+	_history_window = _panel()
+	_history_window.name = "HistoryWindow"
+	_history_window.set_anchors_preset(Control.PRESET_TOP_LEFT)
+	_history_window.offset_left = 570
+	_history_window.offset_top = 110
+	_history_window.offset_right = 1160
+	_history_window.offset_bottom = 760
+	_history_window.z_index = 32
+	_history_window.visible = false
+	_ui_root.add_child(_history_window)
+
+	var outer := VBoxContainer.new()
+	outer.add_theme_constant_override("separation", 10)
+	_history_window.add_child(outer)
+	var title_bar := HBoxContainer.new()
+	title_bar.name = "HistoryTitleBar"
+	title_bar.custom_minimum_size.y = 54
+	outer.add_child(title_bar)
+	_make_draggable_window(_history_window, "history", title_bar)
+	var title := _label("历史记录", 23, _theme_color("accent"))
+	title.name = "HistoryWindowHandle"
+	title.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+	title.set_meta("skip_localization", true)
+	title_bar.add_child(title)
+	_make_draggable_window(_history_window, "history", title)
+	var close := Button.new()
+	close.name = "HistoryCloseButton"
+	close.text = "X"
+	close.custom_minimum_size = Vector2(56, 56)
+	close.pressed.connect(_close_history_window)
+	title_bar.add_child(close)
+
+	var scroll := ScrollContainer.new()
+	scroll.name = "HistoryScroll"
+	scroll.size_flags_vertical = Control.SIZE_EXPAND_FILL
+	outer.add_child(scroll)
+	_history_content = VBoxContainer.new()
+	_history_content.name = "HistoryContent"
+	_history_content.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+	_history_content.add_theme_constant_override("separation", 10)
+	scroll.add_child(_history_content)
+	_render_history_window()
+
+
+func _toggle_history_window() -> void:
+	if _history_window == null:
+		return
+	_history_open = not _history_open
+	_history_window.visible = _history_open
+	if _history_open:
+		_render_history_window()
+		_history_window.move_to_front()
+
+
+func _close_history_window() -> void:
+	_history_open = false
+	if _history_window != null:
+		_history_window.visible = false
+
+
+func _render_history_window() -> void:
+	if _history_content == null:
+		return
+	for child in _history_content.get_children():
+		child.queue_free()
+	var entries := game.get_history_entries()
+	if entries.is_empty():
+		var empty := _label("还没有能被记住的话。", 17, _theme_color("ink"))
+		empty.name = "HistoryEmptyState"
+		_history_content.add_child(empty)
+		return
+	for index in entries.size():
+		var entry: Dictionary = entries[index]
+		var line := RichTextLabel.new()
+		line.name = "HistoryEntry%d" % index
+		line.bbcode_enabled = true
+		line.fit_content = true
+		line.scroll_active = false
+		line.custom_minimum_size = Vector2(500, 70)
+		line.add_theme_font_size_override("normal_font_size", 17)
+		line.add_theme_color_override("default_color", _theme_color("ink"))
+		var speaker := str(entry.get("currentSpeaker", entry.get("originalSpeaker", "")))
+		var display_text := str(entry.get("displayText", entry.get("originalText", "")))
+		line.text = "[b]%s[/b]\n%s" % [_escape_history_bbcode(speaker), _history_markup_to_bbcode(display_text)]
+		_history_content.add_child(line)
+
+
+func _escape_history_bbcode(value: String) -> String:
+	return value.replace("[", "[lb]").replace("]", "[rb]")
+
+
+func _history_markup_to_bbcode(value: String) -> String:
+	var escaped := _escape_history_bbcode(value)
+	return escaped.replace("{del}", "[s]").replace("{/del}", "[/s]").replace("{ins}", "[u]").replace("{/ins}", "[/u]")
+
+
+func _menu_display_label(kind: String) -> String:
+	if game.pollution < 25:
+		return {"save": "保存", "autoplay": "自动播放", "history": "历史记录", "settings": "设置", "volume": "音量"}.get(kind, kind)
+	if game.pollution < 60:
+		return {
+			"save": "留住这一段",
+			"autoplay": "让我替你继续说",
+			"history": "他们说你说过",
+			"settings": "调整记录方式",
+			"volume": "外面的声音",
+		}.get(kind, kind)
+	return {
+		"save": "留住这■■",
+		"autoplay": "让我替你继续■■",
+		"history": "他们说你■■过",
+		"settings": "调整你能接受的部分",
+		"volume": "它离你有多近",
+	}.get(kind, kind)
+
+
+func _refresh_language_menu_labels() -> void:
+	if _settings_title_label != null:
+		_settings_title_label.text = _menu_display_label("settings")
+	if _settings_volume_label != null:
+		_settings_volume_label.text = _menu_display_label("volume")
+	if _volume_slider != null:
+		_volume_slider.editable = true
+		_volume_slider.mouse_filter = Control.MOUSE_FILTER_STOP
+	if _settings_save_button != null:
+		_settings_save_button.text = _menu_display_label("save")
+	if _settings_autoplay_button != null:
+		_settings_autoplay_button.text = _menu_display_label("autoplay")
+		_settings_autoplay_button.set_pressed_no_signal(game.autoplay_enabled)
+	if _settings_history_button != null:
+		_settings_history_button.text = _menu_display_label("history")
+
+
+func _on_autoplay_toggled(value: bool) -> void:
+	game.autoplay_enabled = value
 
 
 func _toggle_settings_window() -> void:
@@ -1906,19 +3396,47 @@ func _toggle_settings_window() -> void:
 	if _settings_open:
 		_settings_window.move_to_front()
 	_hide_hud_tooltip()
+	_update_visibility()
 
 
 func _close_settings_window() -> void:
 	_settings_open = false
 	if _settings_window != null:
 		_settings_window.visible = false
+	_update_visibility()
 
 
 func _on_volume_changed(value: float) -> void:
 	_master_volume = value
+	_apply_master_volume()
+
+
+func _apply_master_volume() -> void:
 	var bus := AudioServer.get_bus_index("Master")
 	if bus >= 0:
-		AudioServer.set_bus_volume_db(bus, linear_to_db(maxf(0.001, value / 100.0)))
+		AudioServer.set_bus_volume_db(bus, linear_to_db(maxf(0.001, _master_volume / 100.0)))
+
+
+func _on_settings_language_selected(index: int) -> void:
+	if _settings_language_option == null or index < 0 or index >= _settings_language_option.item_count:
+		return
+	var locale_code := str(_settings_language_option.get_item_metadata(index))
+	if _reality_interaction_active:
+		_exit_reality_interaction(false)
+	if not _locale.select_language(locale_code):
+		return
+	_locale.save_preferences(_master_volume, _vhs_enabled, _camera_enabled, _camera_source)
+	_render()
+	_refresh_localized_ui()
+	_refresh_camera_source_option_labels()
+
+
+func _on_manual_save_pressed() -> void:
+	var progress_saved := _save_progress()
+	var preferences_saved := _locale.save_preferences(_master_volume, _vhs_enabled, _camera_enabled, _camera_source)
+	if _settings_save_status != null:
+		_settings_save_status.text = "已保存当前进度与设置。" if progress_saved and preferences_saved else "保存失败，请检查本地写入权限。"
+	_refresh_localized_ui()
 
 
 func _on_return_main_menu_pressed() -> void:
@@ -1931,8 +3449,86 @@ func _on_vhs_toggled(value: bool) -> void:
 		_vhs_overlay.visible = value
 
 
-func _quit_game() -> void:
+func _on_camera_access_toggled(value: bool) -> void:
+	_camera_session_decided = true
+	_set_camera_enabled(value, true)
+
+
+func _build_exit_confirmation_overlay() -> void:
+	if _ui_root == null:
+		return
+	if _exit_confirmation_overlay != null and is_instance_valid(_exit_confirmation_overlay):
+		_exit_confirmation_overlay.queue_free()
+	_exit_confirmation_overlay = Control.new()
+	_exit_confirmation_overlay.name = "ExitConfirmationOverlay"
+	_exit_confirmation_overlay.set_anchors_preset(Control.PRESET_FULL_RECT)
+	_exit_confirmation_overlay.visible = false
+	_exit_confirmation_overlay.z_index = 220
+	_ui_root.add_child(_exit_confirmation_overlay)
+
+	var blackout := ColorRect.new()
+	blackout.name = "ExitConfirmationBackdrop"
+	blackout.color = Color(_theme_color("ink"), 0.88)
+	blackout.set_anchors_preset(Control.PRESET_FULL_RECT)
+	_exit_confirmation_overlay.add_child(blackout)
+
+	var center := CenterContainer.new()
+	center.set_anchors_preset(Control.PRESET_FULL_RECT)
+	_exit_confirmation_overlay.add_child(center)
+	var panel := PanelContainer.new()
+	panel.name = "ExitConfirmationPanel"
+	panel.custom_minimum_size = Vector2(520, 230)
+	panel.add_theme_stylebox_override("panel", _soft_style(_theme_color("surface"), _theme_color("accent")))
+	center.add_child(panel)
+	var box := VBoxContainer.new()
+	box.add_theme_constant_override("separation", 24)
+	panel.add_child(box)
+	var message := _label("真的要抛弃我吗？", 25, _theme_color("ink"))
+	message.name = "ExitConfirmationMessage"
+	message.set_meta("skip_localization", true)
+	message.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
+	box.add_child(message)
+	var actions := HBoxContainer.new()
+	actions.alignment = BoxContainer.ALIGNMENT_CENTER
+	actions.add_theme_constant_override("separation", 12)
+	box.add_child(actions)
+	var return_button := Button.new()
+	return_button.name = "ExitConfirmationReturnButton"
+	return_button.text = "返回"
+	return_button.set_meta("skip_localization", true)
+	return_button.custom_minimum_size = Vector2(180, 54)
+	return_button.pressed.connect(_cancel_quit_game)
+	actions.add_child(return_button)
+	var confirm_button := Button.new()
+	confirm_button.name = "ExitConfirmationConfirmButton"
+	confirm_button.text = "仍然退出"
+	confirm_button.set_meta("skip_localization", true)
+	confirm_button.custom_minimum_size = Vector2(180, 54)
+	confirm_button.pressed.connect(_confirm_quit_game)
+	actions.add_child(confirm_button)
+
+
+func _request_quit_game() -> void:
+	game.exit_prompt_seen = true
+	if _exit_confirmation_overlay != null:
+		_exit_confirmation_overlay.visible = true
+		_exit_confirmation_overlay.move_to_front()
+
+
+func _cancel_quit_game() -> void:
+	if _exit_confirmation_overlay != null:
+		_exit_confirmation_overlay.visible = false
+
+
+func _confirm_quit_game() -> void:
+	if _game_started:
+		_save_progress()
+	_locale.save_preferences(_master_volume, _vhs_enabled, _camera_enabled, _camera_source)
 	get_tree().quit()
+
+
+func _quit_game() -> void:
+	_request_quit_game()
 
 
 func _build_app_window(app_id: String, title: String, node_name: String, left: float, top: float, right: float, bottom: float) -> void:
@@ -2019,7 +3615,7 @@ func _build_social_detail_window() -> void:
 	header.add_theme_constant_override("separation", 8)
 	shell.add_child(header)
 
-	_social_detail_title = _label("塔层 1/5", 18, _theme_color("surface"))
+	_social_detail_title = _label("第 1 层 / 3", 18, _theme_color("surface"))
 	_social_detail_title.name = "SocialDetailWindowHandle"
 	_social_detail_title.set_meta("on_dark", true)
 	_social_detail_title.mouse_filter = Control.MOUSE_FILTER_STOP
@@ -2077,11 +3673,21 @@ func _apply_social_detail_window_layout() -> void:
 func _apply_app_window_layout(window: Control, app_id: String, left: float, top: float, right: float, bottom: float) -> void:
 	var viewport_size := _viewport_size()
 	if viewport_size.x >= 900.0:
+		if app_id == "notebook":
+			window.set_anchors_preset(Control.PRESET_TOP_LEFT)
+			var notebook_left := 188.0 if _hud_panel != null else 44.0
+			window.offset_left = notebook_left
+			window.offset_top = 46.0
+			window.offset_right = notebook_left + minf(610.0, viewport_size.x * 0.42)
+			window.offset_bottom = minf(782.0, viewport_size.y - 34.0)
+			return
+		window.set_anchors_preset(Control.PRESET_TOP_RIGHT)
 		window.offset_left = left
 		window.offset_top = top
 		window.offset_right = right
 		window.offset_bottom = bottom
 		return
+	window.set_anchors_preset(Control.PRESET_TOP_RIGHT)
 	var safe_left := 12.0
 	if _hud_panel != null:
 		safe_left = maxf(safe_left, _hud_panel.offset_right + 10.0)
@@ -2130,39 +3736,24 @@ func _apply_meme_bank_popup_layout(mode: String) -> void:
 		return
 	var viewport_size := _viewport_size()
 	if mode == "open":
-		_meme_bank_window.set_anchors_preset(Control.PRESET_BOTTOM_LEFT)
-		var safe_left := viewport_size.x * 0.30
-		if _hud_panel != null:
-			safe_left = maxf(safe_left, _hud_panel.offset_right + 22.0)
-		var min_bank_width := 180.0 if viewport_size.x < 560.0 else 296.0
-		var bank_width := minf(408.0, maxf(min_bank_width, viewport_size.x - safe_left - 28.0))
-		safe_left = clampf(safe_left, 12.0, maxf(12.0, viewport_size.x - bank_width - 12.0))
-		_meme_bank_window.offset_left = safe_left
-		_meme_bank_window.offset_top = -324
-		_meme_bank_window.offset_right = safe_left + bank_width
-		_meme_bank_window.offset_bottom = -120
+		_meme_bank_window.set_anchors_preset(Control.PRESET_CENTER_RIGHT)
+		var ring_size := minf(680.0, maxf(430.0, minf(viewport_size.x * 0.48, viewport_size.y - 54.0)))
+		_meme_bank_window.offset_left = -ring_size
+		_meme_bank_window.offset_top = -ring_size * 0.5
+		_meme_bank_window.offset_right = 18.0
+		_meme_bank_window.offset_bottom = ring_size * 0.5
 	elif mode == "collapsed":
-		_meme_bank_window.set_anchors_preset(Control.PRESET_BOTTOM_LEFT)
-		var collapsed_left := viewport_size.x * 0.30
-		if _hud_panel != null:
-			collapsed_left = maxf(collapsed_left, _hud_panel.offset_right + 22.0)
-		var collapsed_width := 112.0
-		collapsed_left = clampf(collapsed_left, 12.0, maxf(12.0, viewport_size.x - collapsed_width - 12.0))
-		_meme_bank_window.offset_left = collapsed_left
-		_meme_bank_window.offset_top = -82
-		_meme_bank_window.offset_right = collapsed_left + collapsed_width
-		_meme_bank_window.offset_bottom = -22
+		_meme_bank_window.set_anchors_preset(Control.PRESET_CENTER_RIGHT)
+		_meme_bank_window.offset_left = -144.0
+		_meme_bank_window.offset_top = -66.0
+		_meme_bank_window.offset_right = -12.0
+		_meme_bank_window.offset_bottom = 66.0
 	else:
-		_meme_bank_window.set_anchors_preset(Control.PRESET_BOTTOM_LEFT)
-		var peek_left := viewport_size.x * 0.30
-		if _hud_panel != null:
-			peek_left = maxf(peek_left, _hud_panel.offset_right + 22.0)
-		var peek_size := 44.0
-		peek_left = clampf(peek_left, 12.0, maxf(12.0, viewport_size.x - peek_size - 12.0))
-		_meme_bank_window.offset_left = peek_left
-		_meme_bank_window.offset_top = -66
-		_meme_bank_window.offset_right = peek_left + peek_size
-		_meme_bank_window.offset_bottom = -22
+		_meme_bank_window.set_anchors_preset(Control.PRESET_CENTER_RIGHT)
+		_meme_bank_window.offset_left = -1.0
+		_meme_bank_window.offset_top = -1.0
+		_meme_bank_window.offset_right = 0.0
+		_meme_bank_window.offset_bottom = 0.0
 
 
 func _apply_reality_layout() -> void:
@@ -2172,7 +3763,7 @@ func _apply_reality_layout() -> void:
 		hud_right = _hud_panel.offset_right
 	var compact := viewport_size.x < 760.0
 	var safe_left := maxf(18.0, hud_right + (12.0 if compact else 48.0))
-	var right_margin := 118.0 if compact else 150.0
+	var right_margin := 18.0 if compact else 150.0
 	var content_left := safe_left + (4.0 if compact else 80.0)
 	var content_right := -right_margin
 	if _reality_intent_preview != null:
@@ -2199,25 +3790,36 @@ func _apply_reality_layout() -> void:
 		_reality_typing_progress.offset_top = -208.0
 		_reality_typing_progress.offset_right = content_right
 		_reality_typing_progress.offset_bottom = -182.0
-	if _reality_aid_status != null:
-		_reality_aid_status.set_anchors_preset(Control.PRESET_BOTTOM_WIDE)
-		_reality_aid_status.offset_left = content_left
-		_reality_aid_status.offset_top = -204.0
-		_reality_aid_status.offset_right = content_right
-		_reality_aid_status.offset_bottom = -180.0
-	if _reality_merchant_offer != null:
-		_reality_merchant_offer.set_anchors_preset(Control.PRESET_BOTTOM_WIDE)
-		var offer_inset := 0.0 if compact else 160.0
-		_reality_merchant_offer.offset_left = content_left + offer_inset
-		_reality_merchant_offer.offset_top = -348.0
-		_reality_merchant_offer.offset_right = content_right - offer_inset
-		_reality_merchant_offer.offset_bottom = -214.0
 	if _reality_subtitle_panel != null:
 		_reality_subtitle_panel.set_anchors_preset(Control.PRESET_BOTTOM_WIDE)
 		_reality_subtitle_panel.offset_left = content_left
 		_reality_subtitle_panel.offset_top = -178.0
 		_reality_subtitle_panel.offset_right = content_right
 		_reality_subtitle_panel.offset_bottom = -104.0
+
+
+func _apply_view_toggle_layout() -> void:
+	if _view_toggle_button == null:
+		return
+	var viewport_size := _viewport_size()
+	_view_toggle_button.set_anchors_preset(Control.PRESET_BOTTOM_LEFT)
+	if viewport_size.x >= 760.0:
+		_view_toggle_button.offset_left = 470.0
+		_view_toggle_button.offset_top = -92.0
+		_view_toggle_button.offset_right = 596.0
+		_view_toggle_button.offset_bottom = -36.0
+		return
+	var safe_left := 12.0
+	if _hud_panel != null:
+		safe_left = _hud_panel.offset_right + 12.0
+	var safe_right := viewport_size.x - 12.0
+	var available_width := maxf(126.0, safe_right - safe_left)
+	var button_width := minf(220.0, available_width)
+	var button_left := safe_left + (available_width - button_width) * 0.5
+	_view_toggle_button.offset_left = button_left
+	_view_toggle_button.offset_top = -76.0
+	_view_toggle_button.offset_right = button_left + button_width
+	_view_toggle_button.offset_bottom = -20.0
 
 
 func _apply_responsive_layouts_if_needed(force: bool = false) -> void:
@@ -2234,14 +3836,21 @@ func _apply_responsive_layouts_if_needed(force: bool = false) -> void:
 		_apply_meme_bank_popup_layout(desired_bank_layout)
 	_apply_social_detail_window_layout()
 	_apply_reality_layout()
+	_apply_view_toggle_layout()
+	_layout_settings_window()
 	_layout_cinematic_bars()
+	_layout_hud_rail()
 
 
 func _render() -> void:
 	if game.ending_unlocked:
 		_render_ending()
+		_refresh_localized_ui()
 		return
 	_ensure_reality_floor_current()
+	if _reality_floor != null:
+		_reality_floor.sync_prerequisite_items(game.revealed_prerequisite_item_ids, game.collected_prerequisite_item_ids)
+		_reality_floor.sync_claimed_dolls(game.claimed_doll_ids)
 	_render_status()
 	_render_world_prompt()
 	_render_app()
@@ -2251,27 +3860,46 @@ func _render() -> void:
 	_update_visibility()
 	_apply_world_theme()
 	_apply_ui_theme()
+	_refresh_localized_ui()
 
 
 func _render_status() -> void:
-	if _hud_day_value != null:
-		_hud_day_value.text = str(game.day)
-	if _hud_heat_value != null:
-		_hud_heat_value.text = str(game.heat)
-	if _hud_pollution_value != null:
-		_hud_pollution_value.text = "%d%%" % game.pollution
-	if _hud_clarity_value != null:
-		_hud_clarity_value.text = "%d%%" % game.clarity
-	if _hud_floor_value != null:
-		_hud_floor_value.text = "%d/%d" % [game.tower_floor, MemeGameStateScript.MAX_TOWER_FLOOR]
-	if _hud_money_value != null:
-		_hud_money_value.text = str(game.money)
 	if _hud_actions_label != null:
 		_hud_actions_label.text = _action_text(game.actions_remaining)
-	if _actions_label != null and _actions_label != _hud_actions_label:
-		_actions_label.text = _action_text(game.actions_remaining)
 	if _desk_log != null:
 		_desk_log.text = log_text
+	_refresh_language_menu_labels()
+	if _history_open:
+		_render_history_window()
+	_render_playtest_assist()
+
+
+func _render_playtest_assist() -> void:
+	if _playtest_assist_panel == null or _playtest_assist_label == null:
+		return
+	var step: Dictionary = game.get_tutorial_step()
+	var tutorial_complete := bool(step.get("is_complete", false))
+	_playtest_assist_panel.visible = _game_started and not _settings_open and (_playtest_assist_enabled or not tutorial_complete)
+	if not _playtest_assist_panel.visible:
+		return
+	var lines: Array[String] = ["「%s」" % str(step.get("guide_line", "你已经会自己走了。至少现在是。"))]
+	if not _playtest_assist_enabled:
+		_playtest_assist_label.text = "\n".join(lines)
+		return
+	lines.append(str(step.get("test_instruction", "测试提示：继续探索。")))
+	var floor_number := clampi(game.tower_floor, 1, 4)
+	if floor_number <= 3:
+		var progress: Dictionary = game.get_key_clue_progress(floor_number)
+		var item: Dictionary = game.get_prerequisite_item_for_floor(floor_number)
+		var item_id := str(item.get("id", ""))
+		var clue_state := "已答对" if bool(progress.get("solved", false)) else "未完成"
+		var item_state := "已拾取" if item_id in game.collected_prerequisite_item_ids else ("已显形" if item_id in game.revealed_prerequisite_item_ids else "未显形")
+		lines.append("本层测试：关键 NPC %s / 前置物 %s" % [clue_state, item_state])
+		if bool(progress.get("solved", false)) and item_id not in game.collected_prerequisite_item_ids:
+			lines.append("目标：%s。%s" % [str(item.get("label", "前置物")), str(item.get("location_hint", "跟随荧光测试标记。"))])
+	var collected_count := game.collected_prerequisite_item_ids.size()
+	lines.append("隐藏层测试：前置物 %d/3 · 污染 %d/80 · 第三层结束检查" % [collected_count, game.pollution])
+	_playtest_assist_label.text = "\n".join(lines)
 
 
 func _action_text(actions: int) -> String:
@@ -2299,14 +3927,13 @@ func _render_world_prompt() -> void:
 			str(_nearby_reality_item.get_meta("item_description", "信号已经写入。")),
 		]
 	elif _nearby_reality_actor != null:
-		var action := "交易" if str(_nearby_reality_actor.get_meta("actor_type", "npc")) == "merchant" else "交谈"
-		_world_prompt.text = "F  %s · %s" % [action, str(_nearby_reality_actor.get_meta("display_name", "对方"))]
+		_world_prompt.text = "F  交谈 · %s" % str(_nearby_reality_actor.get_meta("display_name", "对方"))
 	else:
 		_world_prompt.text = ""
 
 
 func _render_app() -> void:
-	for app_id in ["social", "babel", "shop", "notebook"]:
+	for app_id in ["social", "babel", "notebook"]:
 		if not _app_bodies.has(app_id):
 			continue
 		_app_body = _app_bodies[app_id] as VBoxContainer
@@ -2315,9 +3942,6 @@ func _render_app() -> void:
 			"babel":
 				_app_title.text = "巴别塔 App"
 				_render_babel_app()
-			"shop":
-				_app_title.text = "信号商店"
-				_render_shop_app()
 			"notebook":
 				_app_title.text = "笔记本 App"
 				_render_notebook_app()
@@ -2329,38 +3953,20 @@ func _render_app() -> void:
 
 func _render_babel_app() -> void:
 	_clear(_app_body)
-	_app_body.add_child(_label("第 %d 层 / %d" % [game.tower_floor, MemeGameStateScript.MAX_TOWER_FLOOR], 24, _theme_color("ink")))
-	_app_body.add_child(_label("下一门槛：%d" % game.next_threshold, 17, _theme_color("accent")))
-	var reward_choices: Array = game.get_pending_ascent_reward_choices()
-	if not reward_choices.is_empty():
-		_app_body.add_child(_label("第 %d 层塔罗 / 三选一" % game.pending_ascent_reward_floor, 18, _theme_color("accent")))
-		for index in reward_choices.size():
-			var reward: Dictionary = reward_choices[index]
-			var choice := Button.new()
-			choice.name = "AscentRewardChoice%d" % index
-			choice.text = "%s  /  %s\n%s" % [str(reward.get("numeral", "—")), str(reward.get("label", "未命名塔罗")), str(reward.get("description", ""))]
-			choice.set_meta("ascent_reward_card", true)
-			choice.custom_minimum_size.y = 84
-			choice.size_flags_horizontal = Control.SIZE_EXPAND_FILL
-			choice.alignment = HORIZONTAL_ALIGNMENT_LEFT
-			choice.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
-			choice.pressed.connect(_on_ascent_reward_pressed.bind(str(reward.get("id", ""))))
-			_app_body.add_child(choice)
-		_app_body.add_child(_label("选择塔罗不消耗今日行动；特定牌组会自动形成组合被动。", 14, _theme_color("accent")))
-	if not game.permanent_modifiers.is_empty():
-		_app_body.add_child(_label("已保留塔罗", 18, _theme_color("accent")))
-		for modifier in game.permanent_modifiers:
-			_app_body.add_child(_label("%s  %s  /  %s" % [str(modifier.get("numeral", "")), str(modifier.get("label", "塔罗")), str(modifier.get("description", ""))], 15, _theme_color("ink")))
-	var tarot_combos: Array = game.get_active_tarot_combos()
-	if not tarot_combos.is_empty():
-		_app_body.add_child(_label("组合被动", 18, _theme_color("accent")))
-		for combo in tarot_combos:
-			_app_body.add_child(_label("%s  /  %s" % [str(combo.get("label", "组合")), str(combo.get("description", ""))], 15, _theme_color("ink")))
-	_app_body.add_child(_label("遗产规则", 18, _theme_color("accent")))
-	if game.legacy_rules.is_empty():
-		_app_body.add_child(_label("还没有上一层语言留下来。", 16, _theme_color("accent")))
-	for rule in game.legacy_rules:
-		_app_body.add_child(_label("第 %d 层：%s" % [int(rule.get("floor", 1)), str(rule.get("required_text", ""))], 16, _theme_color("ink")))
+	var displayed_floor := clampi(game.tower_floor, 1, 4)
+	var floor_heading := _locale.level_display_name(displayed_floor)
+	var heading := _label(floor_heading, 24, _theme_color("ink"))
+	heading.name = "BabelFloorHeading"
+	_app_body.add_child(heading)
+	var floor_card: Dictionary = LanguageCorruptionContentScript.get_floor_card_display(displayed_floor)
+	var floor_field_names := {"危险": "Danger", "提示": "Hint"}
+	for field_name in ["危险", "提示"]:
+		var card_line := _label("%s：%s" % [field_name, str(floor_card.get(field_name, ""))], 16, _theme_color("ink"))
+		card_line.name = "BabelFloor%sLabel" % floor_field_names[field_name]
+		card_line.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
+		_app_body.add_child(card_line)
+	_app_body.add_child(_label("资金 %d  /  通过发布完整表达获得" % game.money, 16, _theme_color("accent")))
+	_app_body.add_child(_label("污染 %d%%  /  发布与现实表达会推进污染" % game.pollution, 16, _theme_color("accent")))
 	for item in game.event_log:
 		_app_body.add_child(_label(str(item), 15, _theme_color("accent")))
 
@@ -2432,25 +4038,27 @@ func _render_social_app() -> void:
 	channel_tabs.custom_minimum_size.y = 48
 	channel_tabs.add_theme_constant_override("separation", 2)
 	phone_box.add_child(channel_tabs)
-	for tab_text in ["关注", "发现", "塔下", "附近"]:
+	for channel_data in SOCIAL_CHANNELS:
+		var channel_id := str(channel_data.get("id", "discover"))
+		var tab_text := str(channel_data.get("label", ""))
 		var tab_item := VBoxContainer.new()
-		tab_item.name = "SocialChannelTabItem%s" % tab_text
+		tab_item.name = "SocialChannelTabItem%s" % channel_id
 		tab_item.size_flags_horizontal = Control.SIZE_EXPAND_FILL
 		tab_item.add_theme_constant_override("separation", 0)
 		channel_tabs.add_child(tab_item)
 		var tab := Button.new()
-		tab.name = "SocialChannelTab%s" % tab_text
+		tab.name = "SocialChannelTab%s" % channel_id
 		tab.text = tab_text
 		tab.set_meta("flat_phone_button", true)
 		tab.custom_minimum_size = Vector2(88, 48)
 		tab.size_flags_horizontal = Control.SIZE_EXPAND_FILL
-		tab.pressed.connect(_on_social_channel_pressed.bind(tab_text))
+		tab.pressed.connect(_on_social_channel_pressed.bind(channel_id))
 		tab_item.add_child(tab)
 		var underline := ColorRect.new()
-		underline.name = "SocialChannelTabUnderline%s" % tab_text
+		underline.name = "SocialChannelTabUnderline%s" % channel_id
 		underline.color = _theme_color("muted")
 		underline.custom_minimum_size.y = 3
-		underline.visible = tab_text == _social_channel
+		underline.visible = channel_id == _social_channel
 		tab_item.add_child(underline)
 
 	var page_host := VBoxContainer.new()
@@ -2479,7 +4087,7 @@ func _render_social_home_page(parent: VBoxContainer) -> void:
 	home_page.size_flags_vertical = Control.SIZE_EXPAND_FILL
 	home_page.add_theme_constant_override("separation", 0)
 	parent.add_child(home_page)
-	if _social_channel == "附近":
+	if _social_channel == "nearby":
 		_render_social_channel_empty_state(
 			home_page,
 			"SocialNearbyUnavailable",
@@ -2489,7 +4097,7 @@ func _render_social_home_page(parent: VBoxContainer) -> void:
 		return
 
 	var visible_post_indices := _social_visible_post_indices()
-	if _social_channel == "关注" and visible_post_indices.is_empty():
+	if _social_channel == "following" and visible_post_indices.is_empty():
 		_render_social_channel_empty_state(
 			home_page,
 			"SocialFollowingEmptyState",
@@ -2513,40 +4121,83 @@ func _render_social_home_page(parent: VBoxContainer) -> void:
 	feed_scroll.gui_input.connect(_on_social_feed_scroll_gui_input.bind(feed_scroll))
 	feed_frame.add_child(feed_scroll)
 
+	var feed_content := VBoxContainer.new()
+	feed_content.name = "SocialFeedContent"
+	feed_content.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+	feed_content.add_theme_constant_override("separation", 10)
+	feed_scroll.add_child(feed_content)
+
 	var masonry := HBoxContainer.new()
 	masonry.name = "SocialFeedMasonry"
 	masonry.add_theme_constant_override("separation", 12)
 	masonry.size_flags_horizontal = Control.SIZE_EXPAND_FILL
-	feed_scroll.add_child(masonry)
-	var columns: Array[VBoxContainer] = []
+	masonry.set_meta("layout_mode", "independent_equal_width_columns")
+	feed_content.add_child(masonry)
+	var masonry_columns: Array[VBoxContainer] = []
+	var masonry_heights := [0.0, 0.0]
 	for column_index in 2:
 		var column := VBoxContainer.new()
 		column.name = "SocialMasonryColumn%d" % column_index
 		column.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+		column.size_flags_stretch_ratio = 1.0
 		column.add_theme_constant_override("separation", 10)
+		column.set_meta("masonry_column_index", column_index)
 		masonry.add_child(column)
-		columns.append(column)
+		masonry_columns.append(column)
 	for visible_index in visible_post_indices.size():
 		var post_index: int = int(visible_post_indices[visible_index])
 		var post := _social_post_for_index(post_index)
+		var card_height := _social_feed_card_height(post_index)
+		var column_index := 0 if float(masonry_heights[0]) <= float(masonry_heights[1]) else 1
 		var card_panel := _panel()
 		card_panel.name = "SocialPostCard%d" % post_index
 		card_panel.set_meta("social_card", true)
-		card_panel.custom_minimum_size = Vector2(0, 232 + (post_index % 4) * 38)
+		card_panel.set_meta("masonry_column_index", column_index)
+		card_panel.custom_minimum_size = Vector2(0, card_height)
 		card_panel.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+		card_panel.size_flags_vertical = Control.SIZE_SHRINK_BEGIN
+		card_panel.clip_contents = true
 		card_panel.mouse_filter = Control.MOUSE_FILTER_STOP
 		card_panel.gui_input.connect(_on_social_card_gui_input.bind(post_index))
 		card_panel.mouse_default_cursor_shape = Control.CURSOR_POINTING_HAND
-		columns[visible_index % columns.size()].add_child(card_panel)
+		masonry_columns[column_index].add_child(card_panel)
+		masonry_heights[column_index] = float(masonry_heights[column_index]) + card_height + 10.0
+		var card_clip := Control.new()
+		card_clip.name = "SocialPostClip%d" % post_index
+		card_clip.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+		card_clip.size_flags_vertical = Control.SIZE_EXPAND_FILL
+		card_clip.clip_contents = true
+		card_clip.mouse_filter = Control.MOUSE_FILTER_PASS
+		card_panel.add_child(card_clip)
 		var card := VBoxContainer.new()
+		card.name = "SocialPostLayout%d" % post_index
+		card.set_anchors_and_offsets_preset(Control.PRESET_FULL_RECT)
 		card.add_theme_constant_override("separation", 6)
-		card_panel.add_child(card)
+		card.clip_contents = true
+		card_clip.add_child(card)
 		_render_social_card_poster(card, post_index, post)
+		var caption_slot := Control.new()
+		caption_slot.name = "SocialPostCaptionSlot%d" % post_index
+		caption_slot.custom_minimum_size = Vector2(0, SOCIAL_FEED_CAPTION_HEIGHT)
+		caption_slot.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+		caption_slot.size_flags_vertical = Control.SIZE_SHRINK_BEGIN
+		caption_slot.clip_contents = true
+		caption_slot.mouse_filter = Control.MOUSE_FILTER_PASS
+		card.add_child(caption_slot)
 		var caption := _label(_social_caption(post, post_index), 14, _theme_color("ink"))
 		caption.name = "SocialPostCaption%d" % post_index
+		caption.set_anchors_and_offsets_preset(Control.PRESET_FULL_RECT)
 		caption.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
-		card.add_child(caption)
+		caption.max_lines_visible = 3
+		caption.text_overrun_behavior = TextServer.OVERRUN_TRIM_ELLIPSIS
+		caption.mouse_filter = Control.MOUSE_FILTER_PASS
+		caption_slot.add_child(caption)
 		var meta_row := HBoxContainer.new()
+		meta_row.name = "SocialPostActions%d" % post_index
+		meta_row.custom_minimum_size.y = 44
+		meta_row.size_flags_vertical = Control.SIZE_SHRINK_BEGIN
+		meta_row.clip_contents = true
+		meta_row.mouse_filter = Control.MOUSE_FILTER_PASS
 		meta_row.add_theme_constant_override("separation", 4)
 		card.add_child(meta_row)
 		var likes := Button.new()
@@ -2559,15 +4210,26 @@ func _render_social_home_page(parent: VBoxContainer) -> void:
 		meta_row.add_child(likes)
 		var follow := Button.new()
 		follow.name = "SocialPostFollowButton%d" % post_index
-		follow.text = "已关注" if game.is_social_following(str(post.get("handle", ""))) else "关注"
+		follow.text = "已关注" if game.is_social_following(_social_author_id(post)) else "关注"
 		follow.set_meta("flat_phone_button", true)
 		follow.custom_minimum_size = Vector2(74, 44)
-		follow.pressed.connect(_on_social_follow_pressed.bind(str(post.get("handle", ""))))
+		follow.pressed.connect(_on_social_follow_pressed.bind(_social_author_id(post)))
 		meta_row.add_child(follow)
+	var hint_slot := Control.new()
+	hint_slot.name = "SocialScrollHintSlot"
+	hint_slot.custom_minimum_size.y = 32
+	hint_slot.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+	hint_slot.clip_contents = true
+	feed_content.add_child(hint_slot)
 	var scroll_hint := _label("继续下滑浏览更多信号", 13, _theme_color("accent"))
 	scroll_hint.name = "SocialScrollHint"
+	scroll_hint.set_anchors_and_offsets_preset(Control.PRESET_FULL_RECT)
 	scroll_hint.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
-	columns[0].add_child(scroll_hint)
+	hint_slot.add_child(scroll_hint)
+	var hint_spacer := Control.new()
+	hint_spacer.name = "SocialScrollHintSpacer"
+	hint_spacer.custom_minimum_size.y = 32
+	feed_content.add_child(hint_spacer)
 
 
 func _render_social_channel_empty_state(parent: VBoxContainer, node_name: String, title: String, body: String) -> void:
@@ -2603,9 +4265,9 @@ func _render_social_channel_empty_state(parent: VBoxContainer, node_name: String
 func _social_visible_post_indices() -> Array[int]:
 	var result: Array[int] = []
 	for post_index in SOCIAL_POST_CARDS.size():
-		if _social_channel == "关注":
+		if _social_channel == "following":
 			var post := _social_post_for_index(post_index)
-			if not game.is_social_following(str(post.get("handle", ""))):
+			if not game.is_social_following(_social_author_id(post)):
 				continue
 		result.append(post_index)
 	return result
@@ -2622,8 +4284,9 @@ func _render_social_card_poster(parent: VBoxContainer, post_index: int, post: Di
 	var poster := PanelContainer.new()
 	poster.name = "SocialPostPoster%d" % post_index
 	poster.set_meta("poster_frame", true)
-	poster.custom_minimum_size.y = 136 + (post_index % 4) * 46
+	poster.custom_minimum_size.y = _social_feed_poster_height(post_index)
 	poster.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+	poster.mouse_filter = Control.MOUSE_FILTER_PASS
 	poster.add_theme_stylebox_override("panel", _style(_social_poster_color(post_index), _theme_color("accent")))
 	parent.add_child(poster)
 
@@ -2636,9 +4299,18 @@ func _render_social_card_poster(parent: VBoxContainer, post_index: int, post: Di
 	poster_texture.custom_minimum_size = Vector2(0, poster.custom_minimum_size.y)
 	poster_texture.size_flags_horizontal = Control.SIZE_EXPAND_FILL
 	poster_texture.size_flags_vertical = Control.SIZE_EXPAND_FILL
+	poster_texture.mouse_filter = Control.MOUSE_FILTER_PASS
 	poster_texture.expand_mode = TextureRect.EXPAND_IGNORE_SIZE
 	poster_texture.stretch_mode = TextureRect.STRETCH_KEEP_ASPECT_COVERED
 	poster.add_child(poster_texture)
+
+
+func _social_feed_poster_height(post_index: int) -> float:
+	return float(SOCIAL_FEED_POSTER_HEIGHTS[posmod(post_index, SOCIAL_FEED_POSTER_HEIGHTS.size())])
+
+
+func _social_feed_card_height(post_index: int) -> float:
+	return _social_feed_poster_height(post_index) + SOCIAL_FEED_CARD_CHROME_HEIGHT
 
 
 func _social_poster_color(post_index: int) -> Color:
@@ -2659,12 +4331,16 @@ func _social_poster_headline(post_index: int) -> String:
 
 
 func _social_fragment(post: Dictionary) -> String:
-	var text := str(post.get("text", ""))
-	return text.substr(0, mini(12, text.length()))
+	return _locale.translate(str(post.get("text", "")))
+
+
+func _social_floor_label() -> String:
+	var floor_number := 1 if game == null else clampi(game.tower_floor, 1, 4)
+	return _locale.level_display_name(floor_number)
 
 
 func _social_caption(post: Dictionary, _post_index: int) -> String:
-	return str(post.get("caption", "未命名信号")).substr(0, 12)
+	return _locale.translate(str(post.get("caption", "未命名信号")))
 
 
 func _render_social_detail_companion() -> void:
@@ -2674,7 +4350,7 @@ func _render_social_detail_companion() -> void:
 	if not _social_detail_open:
 		return
 	if _social_detail_title != null:
-		_social_detail_title.text = "塔层 %d/%d" % [game.tower_floor, MemeGameStateScript.MAX_TOWER_FLOOR]
+		_social_detail_title.text = _social_floor_label()
 	_render_social_detail_page(_social_detail_body, true)
 
 
@@ -2691,7 +4367,7 @@ func _render_social_detail_page(parent: VBoxContainer, companion: bool = false) 
 		var companion_meta := HBoxContainer.new()
 		companion_meta.add_theme_constant_override("separation", 8)
 		detail_page.add_child(companion_meta)
-		var companion_handle := _label("@%s" % post["handle"], 15, _theme_color("surface"))
+		var companion_handle := _label("@%s" % _locale.translate(str(post["handle"])), 15, _theme_color("surface"))
 		companion_handle.set_meta("on_dark", true)
 		companion_handle.size_flags_horizontal = Control.SIZE_EXPAND_FILL
 		companion_meta.add_child(companion_handle)
@@ -2709,10 +4385,10 @@ func _render_social_detail_page(parent: VBoxContainer, companion: bool = false) 
 		back.custom_minimum_size = Vector2(76, 56)
 		back.pressed.connect(_close_social_detail_window)
 		top_row.add_child(back)
-		var title := _label("@%s" % post["handle"], 18, _theme_color("accent"))
+		var title := _label("@%s" % _locale.translate(str(post["handle"])), 18, _theme_color("accent"))
 		title.size_flags_horizontal = Control.SIZE_EXPAND_FILL
 		top_row.add_child(title)
-		var floor_label := _label("塔层 %d/%d" % [game.tower_floor, MemeGameStateScript.MAX_TOWER_FLOOR], 16, _theme_color("ink"))
+		var floor_label := _label(_social_floor_label(), 16, _theme_color("ink"))
 		floor_label.name = "SocialDetailTowerFloor"
 		top_row.add_child(floor_label)
 
@@ -2757,22 +4433,28 @@ func _render_social_detail_page(parent: VBoxContainer, companion: bool = false) 
 	engagement.add_child(detail_like)
 	var detail_follow := Button.new()
 	detail_follow.name = "SocialDetailFollowButton"
-	detail_follow.text = "已关注" if game.is_social_following(str(post.get("handle", ""))) else "关注"
+	detail_follow.text = "已关注" if game.is_social_following(_social_author_id(post)) else "关注"
 	detail_follow.custom_minimum_size = Vector2(120, 44)
 	detail_follow.size_flags_horizontal = Control.SIZE_EXPAND_FILL
-	detail_follow.pressed.connect(_on_social_follow_pressed.bind(str(post.get("handle", ""))))
+	detail_follow.pressed.connect(_on_social_follow_pressed.bind(_social_author_id(post)))
 	engagement.add_child(detail_follow)
-	var passive: Dictionary = post.get("passive", {})
-	var signal_profile := _label("信号偏向 / %s · %s   稀有度 %d" % [str(passive.get("label", "无")), str(passive.get("description", "")), int(post.get("rarity", 1))], 13, _theme_color("muted"))
+	var signal_profile := _label("拾取字词不增加污染；使用它才会改变语言。", 13, _theme_color("muted"))
 	signal_profile.name = "SocialCardSignalProfile"
 	signal_profile.set_meta("on_dark", true)
 	signal_profile.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
 	detail_box.add_child(signal_profile)
 	var tokens := GridContainer.new()
+	tokens.name = "SocialPickupTokenGrid"
 	tokens.columns = 2
 	tokens.add_theme_constant_override("h_separation", 6)
 	tokens.add_theme_constant_override("v_separation", 6)
 	detail_box.add_child(tokens)
+	if (post.get("tokens", []) as Array).is_empty():
+		var no_pickup := _label("今天没有可拾取的词", 14, _theme_color("muted"))
+		no_pickup.name = "SocialNoPickupLabel"
+		no_pickup.set_meta("on_dark", true)
+		no_pickup.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
+		tokens.add_child(no_pickup)
 	for token in post["tokens"]:
 		var btn := Button.new()
 		btn.text = str(token["text"])
@@ -2815,8 +4497,7 @@ func _render_social_publish_page(parent: VBoxContainer) -> void:
 	publish_scroll.add_child(publish_content)
 
 	var placed_meme := _placed_meme()
-	var breakdown: Dictionary = game.get_publish_breakdown(placed_meme) if not placed_meme.is_empty() else game.last_publish_breakdown
-	var contract: Dictionary = game.get_daily_signal_contract()
+	var publish_result: Dictionary = game.get_publish_result(placed_meme) if not placed_meme.is_empty() else game.last_publish_result
 
 	var composer := _panel()
 	composer.name = "SocialPublishComposer"
@@ -2841,54 +4522,27 @@ func _render_social_publish_page(parent: VBoxContainer) -> void:
 	_publish_blank.pressed.connect(_on_dialogue_blank_pressed)
 	composer_box.add_child(_publish_blank)
 
-	var score_breakdown := _panel()
-	score_breakdown.name = "SocialPublishScoreBreakdown"
-	score_breakdown.set_meta("signal_contract_panel", true)
-	publish_content.add_child(score_breakdown)
-	var score_box := VBoxContainer.new()
-	score_box.add_theme_constant_override("separation", 5)
-	score_breakdown.add_child(score_box)
-	var score_header := HBoxContainer.new()
-	score_header.add_theme_constant_override("separation", 8)
-	score_box.add_child(score_header)
-	var score_heading := _label("02  /  传播预估", 13, _theme_color("muted"))
-	score_heading.set_meta("on_dark", true)
-	score_heading.size_flags_horizontal = Control.SIZE_EXPAND_FILL
-	score_header.add_child(score_heading)
-	var score_hero := _label("%d" % int(breakdown.get("score", 0)) if not breakdown.is_empty() else "--", 30, _theme_color("surface"))
-	score_hero.name = "SocialPublishScoreHero"
-	score_hero.set_meta("on_dark", true)
-	score_header.add_child(score_hero)
-	var score_text := _label("", 14, _theme_color("surface"))
-	score_text.name = "SocialPublishScoreText"
-	score_text.set_meta("on_dark", true)
-	score_text.text = _publish_breakdown_text(breakdown, not placed_meme.is_empty())
-	score_text.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
-	score_box.add_child(score_text)
-
-	var contract_panel := _panel()
-	contract_panel.name = "SocialPublishContractPanel"
-	contract_panel.set_meta("soft_panel", true)
-	publish_content.add_child(contract_panel)
-	var contract_box := VBoxContainer.new()
-	contract_box.add_theme_constant_override("separation", 4)
-	contract_panel.add_child(contract_box)
-	var contract_eyebrow := _label("03  /  今日牌型", 13, _theme_color("accent"))
-	contract_box.add_child(contract_eyebrow)
-	var contract_header := HBoxContainer.new()
-	contract_header.add_theme_constant_override("separation", 8)
-	contract_box.add_child(contract_header)
-	var contract_title := _label(str(contract.get("label", "未命名牌型")), 19, _theme_color("ink"))
-	contract_title.name = "SocialPublishContractTitle"
-	contract_title.size_flags_horizontal = Control.SIZE_EXPAND_FILL
-	contract_header.add_child(contract_title)
-	var contract_status := _label(_signal_contract_status(breakdown), 13, _theme_color("accent"))
-	contract_status.name = "SocialPublishContractStatus"
-	contract_header.add_child(contract_status)
-	var contract_text := _label(_signal_contract_text(contract, breakdown), 13, _theme_color("ink"))
-	contract_text.name = "SocialPublishContractText"
-	contract_text.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
-	contract_box.add_child(contract_text)
+	var result_panel := _panel()
+	result_panel.name = "SocialPublishOutcomePanel"
+	result_panel.set_meta("soft_panel", true)
+	publish_content.add_child(result_panel)
+	var result_box := VBoxContainer.new()
+	result_box.add_theme_constant_override("separation", 8)
+	result_panel.add_child(result_box)
+	result_box.add_child(_label("02  /  本次变化", 13, _theme_color("accent")))
+	var outcome_row := HBoxContainer.new()
+	outcome_row.add_theme_constant_override("separation", 12)
+	result_box.add_child(outcome_row)
+	var money_text := "+%d" % int(publish_result.get("money_gain", 0)) if not publish_result.is_empty() else "--"
+	var money_outcome := _label("资金  %s" % money_text, 22, _theme_color("ink"))
+	money_outcome.name = "SocialPublishMoneyOutcome"
+	money_outcome.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+	outcome_row.add_child(money_outcome)
+	var pollution_text := "+%d%%" % int(publish_result.get("pollution_gain", 0)) if not publish_result.is_empty() else "--"
+	var pollution_outcome := _label("污染  %s" % pollution_text, 22, _theme_color("ink"))
+	pollution_outcome.name = "SocialPublishPollutionOutcome"
+	pollution_outcome.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+	outcome_row.add_child(pollution_outcome)
 
 	var hint := _label("确认发布消耗 1 次行动；预览与拖拽不扣行动。", 13, _theme_color("accent"))
 	hint.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
@@ -2917,6 +4571,19 @@ func _render_social_profile_page(parent: VBoxContainer) -> void:
 	profile_page.add_theme_constant_override("separation", 10)
 	parent.add_child(profile_page)
 	profile_page.add_child(_label("我的", 22, _theme_color("accent")))
+	var identity_frame := PanelContainer.new()
+	identity_frame.name = "SocialPlayerIdentityFrame"
+	identity_frame.custom_minimum_size.y = 188
+	identity_frame.set_meta("poster_frame", true)
+	identity_frame.add_theme_stylebox_override("panel", _style(_theme_color("ink"), _theme_color("accent")))
+	profile_page.add_child(identity_frame)
+	var identity_portrait := TextureRect.new()
+	identity_portrait.name = "SocialPlayerIdentityPortrait"
+	identity_portrait.texture = _load_runtime_texture(PLAYER_CHARACTER_PATH)
+	identity_portrait.set_meta("asset_path", PLAYER_CHARACTER_PATH)
+	identity_portrait.expand_mode = TextureRect.EXPAND_IGNORE_SIZE
+	identity_portrait.stretch_mode = TextureRect.STRETCH_KEEP_ASPECT_CENTERED
+	identity_frame.add_child(identity_portrait)
 	profile_page.add_child(_label("已合成梗：%d" % game.completed_memes.size(), 17, _theme_color("ink")))
 	profile_page.add_child(_label("污染：%d%%" % game.pollution, 17, _theme_color("ink")))
 	var note := _label("你的语言档案会随着塔层上升变窄。", 16, _theme_color("accent"))
@@ -2961,7 +4628,9 @@ func _set_social_screen(screen: String) -> void:
 		return
 	_social_screen = screen
 	_social_detail_open = false
-	_social_channel = "发现"
+	_social_channel = "discover"
+	if screen == "publish":
+		_meme_bank_open = true
 	_render()
 
 
@@ -2969,7 +4638,7 @@ func _on_social_channel_pressed(channel: String) -> void:
 	if _input_locked:
 		return
 	_social_channel = channel
-	if channel == "塔下":
+	if channel == "tower_base":
 		_social_screen = "home"
 		_social_detail_post_index = 0
 		_social_detail_open = true
@@ -2979,11 +4648,12 @@ func _on_social_channel_pressed(channel: String) -> void:
 	_render()
 
 
-func _on_social_follow_pressed(handle: String) -> void:
+func _on_social_follow_pressed(author_id: String) -> void:
 	if _input_locked:
 		return
-	var followed := game.toggle_social_follow(handle)
-	log_text = "已关注 @%s。" % handle if followed else "已取消关注 @%s。" % handle
+	var followed := game.toggle_social_follow(author_id)
+	var display_handle := _social_author_display(author_id)
+	log_text = "已关注 @%s。" % display_handle if followed else "已取消关注 @%s。" % display_handle
 	_render()
 
 
@@ -3000,6 +4670,7 @@ func _open_social_post(post_index: int) -> void:
 		return
 	_social_detail_post_index = post_index
 	_social_detail_open = true
+	game.notify_tutorial("post_opened", {"post_index": post_index})
 	if _social_detail_window != null:
 		_social_detail_window.move_to_front()
 	_render()
@@ -3038,44 +4709,6 @@ func _scroll_social_feed(feed_scroll: ScrollContainer, delta: int) -> void:
 	feed_scroll.scroll_vertical = clampi(feed_scroll.scroll_vertical + delta, 0, max_scroll)
 
 
-func _render_shop_app() -> void:
-	_clear(_app_body)
-	var shop_content := _app_body
-	shop_content.name = "ShopContent"
-	shop_content.add_theme_constant_override("separation", 12)
-	var heading := HBoxContainer.new()
-	heading.add_theme_constant_override("separation", 8)
-	shop_content.add_child(heading)
-	var title := _label("梗框 / MEME FRAME", 20, _theme_color("accent"))
-	title.size_flags_horizontal = Control.SIZE_EXPAND_FILL
-	heading.add_child(title)
-	heading.add_child(_label("持有 %d" % game.owned_meme_frames, 15, _theme_color("accent")))
-	var offer := game.get_daily_meme_frame_offer()
-	if offer.is_empty():
-		var absent := _label("今天货架是空的。梗框每隔两天才补一次。", 16, _theme_color("accent"))
-		absent.name = "MemeFrameUnavailableLabel"
-		absent.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
-		shop_content.add_child(absent)
-		return
-	var frame_panel := _panel()
-	frame_panel.name = "DailyMemeFramePanel"
-	shop_content.add_child(frame_panel)
-	var frame_box := VBoxContainer.new()
-	frame_box.add_theme_constant_override("separation", 8)
-	frame_panel.add_child(frame_box)
-	frame_box.add_child(_label("一个空框。只够装下一个字。", 17, _theme_color("ink")))
-	var hint := _label("购买后去笔记本，把拾到的单字拖进去。", 14, _theme_color("accent"))
-	hint.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
-	frame_box.add_child(hint)
-	var buy := Button.new()
-	buy.name = "DailyMemeFrameBuyButton"
-	buy.text = "已售出" if game.daily_meme_frame_bought else "购买梗框  %d 热币" % int(offer.get("price", 0))
-	buy.custom_minimum_size.y = 54
-	buy.disabled = game.daily_meme_frame_bought or game.money < int(offer.get("price", 0)) or not game.can_spend_action()
-	buy.pressed.connect(_on_buy_meme_frame_pressed)
-	frame_box.add_child(buy)
-
-
 func _render_notebook_app() -> void:
 	_clear(_app_body)
 
@@ -3084,6 +4717,20 @@ func _render_notebook_app() -> void:
 	notebook_page.size_flags_vertical = Control.SIZE_EXPAND_FILL
 	notebook_page.add_theme_constant_override("separation", 8)
 	_app_body.add_child(notebook_page)
+
+	var notebook_header := VBoxContainer.new()
+	notebook_header.name = "NotebookSentenceHeader"
+	notebook_header.add_theme_constant_override("separation", 3)
+	notebook_page.add_child(notebook_header)
+	notebook_header.add_child(_label("完整句子", 24, _theme_color("ink")))
+	var header_hint := _label("从帖子拾取原词，再按语法位置组成手机世界会使用的句子。", 14, _theme_color("accent"))
+	header_hint.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
+	notebook_header.add_child(header_hint)
+	var tab_rule := ColorRect.new()
+	tab_rule.name = "NotebookSentenceRule"
+	tab_rule.color = _theme_color("accent")
+	tab_rule.custom_minimum_size.y = 3.0
+	notebook_page.add_child(tab_rule)
 
 	var notebook_scroll := ScrollContainer.new()
 	notebook_scroll.name = "NotebookCraftScroll"
@@ -3094,10 +4741,29 @@ func _render_notebook_app() -> void:
 
 	var notebook_content := VBoxContainer.new()
 	notebook_content.name = "NotebookCraftContent"
-	notebook_content.add_theme_constant_override("separation", 8)
+	notebook_content.add_theme_constant_override("separation", 10)
 	notebook_scroll.add_child(notebook_content)
 
-	notebook_content.add_child(_label("拾取字", 18, _theme_color("accent")))
+	_render_notebook_frame_tab(notebook_content)
+
+	var action_bar := _panel()
+	action_bar.name = "NotebookCraftActionBar"
+	action_bar.set_meta("fixed_action_bar", true)
+	notebook_page.add_child(action_bar)
+	var action_box := VBoxContainer.new()
+	action_box.add_theme_constant_override("separation", 6)
+	action_bar.add_child(action_box)
+	var craft := Button.new()
+	craft.name = "NotebookCraftButton"
+	craft.text = "确认组成句子"
+	craft.custom_minimum_size.y = 56
+	craft.disabled = not game.can_spend_action() or not bool(game.get_craft_sentence_preview("phone").get("valid", false))
+	craft.pressed.connect(_on_confirm_craft_pressed)
+	action_box.add_child(craft)
+
+
+func _render_notebook_frame_tab(notebook_content: VBoxContainer) -> void:
+	notebook_content.add_child(_label("拾取词库", 18, _theme_color("accent")))
 	var token_row := HFlowContainer.new()
 	token_row.name = "NotebookTokenFlow"
 	token_row.add_theme_constant_override("h_separation", 6)
@@ -3105,60 +4771,45 @@ func _render_notebook_app() -> void:
 	for token in game.notebook_tokens:
 		var btn_token = DraggableButtonScript.new()
 		btn_token.name = "NotebookToken_%s" % str(token.get("id", "token"))
-		var source_passive: Dictionary = token.get("source_passive", {})
-		btn_token.text = str(token["text"])
-		if not source_passive.is_empty():
-			btn_token.text = "%s\n%s" % [btn_token.text, str(source_passive.get("label", "来源被动"))]
+		var roles: Array = token.get("grammar_roles", [])
+		var role_label := "词"
+		if "subject" in roles:
+			role_label = "对象"
+		elif "action" in roles:
+			role_label = "动作"
+		elif "object" in roles:
+			role_label = "去向"
+		btn_token.text = "%s · %s" % [role_label, str(token["text"])]
 		btn_token.clip_text = true
-		btn_token.custom_minimum_size = Vector2(72, 56)
+		btn_token.custom_minimum_size = Vector2(150, 52)
 		btn_token.set_drag_payload("token", str(token["id"]), str(token["text"]))
 		btn_token.pressed.connect(_on_note_token_pressed.bind(str(token["id"])))
 		token_row.add_child(btn_token)
 	notebook_content.add_child(token_row)
 
-	notebook_content.add_child(_label("单字成梗  /  梗框 %d" % game.owned_meme_frames, 18, _theme_color("accent")))
+	notebook_content.add_child(_label("句子结构", 18, _theme_color("accent")))
 	for slot in game.get_craft_slots():
 		var slot_id := str(slot["id"])
 		var btn_slot = DropButtonScript.new()
+		btn_slot.name = "NotebookSentenceSlot%s" % slot_id.capitalize()
 		btn_slot.custom_minimum_size.y = 52
 		btn_slot.text = "%s：%s" % [slot["label"], _slot_text(slot_id, str(slot.get("placeholder", "")))]
 		btn_slot.configure_drop_target("token", slot_id)
 		btn_slot.dropped.connect(_on_slot_token_dropped)
 		btn_slot.pressed.connect(_on_slot_pressed.bind(slot_id))
 		notebook_content.add_child(btn_slot)
-	var draft_passives: Array = game.get_draft_source_passives()
-	if not draft_passives.is_empty():
-		var passive_labels: Array[String] = []
-		for passive in draft_passives:
-			passive_labels.append("%s · %s" % [str(passive.get("label", "来源被动")), str(passive.get("description", ""))])
-		var passive_strip := _label("来源被动 / %s" % "  +  ".join(passive_labels), 14, _theme_color("accent"))
-		passive_strip.name = "NotebookSourcePassiveStrip"
-		passive_strip.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
-		notebook_content.add_child(passive_strip)
-
-	var preview := _label("预览：%s" % _craft_preview_text(), 15, _theme_color("accent"))
+	var preview := _label("手机语言预览：%s" % _craft_preview_text(), 15, _theme_color("accent"))
+	preview.name = "NotebookSentencePreview"
 	preview.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
 	notebook_content.add_child(preview)
 
-	var fusion_rule := HSeparator.new()
-	notebook_content.add_child(fusion_rule)
+
+func _render_notebook_fusion_tab(notebook_content: VBoxContainer) -> void:
 	notebook_content.add_child(_label("旧梗融合", 18, _theme_color("accent")))
-	var fusion_hint := _label("把两个不同的完整梗叠在一起。确认后污染上升，但传播基础和倍率都会增强。", 14, _theme_color("accent"))
+	var fusion_hint := _label("用滚轮或双指滑动右侧梗环挑选完整梗，再拖入两个槽位；也可以点击梗后再点槽位。", 14, _theme_color("accent"))
+	fusion_hint.name = "NotebookFusionRingHint"
 	fusion_hint.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
 	notebook_content.add_child(fusion_hint)
-	var meme_flow := HFlowContainer.new()
-	meme_flow.name = "NotebookFusionMemeFlow"
-	meme_flow.add_theme_constant_override("h_separation", 6)
-	meme_flow.add_theme_constant_override("v_separation", 6)
-	notebook_content.add_child(meme_flow)
-	for meme in game.completed_memes:
-		var meme_button = DraggableButtonScript.new()
-		meme_button.name = "NotebookFusionMeme_%s" % str(meme.get("id", "meme"))
-		meme_button.text = str(meme.get("title", meme.get("text", "梗")))
-		meme_button.custom_minimum_size = Vector2(132, 48)
-		meme_button.set_drag_payload("meme", str(meme.get("id", "")), str(meme.get("title", "完整梗")))
-		meme_button.pressed.connect(_on_meme_pressed.bind(str(meme.get("id", ""))))
-		meme_flow.add_child(meme_button)
 	var fusion_row := HBoxContainer.new()
 	fusion_row.name = "NotebookFusionSlots"
 	fusion_row.add_theme_constant_override("separation", 8)
@@ -3173,29 +4824,18 @@ func _render_notebook_app() -> void:
 		fusion_slot.dropped.connect(_on_fusion_meme_dropped)
 		fusion_slot.pressed.connect(_on_fusion_slot_pressed.bind(fusion_slot_id))
 		fusion_row.add_child(fusion_slot)
-	var fuse := Button.new()
-	fuse.name = "NotebookFusionButton"
-	fuse.text = "确认融合"
-	fuse.custom_minimum_size.y = 52
-	fuse.disabled = not game.can_spend_action() or game.fusion_slots.size() < 2
-	fuse.pressed.connect(_on_confirm_fusion_pressed)
-	notebook_content.add_child(fuse)
+	var warning := _label("融合会保留两侧文字，并立即增加污染。发布前会显示资金与污染变化。", 14, _theme_color("accent"))
+	warning.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
+	notebook_content.add_child(warning)
 
-	var action_bar := _panel()
-	action_bar.name = "NotebookCraftActionBar"
-	action_bar.set_meta("fixed_action_bar", true)
-	notebook_page.add_child(action_bar)
-	var action_box := VBoxContainer.new()
-	action_box.add_theme_constant_override("separation", 6)
-	action_bar.add_child(action_box)
 
-	var craft := Button.new()
-	craft.name = "NotebookCraftButton"
-	craft.text = "装入梗框"
-	craft.custom_minimum_size.y = 56
-	craft.disabled = not game.can_spend_action() or game.owned_meme_frames <= 0 or not game.draft_slots.has("glyph")
-	craft.pressed.connect(_on_confirm_craft_pressed)
-	action_box.add_child(craft)
+func _set_notebook_crafting_tab(tab_id: String) -> void:
+	if _input_locked or tab_id not in ["frame", "fusion"]:
+		return
+	_notebook_crafting_tab = tab_id
+	if tab_id == "fusion":
+		_meme_bank_open = true
+	_render()
 
 
 func _render_publish() -> void:
@@ -3206,109 +4846,70 @@ func _render_publish() -> void:
 	_confirm_publish_button.disabled = meme.is_empty() or not game.can_spend_action()
 
 
-func _publish_breakdown_text(breakdown: Dictionary, is_preview: bool) -> String:
-	if breakdown.is_empty():
-		return "传播基础  --\n整数倍率  ×--\n倍率来源  --\n预计传播  --"
-	var prefix := "预计传播" if is_preview else "本次传播"
-	var active_modifiers: Array = breakdown.get("active_modifier_labels", [])
-	var source_passives: Array = breakdown.get("active_source_passive_labels", [])
-	var contract_bonus := int(breakdown.get("contract_base_bonus", 0))
-	var world_item_bonus := int(breakdown.get("world_item_base_bonus", 0))
-	var fusion_base_bonus := int(breakdown.get("fusion_base_bonus", 0))
-	var base_parts: Array[String] = []
-	if contract_bonus > 0:
-		base_parts.append("牌型 +%d" % contract_bonus)
-	if fusion_base_bonus > 0:
-		base_parts.append("融合 +%d" % fusion_base_bonus)
-	if world_item_bonus > 0:
-		base_parts.append("遗物 +%d" % world_item_bonus)
-	var base_note := "（%s）" % " / ".join(base_parts) if not base_parts.is_empty() else ""
-	var multiplier_parts: Array[String] = []
-	var trend_bonus := int(breakdown.get("trend_multiplier_bonus", 0))
-	var pollution_bonus := int(breakdown.get("pollution_multiplier_bonus", 0))
-	var contract_multiplier_bonus := int(breakdown.get("contract_multiplier_bonus", 0))
-	var fusion_multiplier_bonus := int(breakdown.get("fusion_multiplier_bonus", 0))
-	var world_multiplier_bonus := int(breakdown.get("world_item_multiplier_bonus", 0))
-	var repeat_penalty := int(breakdown.get("repeat_penalty", 0))
-	if trend_bonus > 0:
-		multiplier_parts.append("风向 +%d" % trend_bonus)
-	if pollution_bonus > 0:
-		multiplier_parts.append("污染 +%d" % pollution_bonus)
-	if contract_multiplier_bonus > 0:
-		multiplier_parts.append("牌型 +%d" % contract_multiplier_bonus)
-	if fusion_multiplier_bonus > 0:
-		multiplier_parts.append("融合 +%d" % fusion_multiplier_bonus)
-	if world_multiplier_bonus > 0:
-		multiplier_parts.append("遗物 +%d" % world_multiplier_bonus)
-	if repeat_penalty > 0:
-		multiplier_parts.append("复读 -%d" % repeat_penalty)
-	var multiplier_note := "无" if multiplier_parts.is_empty() else " / ".join(multiplier_parts)
-	var rule_labels: Array[String] = []
-	rule_labels.append_array(active_modifiers)
-	rule_labels.append_array(source_passives)
-	var rule_note := "\n附加规则  %s" % " / ".join(rule_labels) if not rule_labels.is_empty() else ""
-	var world_item_labels: Array = breakdown.get("active_world_item_labels", [])
-	var world_item_note := "\n街区遗物  %s" % " / ".join(world_item_labels) if not world_item_labels.is_empty() else ""
-	return "传播基础  %d%s\n整数倍率  ×%d\n倍率来源  %s%s%s\n%s  %d" % [
-		int(breakdown.get("base_value", 0)),
-		base_note,
-		int(breakdown.get("total_multiplier", 1)),
-		multiplier_note,
-		rule_note,
-		world_item_note,
-		prefix,
-		int(breakdown.get("score", 0)),
-	]
-
-
-func _signal_contract_status(breakdown: Dictionary) -> String:
-	if breakdown.is_empty():
-		return "等待组牌"
-	return "牌型成立" if bool(breakdown.get("contract_matched", false)) else "尚未成立"
-
-
-func _signal_contract_text(contract: Dictionary, breakdown: Dictionary) -> String:
-	var progress := str(breakdown.get("contract_progress", "尚未放入完整梗")) if not breakdown.is_empty() else "尚未放入完整梗"
-	return "%s\n%s  /  奖励：基础 +%d  ·  倍率 +%d  ·  污染 +%d" % [
-		str(contract.get("description", "等待今日信号")),
-		progress,
-		int(contract.get("base_bonus", 0)),
-		int(contract.get("multiplier_bonus", 0)),
-		int(contract.get("pollution_risk", 0)),
-	]
-
-
 func _render_bank() -> void:
 	if _meme_bank_tab != null:
 		if _meme_bank_open:
-			_meme_bank_tab.text = "梗仓库 ▾"
+			_meme_bank_tab.text = "×"
 			_meme_bank_tab.set_meta("meme_bank_peek", false)
-			_meme_bank_tab.custom_minimum_size = Vector2(142, 48)
+			_meme_bank_tab.custom_minimum_size = Vector2(88, 88)
 		elif _should_show_meme_bank():
-			_meme_bank_tab.text = "梗库"
+			_meme_bank_tab.text = "梗 %d" % game.completed_memes.size()
 			_meme_bank_tab.set_meta("meme_bank_peek", false)
-			_meme_bank_tab.custom_minimum_size = Vector2(94, 52)
+			_meme_bank_tab.custom_minimum_size = Vector2(104, 88)
 		else:
-			_meme_bank_tab.text = "◢"
+			_meme_bank_tab.text = ""
 			_meme_bank_tab.set_meta("meme_bank_peek", true)
-			_meme_bank_tab.custom_minimum_size = Vector2(44, 44)
+			_meme_bank_tab.custom_minimum_size = Vector2.ZERO
+	if _meme_bank_ring != null:
+		_meme_bank_ring.set_palette(_theme_color("surface"), Color(_theme_color("muted"), 0.88), _theme_color("accent"))
 	_clear(_bank_list)
 	if game.completed_memes.is_empty():
-		_bank_list.add_child(_label("还没有完整梗。", 15, _theme_color("accent")))
+		if _meme_bank_focus_label != null:
+			_meme_bank_focus_label.text = "还没有完整梗。"
 		return
-	for meme in game.completed_memes:
+	_meme_bank_selected_index = clampi(_meme_bank_selected_index, 0, game.completed_memes.size() - 1)
+	if not selected_meme_id.is_empty():
+		for index in game.completed_memes.size():
+			if str(game.completed_memes[index].get("id", "")) == selected_meme_id:
+				_meme_bank_selected_index = index
+				break
+	for index in game.completed_memes.size():
+		var meme: Dictionary = game.completed_memes[index]
 		var btn = DraggableButtonScript.new()
-		btn.custom_minimum_size = Vector2(240, 60)
+		btn.name = "MemeRingItem_%s" % str(meme.get("id", index))
+		btn.set_meta("radial_meme_item", true)
+		btn.set_meta("meme_index", index)
+		btn.custom_minimum_size = Vector2(134, 54)
 		btn.text = "%s\n%s" % [meme["title"], _corrupt(str(meme["text"]))]
 		btn.set_drag_payload("meme", str(meme["id"]), str(meme["title"]))
 		btn.pressed.connect(_on_meme_pressed.bind(str(meme["id"])))
+		btn.gui_input.connect(_on_meme_ring_item_gui_input.bind(btn))
 		_bank_list.add_child(btn)
+	_meme_bank_ring.set_selected_index(_meme_bank_selected_index)
+	_on_meme_ring_selection_changed(_meme_bank_selected_index)
+
+
+func _on_meme_ring_selection_changed(index: int) -> void:
+	if game == null or game.completed_memes.is_empty():
+		return
+	_meme_bank_selected_index = clampi(index, 0, game.completed_memes.size() - 1)
+	var meme: Dictionary = game.completed_memes[_meme_bank_selected_index]
+	selected_meme_id = str(meme.get("id", ""))
+	if _meme_bank_focus_label != null:
+		_meme_bank_focus_label.text = "%d/%d  ·  %s" % [_meme_bank_selected_index + 1, game.completed_memes.size(), str(meme.get("title", meme.get("text", "完整梗")))]
+	_render_publish()
+
+
+func _on_meme_ring_item_gui_input(event: InputEvent, source_button: Control) -> void:
+	if _meme_bank_ring != null and _meme_bank_ring.handle_navigation_event(event):
+		source_button.accept_event()
 
 
 func _render_reality() -> void:
 	if _reality_subtitle_label == null:
 		return
 	_clear(_reality_choice_row)
+	_render_reality_language_composer()
 	var plan := _day_plan()
 	var actor_name := _active_actor_display_name()
 	var npc_line: String = game.conversation_prompt if _reality_interaction_active and not game.conversation_prompt.is_empty() else str(plan["line"])
@@ -3324,30 +4925,42 @@ func _render_reality() -> void:
 	_reality_choice_row.visible = choosing
 	_reality_typing_line.visible = typing
 	_reality_typing_progress.visible = typing
-	_reality_continue_button.visible = result
-	var aid_status := game.get_communication_item_status()
-	_reality_aid_status.text = "沟通辅助  %s" % aid_status if not aid_status.is_empty() else ""
-	_reality_aid_status.visible = _reality_interaction_active and not typing and not aid_status.is_empty()
-	var show_offer := _reality_interaction_active and game.should_show_merchant_communication_offer()
-	_reality_merchant_offer.visible = show_offer
-	if show_offer:
-		var offer := game.get_daily_communication_item()
-		_reality_merchant_offer_text.text = "%s · %d 次\n%s" % [str(offer.get("label", "沟通辅助")), int(offer.get("charges", 0)), str(offer.get("description", ""))]
-		_reality_merchant_buy_button.text = "已购" if game.daily_communication_item_bought else "%d 资金" % int(offer.get("price", 0))
-		_reality_merchant_buy_button.disabled = game.daily_communication_item_bought or not game.can_spend_action() or game.money < int(offer.get("price", 0))
-
+	_reality_continue_button.visible = _reality_interaction_active
+	if result and game.conversation_can_continue:
+		_reality_continue_button.text = "继续交谈"
+	elif result:
+		_reality_continue_button.text = "结束"
+	else:
+		_reality_continue_button.text = "离开"
+	if result and game.conversation_actor_type == "doctor" and not game.last_polluted_sentence.is_empty():
+		_set_dialogue_text(_reality_subtitle_label, "%s：%s\n你说：%s\n理解度：%d%%" % [
+			actor_name,
+			game.conversation_feedback,
+			game.last_polluted_sentence,
+			game.npc_understanding,
+		])
 	if choosing:
 		for choice in game.get_typed_reality_choices():
 			var choice_id := str(choice.get("id", ""))
 			var button := Button.new()
 			button.name = "RealityChoice%s" % choice_id.to_pascal_case()
 			button.text = str(choice.get("summary", "回应"))
+			if _playtest_assist_enabled and game.conversation_actor_type == "key_npc" and bool(choice.get("correct", false)):
+				button.text = "✓ TEST  %s" % button.text
 			button.custom_minimum_size = Vector2(96 if _viewport_size().x < 760.0 else 164, 56)
 			button.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+			button.clip_text = true
+			button.text_overrun_behavior = TextServer.OVERRUN_TRIM_ELLIPSIS
+			if _viewport_size().x < 760.0:
+				button.add_theme_font_size_override("font_size", 13)
 			button.set_meta("reality_response_choice", true)
+			button.disabled = bool(choice.get("locked", false))
+			if button.disabled:
+				button.tooltip_text = "这部分还听不清。"
 			button.mouse_entered.connect(_on_reality_choice_hovered.bind(choice_id))
 			button.mouse_exited.connect(_on_reality_choice_unhovered.bind(choice_id))
-			button.pressed.connect(_on_reality_choice_selected.bind(choice_id))
+			if not button.disabled:
+				button.pressed.connect(_on_reality_choice_selected.bind(choice_id))
 			_reality_choice_row.add_child(button)
 		if _reality_hover_choice_id.is_empty():
 			_set_dialogue_text(_reality_intent_preview, "")
@@ -3357,10 +4970,69 @@ func _render_reality() -> void:
 
 	if typing:
 		_set_richer_bbcode(_reality_typing_line, _typed_reality_bbcode())
-		_reality_typing_progress.text = "任意键  %d / %d" % [game.conversation_reveal_index, game.conversation_clean_sentence.length()]
+		_reality_typing_progress.text = "任意键  %d / %d" % [game.conversation_reveal_index, game.get_typed_reality_unit_count()]
 	else:
 		_set_richer_bbcode(_reality_typing_line, "")
 		_reality_typing_progress.text = ""
+
+
+func _render_reality_language_composer() -> void:
+	if _reality_language_frame == null or _reality_language_token_flow == null or _reality_language_slot_row == null:
+		return
+	_clear(_reality_language_token_flow)
+	_clear(_reality_language_slot_row)
+	var composing := _reality_interaction_active and game.conversation_phase == "composing" and game.conversation_mode == "lexeme"
+	_reality_language_frame.visible = composing
+	if not composing:
+		return
+
+	var options: Array = game.get_language_token_options("doctor")
+	if options.is_empty():
+		var empty_label := _label("还没有能带到医生面前的词。先在手机里发布一句完整的话。", 14, _theme_color("accent"))
+		empty_label.name = "RealityLanguageEmptyState"
+		empty_label.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
+		_reality_language_token_flow.add_child(empty_label)
+	for option_value in options:
+		var option: Dictionary = option_value as Dictionary
+		var token_id := str(option.get("id", ""))
+		var button = DraggableButtonScript.new()
+		button.name = "RealityLanguageToken_%s" % token_id
+		button.text = str(option.get("display_text", option.get("text", "")))
+		button.tooltip_text = "原词：%s\n手机里：%s" % [
+			str(option.get("text", "")),
+			str(option.get("phone_surface", option.get("text", ""))),
+		]
+		button.custom_minimum_size = Vector2(128.0, 48.0)
+		button.clip_text = true
+		button.set_drag_payload("language_token", token_id, button.text)
+		button.pressed.connect(_on_language_token_pressed.bind(token_id))
+		_reality_language_token_flow.add_child(button)
+
+	for slot_value in game.get_craft_slots():
+		var slot: Dictionary = slot_value as Dictionary
+		var slot_id := str(slot.get("id", ""))
+		var drop_slot = DropButtonScript.new()
+		drop_slot.name = "RealityLanguageSlot%s" % slot_id.capitalize()
+		drop_slot.text = "%s\n%s" % [
+			str(slot.get("label", slot_id)),
+			_language_slot_text(slot_id, str(slot.get("placeholder", "等待词语")), "doctor"),
+		]
+		drop_slot.custom_minimum_size = Vector2(150.0, 62.0)
+		drop_slot.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+		drop_slot.configure_drop_target("language_token", slot_id)
+		drop_slot.dropped.connect(_on_language_token_dropped)
+		drop_slot.pressed.connect(_on_language_slot_pressed.bind(slot_id))
+		_reality_language_slot_row.add_child(drop_slot)
+
+	var preview: Dictionary = game.get_language_sentence_preview("doctor")
+	if bool(preview.get("valid", false)):
+		_reality_language_preview.text = "原句：%s\n医生语言：%s" % [
+			str(preview.get("clean_sentence", "")),
+			str(preview.get("world_sentence", "")),
+		]
+	else:
+		_reality_language_preview.text = "句子尚未完整。需要对象、动作和去向。"
+	_reality_language_confirm.disabled = not bool(preview.get("valid", false)) or not game.can_spend_action()
 
 
 func _typed_reality_bbcode() -> String:
@@ -3385,7 +5057,7 @@ func _set_dialogue_text(label: RichTextLabel, value: String) -> void:
 	if value.is_empty():
 		_set_richer_bbcode(label, "")
 		return
-	_set_richer_bbcode(label, "[curspull pull=0.12]%s[]" % _escape_bbcode(value))
+	_set_richer_bbcode(label, "[curspull pull=0.12]%s[]" % _escape_bbcode(_locale.translate(value)))
 
 
 func _set_richer_bbcode(label: RichTextLabel, value: String) -> void:
@@ -3426,17 +5098,16 @@ func _on_reality_choice_selected(choice_id: String) -> void:
 		_sync_audio_state(false)
 
 
-func _on_buy_communication_item() -> void:
+func _on_reality_continue_pressed() -> void:
 	if _input_locked:
 		return
-	var actions_before := int(game.actions_remaining)
-	var item := game.get_daily_communication_item()
-	if game.buy_daily_communication_item():
-		log_text = "买到%s。" % str(item.get("label", "沟通辅助"))
-		_after_effective_action(actions_before)
-	else:
-		log_text = "这件沟通辅助没有成交。"
+	if game.conversation_phase == "result" and game.continue_typed_reality_conversation():
+		_localize_active_conversation()
+		_reality_hover_choice_id = ""
 		_render()
+		_sync_audio_state(false)
+		return
+	_exit_reality_interaction()
 
 
 func _advance_typed_reality_character() -> bool:
@@ -3456,6 +5127,8 @@ func _advance_typed_reality_character() -> bool:
 		_after_effective_action(actions_before)
 	else:
 		_render()
+	if game.conversation_actor_type == "doll" and _reality_floor != null:
+		_reality_floor.sync_claimed_dolls(game.claimed_doll_ids)
 	return true
 
 
@@ -3465,8 +5138,9 @@ func _update_visibility() -> void:
 	if _phone_popup_expanded != show_phone_home:
 		_phone_popup_expanded = show_phone_home
 		_apply_phone_popup_layout(show_phone_home)
-	_phone_panel.visible = _game_started
-	_phone_tab.visible = not show_phone_home
+	_phone_panel.visible = _game_started and show_phone_home
+	if _phone_tab != null:
+		_phone_tab.visible = false
 	_phone_content.visible = show_phone_home
 	if in_phone and not game.active_app_window.is_empty():
 		_open_app_windows[game.active_app_window] = true
@@ -3489,13 +5163,19 @@ func _update_visibility() -> void:
 		_apply_meme_bank_popup_layout(desired_bank_layout)
 	if _meme_bank_content != null:
 		_meme_bank_content.visible = show_meme_bank and _meme_bank_open
+	if _meme_bank_ring != null:
+		_meme_bank_ring.visible = show_meme_bank and _meme_bank_open
+	if _meme_bank_drag_handle != null:
+		_meme_bank_drag_handle.visible = show_meme_bank and _meme_bank_open
 	_avoid_meme_bank_overlaps()
 	if _phone_down_backdrop_image != null:
 		_phone_down_backdrop_image.visible = in_phone or _phone_art_alpha > 0.03
 	if _hand_phone_image != null:
 		_hand_phone_image.visible = in_phone or _phone_art_alpha > 0.03
+	if _hand_xray_overlay != null:
+		_hand_xray_overlay.visible = _camera_enabled and _game_started and not in_phone
 	if _view_toggle_button != null:
-		_view_toggle_button.visible = _game_started and (in_phone or not _reality_interaction_active)
+		_view_toggle_button.visible = _game_started and not _settings_open and (in_phone or not _reality_interaction_active)
 		_view_toggle_button.text = "放下手机" if in_phone else "拿起手机"
 	if _settings_window != null:
 		_settings_window.visible = _settings_open and _game_started
@@ -3516,10 +5196,11 @@ func _update_visibility() -> void:
 		_reality_typing_line.visible = interaction_visible and game.conversation_phase == "typing"
 	if _reality_typing_progress != null:
 		_reality_typing_progress.visible = interaction_visible and game.conversation_phase == "typing"
-	if _reality_aid_status != null:
-		_reality_aid_status.visible = interaction_visible and game.conversation_phase != "typing" and not game.get_communication_item_status().is_empty()
-	if _reality_merchant_offer != null:
-		_reality_merchant_offer.visible = interaction_visible and game.should_show_merchant_communication_offer()
+	if _reality_language_frame != null:
+		_reality_language_frame.visible = interaction_visible and game.conversation_phase == "composing" and game.conversation_mode == "lexeme"
+	if _playtest_assist_panel != null:
+		var tutorial_step: Dictionary = game.get_tutorial_step()
+		_playtest_assist_panel.visible = _game_started and not _settings_open and (_playtest_assist_enabled or not bool(tutorial_step.get("is_complete", false)))
 	if _reality_floor != null:
 		_reality_floor.visible = not in_phone
 	if _reality_player != null:
@@ -3532,6 +5213,7 @@ func _update_visibility() -> void:
 		_cinematic_top_bar.visible = _game_started and not in_phone
 	if _cinematic_bottom_bar != null:
 		_cinematic_bottom_bar.visible = _game_started and not in_phone
+	_layout_hud_rail()
 
 
 func _animate_world(delta: float) -> void:
@@ -3554,7 +5236,7 @@ func _animate_world(delta: float) -> void:
 	current_rotation.y = rad_to_deg(lerp_angle(deg_to_rad(current_rotation.y), deg_to_rad(camera_target_rot.y), camera_lerp))
 	current_rotation.z = lerpf(current_rotation.z, 0.0, camera_lerp)
 	_camera.rotation_degrees = current_rotation
-	_camera.fov = lerpf(_camera.fov, 52.0 if _reality_interaction_active else 58.0, minf(1.0, delta * 4.0))
+	_camera.fov = 58.0
 	if _phone_rig != null:
 		_phone_rig.position = _phone_rig.position.lerp(phone_target, minf(1.0, delta * 6.0))
 		_phone_rig.rotation_degrees = Vector3(68.0, 0.0, 0.0)
@@ -3575,6 +5257,8 @@ func _animate_world(delta: float) -> void:
 		for index in _road.get_child_count():
 			var tile := _road.get_child(index) as Node3D
 			tile.position.z = -2.0 - index * 3.8 + fmod(_road_scroll, 3.8)
+	if game.view_state == "npc_up" and _reality_floor != null and _reality_player != null:
+		_reality_floor.update_authored_events(delta, _reality_player.global_position, -_camera.global_basis.z)
 	_animate_vhs(delta)
 
 
@@ -3666,23 +5350,52 @@ func _social_post_for_index(post_index: int) -> Dictionary:
 	var card_index := posmod(post_index + day_offset, SOCIAL_POST_CARDS.size())
 	var post: Dictionary = (SOCIAL_POST_CARDS[card_index] as Dictionary).duplicate(true)
 	post["card_index"] = card_index
-	var source_passive: Dictionary = post.get("passive", {})
-	var prepared_tokens: Array = []
+	var candidate_tokens: Array = []
 	for token_data in post.get("tokens", []):
-		var source_token: Dictionary = (token_data as Dictionary).duplicate(true)
-		var source_text := str(source_token.get("text", ""))
-		for character_index in source_text.length():
-			var character := source_text.substr(character_index, 1)
-			if not _is_pickable_social_character(character):
-				continue
-			var token := source_token.duplicate(true)
-			token["id"] = "%s-c%d" % [str(source_token.get("id", "token")), character_index]
-			token["text"] = character
-			token["source_card_id"] = str(post.get("id", ""))
-			token["source_passive"] = source_passive.duplicate(true)
-			prepared_tokens.append(token)
+		var token: Dictionary = (token_data as Dictionary).duplicate(true)
+		var source_text := str(token.get("text", ""))
+		token["text"] = _locale.translate(source_text)
+		token["source_text"] = source_text
+		token["content_locale"] = _locale.current_locale
+		token["source_card_id"] = str(post.get("id", ""))
+		token["lexeme_id"] = str(token.get("lexeme_id", "%s.%s" % [post.get("id", "post"), token.get("id", "token")]))
+		for surface_field in ["phone_surface", "doctor_surface", "doll_surface"]:
+			token[surface_field] = _locale.translate(str(token.get(surface_field, source_text)))
+		candidate_tokens.append(token)
+	var prepared_tokens: Array = []
+	var current_day := 1 if game == null else game.day
+	var pickup_indices := _social_pickup_post_indices(current_day)
+	if post_index in pickup_indices and not candidate_tokens.is_empty():
+		prepared_tokens = candidate_tokens.duplicate(true)
 	post["tokens"] = prepared_tokens
+	post["pickup_available"] = not prepared_tokens.is_empty()
 	return post
+
+
+func _social_author_id(post: Dictionary) -> String:
+	return str(post.get("id", post.get("handle", "unknown-author")))
+
+
+func _social_author_display(author_id: String) -> String:
+	for post in SOCIAL_POST_CARDS:
+		if str(post.get("id", "")) == author_id:
+			return _locale.translate(str(post.get("handle", author_id)))
+	return author_id
+
+
+func _social_pickable_units(text: String) -> Array[String]:
+	return _locale.pickable_units(text)
+
+
+func _social_pickup_post_indices(day_number: int) -> Array[int]:
+	var indices: Array[int] = []
+	if SOCIAL_POST_CARDS.is_empty():
+		return indices
+	var pickup_post_count := mini(SOCIAL_POST_CARDS.size(), 2 + posmod(maxi(1, day_number) - 1, 4))
+	var start_index := posmod((maxi(1, day_number) - 1) * 5, SOCIAL_POST_CARDS.size())
+	for offset in pickup_post_count:
+		indices.append(posmod(start_index + offset * 5, SOCIAL_POST_CARDS.size()))
+	return indices
 
 
 func _is_pickable_social_character(character: String) -> bool:
@@ -3693,13 +5406,60 @@ func _toggle_meme_bank() -> void:
 	if _input_locked:
 		return
 	if not _should_show_meme_bank():
-		log_text = "梗仓库只在社交发布页出现。"
+		log_text = "梗仓库只在发布页或笔记本中出现。"
 		_render_status()
 		return
 	_meme_bank_open = not _meme_bank_open
 	if _meme_bank_open and _meme_bank_window != null:
 		_meme_bank_window.move_to_front()
 	_render()
+	_play_meme_bank_motion(_meme_bank_open)
+
+
+func _play_meme_bank_motion(opening: bool) -> void:
+	if _meme_bank_window == null or not _meme_bank_window.visible:
+		return
+	var profile := _meme_bank_motion_profile(opening)
+	if _meme_bank_tween != null and _meme_bank_tween.is_valid():
+		_meme_bank_tween.kill()
+	_meme_bank_window.pivot_offset = _meme_bank_window.size * 0.5
+	_meme_bank_window.scale = profile["start_scale"]
+	_meme_bank_window.modulate = Color(1.0, 1.0, 1.0, float(profile["start_alpha"]))
+	_meme_bank_window.set_meta("motion_easing", "easeOutQuint")
+	_meme_bank_window.set_meta("motion_phase", profile["phase"])
+	_meme_bank_window.set_meta("motion_transition", profile["transition"])
+	_meme_bank_window.set_meta("motion_ease", profile["ease"])
+	var motion_tween := create_tween().set_parallel(true)
+	_meme_bank_tween = motion_tween
+	motion_tween.tween_property(_meme_bank_window, "scale", profile["target_scale"], float(profile["scale_duration"])) \
+		.set_trans(int(profile["transition"])).set_ease(int(profile["ease"]))
+	motion_tween.tween_property(_meme_bank_window, "modulate", Color(1.0, 1.0, 1.0, float(profile["target_alpha"])), float(profile["alpha_duration"])) \
+		.set_trans(int(profile["transition"])).set_ease(int(profile["ease"]))
+	motion_tween.finished.connect(_finish_meme_bank_motion.bind(opening, motion_tween), CONNECT_ONE_SHOT)
+
+
+func _finish_meme_bank_motion(opening: bool, completed_tween: Tween) -> void:
+	if completed_tween != _meme_bank_tween or _meme_bank_window == null:
+		return
+	_meme_bank_window.scale = Vector2.ONE
+	_meme_bank_window.modulate.a = 1.0
+	_meme_bank_window.set_meta("motion_phase", "open" if opening else "closed")
+
+
+func _meme_bank_motion_profile(opening: bool) -> Dictionary:
+	return {
+		"phase": "opening" if opening else "closing",
+		"transition": MEME_BANK_MOTION_TRANSITION,
+		"ease": MEME_BANK_MOTION_EASE,
+		"scale_duration": MEME_BANK_SCALE_DURATION,
+		"alpha_duration": MEME_BANK_ALPHA_DURATION,
+		"start_scale": Vector2.ONE * (0.84 if opening else 1.10),
+		"start_alpha": 0.18 if opening else 0.72,
+		"target_scale": Vector2.ONE,
+		"target_alpha": 1.0,
+		"properties": ["scale", "modulate:a"],
+		"interrupts_previous": true,
+	}
 
 
 func _close_app_window(app_id: String) -> void:
@@ -3710,7 +5470,7 @@ func _close_app_window(app_id: String) -> void:
 		_social_detail_open = false
 	if game.active_app_window == app_id:
 		game.active_app_window = ""
-		for candidate in ["social", "babel", "shop", "notebook"]:
+		for candidate in ["social", "babel", "notebook"]:
 			if bool(_open_app_windows.get(candidate, false)):
 				game.active_app = candidate
 				game.active_app_window = candidate
@@ -3741,8 +5501,8 @@ func _close_social_detail_window() -> void:
 	if _input_locked:
 		return
 	_social_detail_open = false
-	if _social_channel == "塔下":
-		_social_channel = "发现"
+	if _social_channel == "tower_base":
+		_social_channel = "discover"
 	log_text = "关闭社交详情。"
 	_render()
 
@@ -3790,7 +5550,8 @@ func _should_show_meme_bank() -> bool:
 	if _phone_launcher_open:
 		return false
 	var social_publish_open := bool(_open_app_windows.get("social", false)) and _social_screen == "publish"
-	return social_publish_open
+	var notebook_open := bool(_open_app_windows.get("notebook", false)) and game.active_app_window == "notebook"
+	return social_publish_open or notebook_open
 
 
 func _should_peek_meme_bank() -> bool:
@@ -3799,6 +5560,10 @@ func _should_peek_meme_bank() -> bool:
 
 func _avoid_meme_bank_overlaps() -> void:
 	if _meme_bank_window == null or not _meme_bank_window.visible:
+		return
+	# The ring deliberately owns the right edge; preserving that anchor makes
+	# scroll navigation spatially predictable even when the notebook moves.
+	if _meme_bank_ring != null:
 		return
 	var targets := _meme_bank_overlap_targets()
 	if not _meme_bank_conflicts_at(_meme_bank_window.global_position, targets):
@@ -4002,13 +5767,19 @@ func _apply_ui_theme(node: Node = null) -> void:
 			button.add_theme_stylebox_override("normal", _window_close_style(Color(_theme_color("surface"), 0.0), _theme_color("accent")))
 			button.add_theme_stylebox_override("hover", _window_close_style(_theme_color("ink"), _theme_color("ink")))
 			button.add_theme_stylebox_override("pressed", _window_close_style(_theme_color("accent"), _theme_color("ink")))
-		elif button.has_meta("ascent_reward_card"):
+		elif button.has_meta("notebook_browser_tab"):
+			var tab_active := bool(button.get_meta("active_tab", false))
+			button.add_theme_color_override("font_color", _theme_color("surface") if tab_active else _theme_color("ink"))
+			button.add_theme_color_override("font_hover_color", _theme_color("ink"))
+			button.add_theme_stylebox_override("normal", _style(_theme_color("ink") if tab_active else Color(_theme_color("surface"), 0.72), _theme_color("accent")))
+			button.add_theme_stylebox_override("hover", _style(_theme_color("muted"), _theme_color("ink")))
+			button.add_theme_stylebox_override("pressed", _style(_theme_color("accent"), _theme_color("ink")))
+		elif button.has_meta("radial_center_button"):
 			button.add_theme_color_override("font_color", _theme_color("surface"))
 			button.add_theme_color_override("font_hover_color", _theme_color("ink"))
-			button.add_theme_color_override("font_pressed_color", _theme_color("ink"))
-			button.add_theme_stylebox_override("normal", _reward_card_style(_theme_color("ink"), _theme_color("muted")))
-			button.add_theme_stylebox_override("hover", _reward_card_style(_theme_color("muted"), _theme_color("ink")))
-			button.add_theme_stylebox_override("pressed", _reward_card_style(_theme_color("accent"), _theme_color("ink")))
+			button.add_theme_stylebox_override("normal", _circle_style(Color(_theme_color("ink"), 0.92), _theme_color("muted")))
+			button.add_theme_stylebox_override("hover", _circle_style(_theme_color("muted"), _theme_color("ink")))
+			button.add_theme_stylebox_override("pressed", _circle_style(_theme_color("accent"), _theme_color("surface")))
 		elif button.has_meta("meme_bank_tab") and bool(button.get_meta("meme_bank_peek", false)):
 			button.add_theme_color_override("font_color", _theme_color("muted"))
 			button.add_theme_color_override("font_hover_color", _theme_color("surface"))
@@ -4063,8 +5834,6 @@ func _apply_ui_theme(node: Node = null) -> void:
 			(node as PanelContainer).add_theme_stylebox_override("panel", _style(_theme_color("ink"), Color(_theme_color("muted"), 0.22)))
 		elif node.has_meta("tooltip_panel"):
 			(node as PanelContainer).add_theme_stylebox_override("panel", _style(_theme_color("muted"), _theme_color("accent")))
-		elif node.has_meta("signal_contract_panel"):
-			(node as PanelContainer).add_theme_stylebox_override("panel", _style(_theme_color("ink"), _theme_color("muted")))
 		elif node.has_meta("soft_panel"):
 			(node as PanelContainer).add_theme_stylebox_override("panel", _soft_style(_theme_color("surface"), _theme_color("accent")))
 		else:
@@ -4148,6 +5917,7 @@ func _finish_action_spend_animation() -> void:
 		_play_day_transition()
 		return
 	_set_input_locked(false)
+	_sync_audio_state(false)
 	_render()
 	if _hud_actions_label != null and _action_spend_after_actions >= 0:
 		_hud_actions_label.text = _action_text(_action_spend_after_actions)
@@ -4194,30 +5964,51 @@ func _build_day_transition_overlay() -> void:
 	_day_transition_rule.rotation = deg_to_rad(-5.0)
 	_day_transition_overlay.add_child(_day_transition_rule)
 
-	_day_transition_day_label = _label("DAY 01", 96, _theme_color("surface"))
-	_day_transition_day_label.name = "DayTransitionDayLabel"
+	_day_transition_day_label = _label("第一层", 58, _theme_color("surface"))
+	_day_transition_day_label.name = "FloorTransitionAreaLabel"
 	_day_transition_day_label.set_meta("on_dark", true)
 	_day_transition_day_label.set_anchors_preset(Control.PRESET_CENTER)
 	_day_transition_day_label.offset_left = -520
-	_day_transition_day_label.offset_top = -168
+	_day_transition_day_label.offset_top = -190
 	_day_transition_day_label.offset_right = 520
-	_day_transition_day_label.offset_bottom = -28
+	_day_transition_day_label.offset_bottom = -70
 	_day_transition_day_label.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
 	_day_transition_day_label.vertical_alignment = VERTICAL_ALIGNMENT_CENTER
 	_day_transition_day_label.pivot_offset = Vector2(520, 70)
 	_day_transition_overlay.add_child(_day_transition_day_label)
 
-	_day_transition_meta_label = _label("", 20, _theme_color("muted"))
-	_day_transition_meta_label.name = "DayTransitionMetaLabel"
+	_day_transition_meta_label = _label("危险：B", 28, _theme_color("flash_text"))
+	_day_transition_meta_label.name = "FloorTransitionDangerLabel"
 	_day_transition_meta_label.set_meta("on_dark", true)
 	_day_transition_meta_label.set_anchors_preset(Control.PRESET_CENTER)
 	_day_transition_meta_label.offset_left = -440
-	_day_transition_meta_label.offset_top = 44
+	_day_transition_meta_label.offset_top = -16
 	_day_transition_meta_label.offset_right = 440
-	_day_transition_meta_label.offset_bottom = 112
+	_day_transition_meta_label.offset_bottom = 42
 	_day_transition_meta_label.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
 	_day_transition_meta_label.vertical_alignment = VERTICAL_ALIGNMENT_CENTER
 	_day_transition_overlay.add_child(_day_transition_meta_label)
+
+	_day_transition_hint_label = _label("提示：《游戏与现实》", 22, _theme_color("muted"))
+	_day_transition_hint_label.name = "FloorTransitionHintLabel"
+	_day_transition_hint_label.set_meta("on_dark", true)
+	_day_transition_hint_label.set_anchors_preset(Control.PRESET_CENTER)
+	_day_transition_hint_label.offset_left = -520
+	_day_transition_hint_label.offset_top = 62
+	_day_transition_hint_label.offset_right = 520
+	_day_transition_hint_label.offset_bottom = 132
+	_day_transition_hint_label.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
+	_day_transition_hint_label.vertical_alignment = VERTICAL_ALIGNMENT_CENTER
+	_day_transition_hint_label.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
+	_day_transition_overlay.add_child(_day_transition_hint_label)
+
+
+func _update_floor_transition_card(floor_number: int) -> void:
+	var displayed_floor := clampi(floor_number, 1, 4)
+	var card: Dictionary = LanguageCorruptionContentScript.get_floor_card_display(displayed_floor)
+	_day_transition_day_label.text = _locale.level_display_name(displayed_floor)
+	_day_transition_meta_label.text = "危险：%s" % str(card.get("危险", ""))
+	_day_transition_hint_label.text = "提示：%s" % str(card.get("提示", ""))
 
 
 func _play_day_transition() -> void:
@@ -4232,9 +6023,8 @@ func _play_day_transition() -> void:
 	_set_input_locked(true)
 	_day_transition_overlay.visible = true
 	_day_transition_overlay.modulate = Color(1, 1, 1, 0)
-	_day_transition_day_label.text = "DAY %02d" % game.day
+	_update_floor_transition_card(game.tower_floor)
 	_day_transition_day_label.scale = Vector2(0.86, 0.86)
-	_day_transition_meta_label.text = "TODAY'S ACTIONS DEPLETED  /  楼层 %d" % game.tower_floor
 	_day_transition_rule.scale = Vector2(0.04, 1.0)
 	if not is_inside_tree():
 		return
@@ -4260,8 +6050,7 @@ func _commit_day_transition_settlement() -> void:
 		selected_meme_id = ""
 		if not game.event_log.is_empty():
 			log_text = game.event_log[0]
-	_day_transition_day_label.text = "DAY %02d" % game.day
-	_day_transition_meta_label.text = "NEXT SIGNAL ACQUIRED  /  楼层 %d" % game.tower_floor
+	_update_floor_transition_card(game.tower_floor)
 
 
 func _finish_day_transition() -> void:
@@ -4537,8 +6326,14 @@ func _on_app_pressed(app_id: String) -> void:
 	game.set_view_state("phone_down")
 	_set_reality_mouse_look(false)
 	game.set_active_app(app_id)
+	if app_id == "social":
+		game.notify_tutorial("social_opened")
+	elif app_id == "notebook":
+		game.notify_tutorial("notebook_opened")
 	_open_app_windows[app_id] = true
 	_phone_launcher_open = false
+	if app_id == "notebook":
+		_meme_bank_open = true
 	if _app_windows.has(app_id):
 		var window := _app_windows[app_id] as Control
 		if window != null:
@@ -4551,35 +6346,17 @@ func _on_token_pressed(post_id: String, token: Dictionary) -> void:
 	if _input_locked:
 		return
 	var actions_before: int = int(game.actions_remaining)
-	if game.pick_token(post_id, token):
+	var localized_token := token.duplicate(true)
+	localized_token["source_text"] = str(token.get("source_text", token.get("text", "")))
+	localized_token["text"] = _locale.translate(str(token.get("text", "")))
+	localized_token["content_locale"] = _locale.current_locale
+	if game.pick_token(post_id, localized_token):
 		selected_token_id = "%s-%s-%d" % [post_id, token.get("id", "token"), game.day]
-		log_text = "拾取：%s" % token["text"]
+		log_text = "拾取：%s" % localized_token["text"]
 		_after_effective_action(actions_before)
 	else:
 		log_text = "这个词没有进入笔记本。"
 		_render()
-
-
-func _on_buy_meme_frame_pressed() -> void:
-	if _input_locked:
-		return
-	var actions_before: int = int(game.actions_remaining)
-	if game.buy_daily_meme_frame():
-		log_text = "购买梗框：现在可以装入一个字。"
-		_after_effective_action(actions_before)
-	else:
-		log_text = "梗框没有成交。"
-		_render()
-
-
-func _on_ascent_reward_pressed(reward_id: String) -> void:
-	if _input_locked:
-		return
-	if game.choose_ascent_reward(reward_id):
-		log_text = "塔罗已写入本层。组合条件会自动结算。"
-	else:
-		log_text = "这项许可已经关闭。"
-	_render()
 
 
 func _on_note_token_pressed(token_id: String) -> void:
@@ -4613,16 +6390,63 @@ func _on_slot_pressed(slot_id: String) -> void:
 	_render()
 
 
+func _on_language_token_pressed(token_id: String) -> void:
+	if _input_locked:
+		return
+	_selected_language_token_id = token_id
+	log_text = "选中了一个带到医生面前的词。"
+	_render()
+
+
+func _on_language_token_dropped(data: Dictionary, slot_id: String) -> void:
+	if _input_locked:
+		return
+	var token_id := str(data.get("id", ""))
+	if token_id.is_empty():
+		return
+	_selected_language_token_id = token_id
+	if game.place_language_token(slot_id, token_id, "doctor"):
+		log_text = "词已经进入医生句槽。"
+	else:
+		log_text = "这个词不能放在句子的这个位置。"
+	_render()
+
+
+func _on_language_slot_pressed(slot_id: String) -> void:
+	if _input_locked:
+		return
+	if _selected_language_token_id.is_empty():
+		log_text = "先选择一个词。"
+	elif game.place_language_token(slot_id, _selected_language_token_id, "doctor"):
+		log_text = "词已经进入医生句槽。"
+	else:
+		log_text = "这个词不能放在句子的这个位置。"
+	_render()
+
+
+func _on_confirm_doctor_sentence_pressed() -> void:
+	if _input_locked:
+		return
+	var actions_before := int(game.actions_remaining)
+	if game.confirm_doctor_sentence():
+		_selected_language_token_id = ""
+		log_text = "同一句话到了医生那里，已经不是原来的样子。"
+		_after_effective_action(actions_before)
+	else:
+		log_text = "句子还不完整，或者这些词还没有在手机里发布。"
+		_render()
+
+
 func _on_confirm_craft_pressed() -> void:
 	if _input_locked:
 		return
 	var actions_before: int = int(game.actions_remaining)
 	if game.confirm_craft():
 		selected_meme_id = str(game.completed_memes[0]["id"])
-		log_text = "单字进入梗框：%s" % game.completed_memes[0]["title"]
+		log_text = "完整句子已经写好：%s" % game.completed_memes[0]["title"]
 		_after_effective_action(actions_before)
 	else:
-		log_text = "需要一个梗框和一个拾取字。"
+		log_text = "需要分别填入对象、动作和去向。"
 		_render()
 
 
@@ -4700,7 +6524,7 @@ func _on_confirm_dialogue_pressed() -> void:
 	var actions_before: int = int(game.actions_remaining)
 	if game.confirm_dialogue():
 		selected_meme_id = ""
-		log_text = "句子发到手机里。热度在塔下回响。"
+		log_text = "句子发出去了。资金到账，污染留下。"
 		_after_effective_action(actions_before)
 	else:
 		log_text = "发布空格里还没有完整梗。"
@@ -4735,12 +6559,6 @@ func _settle_day_and_present_rewards() -> bool:
 	_reality_hover_choice_id = ""
 	selected_token_id = ""
 	selected_meme_id = ""
-	if not game.pending_ascent_reward_choices.is_empty():
-		game.set_view_state("phone_down")
-		_set_reality_mouse_look(false)
-		game.set_active_app("babel")
-		_open_app_windows["babel"] = true
-		_phone_launcher_open = false
 	_sync_audio_state(false)
 	return true
 
@@ -4758,8 +6576,22 @@ func _slot_text(slot_id: String, placeholder: String) -> String:
 	return placeholder
 
 
+func _language_slot_text(slot_id: String, placeholder: String, world: String) -> String:
+	var token_id := str(game.language_sentence_slots.get(slot_id, ""))
+	if token_id.is_empty():
+		return placeholder
+	for option_value in game.get_language_token_options(world):
+		var option: Dictionary = option_value as Dictionary
+		if str(option.get("id", "")) == token_id:
+			return str(option.get("display_text", option.get("text", placeholder)))
+	return placeholder
+
+
 func _craft_preview_text() -> String:
-	return _slot_text("glyph", "等待一个字")
+	var preview: Dictionary = game.get_craft_sentence_preview("phone")
+	if bool(preview.get("valid", false)):
+		return str(preview.get("world_sentence", preview.get("clean_sentence", "")))
+	return "等待对象、动作和去向"
 
 
 func _fusion_slot_text(slot_id: String) -> String:
@@ -4782,16 +6614,37 @@ func _placed_meme() -> Dictionary:
 
 
 func _corrupt(text: String) -> String:
+	text = _locale.translate(text)
 	if game.pollution < 35:
 		return text
+	var replacements := [_locale.translate("哈吉米"), "□", _locale.translate("沉默"), "……"]
+	if _locale.current_locale == "en":
+		return _corrupt_english_words(text, replacements)
 	var result := ""
-	var replacements := ["哈吉米", "□", "沉默", "……"]
 	for index in text.length():
 		var ch := text.substr(index, 1)
 		if index % maxi(2, 8 - int(game.pollution / 14)) == 0 and ch != " ":
 			result += replacements[(index + game.day) % replacements.size()]
 		else:
 			result += ch
+	return result
+
+
+func _corrupt_english_words(text: String, replacements: Array) -> String:
+	var word_regex := RegEx.new()
+	word_regex.compile("(\\S+)(\\s*)")
+	var units := word_regex.search_all(text)
+	if units.is_empty():
+		return text
+	var result := ""
+	var interval := maxi(2, 8 - int(game.pollution / 14))
+	for index in units.size():
+		var unit := units[index] as RegExMatch
+		var word := unit.get_string(1)
+		var spacing := unit.get_string(2)
+		if index % interval == 0:
+			word = str(replacements[(index + game.day) % replacements.size()])
+		result += word + spacing
 	return result
 
 
@@ -4810,9 +6663,46 @@ func _wrap(node: Control) -> PanelContainer:
 func _label(text: String, size: int, color: Color) -> Label:
 	var label := Label.new()
 	label.text = text
+	_set_localized_property(label, "text")
 	label.add_theme_font_size_override("font_size", size)
 	label.add_theme_color_override("font_color", color)
 	return label
+
+
+func _refresh_localized_ui() -> void:
+	if _ui_root == null or not is_instance_valid(_ui_root):
+		return
+	_localize_control_tree(_ui_root)
+
+
+func _localize_control_tree(node: Node) -> void:
+	if node is Control and not bool(node.get_meta("skip_localization", false)):
+		var control := node as Control
+		if control is Label or control is Button:
+			_set_localized_property(control, "text")
+		if control is LineEdit:
+			_set_localized_property(control, "placeholder_text")
+		_set_localized_property(control, "tooltip_text")
+	for child in node.get_children():
+		_localize_control_tree(child)
+
+
+func _set_localized_property(control: Control, property_name: String) -> void:
+	if control == null:
+		return
+	var current_text := str(control.get(property_name))
+	if current_text.is_empty():
+		return
+	var source_meta := "locale_source_%s" % property_name
+	var last_meta := "locale_last_%s" % property_name
+	var source_text := str(control.get_meta(source_meta, ""))
+	var last_text := str(control.get_meta(last_meta, ""))
+	if source_text.is_empty() or current_text != last_text:
+		source_text = current_text
+		control.set_meta(source_meta, source_text)
+	var localized_text := _locale.translate(source_text)
+	control.set(property_name, localized_text)
+	control.set_meta(last_meta, localized_text)
 
 
 func _style(bg: Color, border: Color) -> StyleBoxFlat:
@@ -4832,6 +6722,16 @@ func _soft_style(bg: Color, border: Color) -> StyleBoxFlat:
 	style.set_border_width_all(1)
 	style.set_corner_radius_all(16)
 	style.set_content_margin_all(16)
+	return style
+
+
+func _circle_style(bg: Color, border: Color) -> StyleBoxFlat:
+	var style := StyleBoxFlat.new()
+	style.bg_color = bg
+	style.border_color = border
+	style.set_border_width_all(3)
+	style.set_corner_radius_all(60)
+	style.set_content_margin_all(12)
 	return style
 
 

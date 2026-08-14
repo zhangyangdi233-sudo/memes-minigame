@@ -1,120 +1,45 @@
 class_name MemeGameState
 extends RefCounted
 
-const MAX_TOWER_FLOOR := 5
-const TOWER_THRESHOLDS := [0, 144, 256, 376, 480, 600]
-const MAX_THRESHOLD_DISCOUNT := 280
-const POLLUTION_LOCK_THRESHOLD := 70
+const GameLocaleScript = preload("res://scripts/localization/game_locale.gd")
+const LanguageCorruptionContentScript = preload("res://scripts/narrative/language_corruption_content.gd")
+const LanguageBridgeScript = preload("res://scripts/narrative/language_bridge.gd")
+const TutorialDirectorScript = preload("res://scripts/tutorial/tutorial_director.gd")
+const MAX_TOWER_FLOOR := 4
+const POLLUTION_FLOOR_THRESHOLDS := {1: 25, 2: 60, 3: 80}
+const PREREQUISITE_ITEMS := {
+	1: {
+		"id": "artifact_named_lamp_tag",
+		"label": "写着“小月亮”的旧名牌",
+		"location_hint": "沿主路往前走，在右侧第一盏不亮的路灯脚边。",
+	},
+	2: {
+		"id": "artifact_reversed_tape",
+		"label": "两面都录着同一句话的磁带",
+		"location_hint": "在与你醒来位置相反的低坡上，贴着一栋亮窗房子的门前。",
+	},
+	3: {
+		"id": "artifact_missing_subject_page",
+		"label": "缺少主语的病历页",
+		"location_hint": "沿中央通道走过第三排立柱，夹在左侧那扇假窗下面。",
+	},
+}
+const HISTORY_FIELD_NAMES := [
+	"lineId", "originalSpeaker", "currentSpeaker", "originalText",
+	"displayText", "revisionStage", "revisionMarkup",
+]
 const POLLUTION_FLASHBACK_THRESHOLD := 60
 const BASE_ACTIONS_PER_DAY := 5
-const FLOOR_DEADLINES := {3: 2, 6: 3, 9: 4, 12: 5}
-const ACCEPTED_TAG_ROTATION := [
-	["哈吉米", "追问", "日常"],
-	["空位", "沉默", "哈吉米"],
-	["巴别塔", "信徒", "刷新"],
-	["反问", "禁问", "哈吉米"],
-	["圣歌", "信徒", "巴别塔"],
-	["空位", "沉默", "巴别塔"],
+const LANGUAGE_RECIPE_SLOTS := [
+	{"id": "subject", "label": "谁 / 什么", "placeholder": "放入主语", "accepted_role": "subject"},
+	{"id": "action", "label": "发生了什么", "placeholder": "放入动作", "accepted_role": "action"},
+	{"id": "object", "label": "对谁 / 在哪里", "placeholder": "放入落点", "accepted_role": "object"},
 ]
-
-const SIGNAL_CONTRACTS := [
-	{
-		"id": "trend_pair",
-		"label": "双声回路",
-		"description": "命中至少 2 个今日风向",
-		"rule": "matching_tags",
-		"threshold": 2,
-		"base_bonus": 12,
-		"multiplier_bonus": 1,
-		"pollution_risk": 2,
-	},
-	{
-		"id": "wideband",
-		"label": "杂讯列阵",
-		"description": "成品含至少 4 种隐藏标签",
-		"rule": "tag_count",
-		"threshold": 4,
-		"base_bonus": 10,
-		"multiplier_bonus": 1,
-		"pollution_risk": 3,
-	},
-	{
-		"id": "single_glyph",
-		"label": "独字成句",
-		"description": "发布一个只含 1 个字的基础梗",
-		"rule": "text_length",
-		"threshold": 1,
-		"base_bonus": 8,
-		"multiplier_bonus": 2,
-		"pollution_risk": 4,
-	},
-	{
-		"id": "empty_pair",
-		"label": "空位对子",
-		"description": "同时含有「空位」和「沉默」",
-		"rule": "all_tags",
-		"required_tags": ["空位", "沉默"],
-		"base_bonus": 18,
-		"multiplier_bonus": 1,
-		"pollution_risk": 3,
-	},
-	{
-		"id": "babel_straight",
-		"label": "巴别直线",
-		"description": "集齐「巴别塔」「信徒」「圣歌」",
-		"rule": "all_tags",
-		"required_tags": ["巴别塔", "信徒", "圣歌"],
-		"base_bonus": 22,
-		"multiplier_bonus": 2,
-		"pollution_risk": 5,
-	},
-	{
-		"id": "forbidden_loop",
-		"label": "禁问回环",
-		"description": "复读一次并带有反问或禁问",
-		"rule": "repeat_any_tag",
-		"threshold": 1,
-		"required_tags": ["反问", "禁问"],
-		"base_bonus": 26,
-		"multiplier_bonus": 2,
-		"pollution_risk": 6,
-	},
-]
-
-const MEME_FRAME_PRICE := 7
-const MEME_FRAME_OFFER_INTERVAL := 3
-const ASCENT_REWARDS := [
-	{"id": "star", "tarot_id": "star", "numeral": "XVII", "label": "星星", "description": "命中至少 2 个风向时，整数倍率额外 +1。", "effect": "trend_multiplier_bonus", "value": 1.0},
-	{"id": "sun", "tarot_id": "sun", "numeral": "XIX", "label": "太阳", "description": "每次发布获得额外 14 点传播基础。", "effect": "publish_base", "value": 14.0},
-	{"id": "moon", "tarot_id": "moon", "numeral": "XVIII", "label": "月亮", "description": "污染达到 40% 时，传播基础 +16。", "effect": "pollution_base", "value": 16.0},
-	{"id": "hermit", "tarot_id": "hermit", "numeral": "IX", "label": "隐者", "description": "第一次复用相同表达不触发衰减。", "effect": "repeat_grace", "value": 1.0},
-	{"id": "tower", "tarot_id": "tower", "numeral": "XVI", "label": "高塔", "description": "融合梗的整数倍率额外 +1。", "effect": "fusion_multiplier_bonus", "value": 1.0},
-	{"id": "hanged", "tarot_id": "hanged", "numeral": "XII", "label": "倒吊人", "description": "每条遗产造成的隐性交流损耗减少 4。", "effect": "legacy_relief", "value": 4.0},
-	{"id": "judgement", "tarot_id": "judgement", "numeral": "XX", "label": "审判", "description": "今日牌型成立时再获得 18 点传播基础。", "effect": "contract_base", "value": 18.0},
-]
-const TAROT_COMBOS := [
-	{"id": "day_and_night", "label": "不分昼夜", "requires": ["star", "sun", "moon"], "description": "每天多 1 次行动。", "effect": "max_actions_bonus", "value": 1},
-	{"id": "falling_tower", "label": "星坠高塔", "requires": ["star", "tower"], "description": "融合梗的整数倍率再 +1。", "effect": "fusion_multiplier_bonus", "value": 1},
-	{"id": "lunar_solitude", "label": "月下隐者", "requires": ["moon", "hermit"], "description": "额外忽略 1 次复读衰减。", "effect": "repeat_grace", "value": 1},
-]
-const CLEAN_WORDS := ["我", "想", "正常", "说明", "这件事", "不是", "那个意思", "请", "听我", "说完"]
-const FALLBACK_LEGACY_TEXTS := {
-	1: {"text": "哈吉米，必须补票", "tags": ["哈吉米", "追问"]},
-	2: {"text": "在线本身就是发言", "tags": ["沉默", "空位"]},
-	3: {"text": "请用更新后的句式进入", "tags": ["巴别塔", "刷新"]},
-	4: {"text": "你为什么需要他说话", "tags": ["反问", "禁问"]},
-}
-const REALITY_RESPONSE_SETS := {
-	"npc": [
-		{"id": "explain", "summary": "直接说明", "sentence": "我只是想把刚才的事情说清楚。"},
-		{"id": "apologize", "summary": "先道歉", "sentence": "对不起，我没有想让你觉得被忽视。"},
-		{"id": "listen", "summary": "请你再说", "sentence": "请你再说一遍，我想认真听完。"},
-	],
-	"merchant": [
-		{"id": "ask_goods", "summary": "询问商品", "sentence": "我想看看能帮助沟通的东西。"},
-		{"id": "state_need", "summary": "说明来意", "sentence": "我需要让别人更容易听懂我。"},
-		{"id": "test_price", "summary": "试探价格", "sentence": "这些东西分别需要多少钱？"},
-	],
+const DOCTOR_DIALOGUES_BY_FLOOR := {
+	1: {"line": "把你刚才放进手机的句子再说一遍。不要替它解释。", "result": "医生记下的句子和你记得的并不相同。"},
+	2: {"line": "你从屏幕里带回了哪些词？按你认为原本的顺序说。", "result": "医生在每个词旁边写下另一种用途。"},
+	3: {"line": "请只使用仍属于你的词，描述你现在在哪里。", "result": "医生停笔。病历上的主语比你先消失。"},
+	4: {"line": "这些词没有来源。你还坚持它们是你选的吗？", "result": "没有人替这句话登记说话者。"},
 }
 const REALITY_DIALOGUES_BY_FLOOR := {
 	1: [
@@ -134,7 +59,7 @@ const REALITY_DIALOGUES_BY_FLOOR := {
 			{"id": "f1n2_stop", "summary": "停止抄写", "sentence": "先别写第四遍，纸可能正在学习怎样删掉人。"},
 		]},
 		{"line": "你刚才抬头了吗？塔上掉下来一片像收据的云。", "result": "无名信徒把那片不存在的纸塞进口袋，动作十分熟练。", "choices": [
-			{"id": "f1n3_sky", "summary": "描述天空", "sentence": "我只看见绿色的天，云上没有价格，也没有日期。"},
+			{"id": "f1n3_sky", "summary": "描述天空", "sentence": "我只看见绿色的天，云上没有刻度，也没有日期。"},
 			{"id": "f1n3_receipt", "summary": "索要收据", "sentence": "如果它真是收据，上面应该写着是谁买下了这座塔。"},
 			{"id": "f1n3_ground", "summary": "看着地面", "sentence": "我没有抬头，我怕地面趁机换掉回去的方向。"},
 		]},
@@ -146,7 +71,7 @@ const REALITY_DIALOGUES_BY_FLOOR := {
 	],
 	2: [
 		{"line": "先说上一层留下的那句话，再告诉我你为什么迟到。顺序不能反。", "result": "迟到者认真听完规定的部分，剩下的话被风带到很远。", "choices": [
-			{"id": "f2n0_order", "summary": "照顺序说", "sentence": "我会先念完遗产，然后说明路口为什么没有放我过去。"},
+			{"id": "f2n0_order", "summary": "照顺序说", "sentence": "我会先念完屏幕教我的那句，然后说明路口为什么没有放我过去。"},
 			{"id": "f2n0_reason", "summary": "先说理由", "sentence": "我迟到是因为那条路反复把我送回同一块路牌。"},
 			{"id": "f2n0_refuse", "summary": "拒绝顺序", "sentence": "如果原因只能排在旧话后面，它就不再是我的原因。"},
 		]},
@@ -160,9 +85,9 @@ const REALITY_DIALOGUES_BY_FLOOR := {
 			{"id": "f2n2_record", "summary": "质疑记录", "sentence": "表格记住的是动作，不一定记住了我真正说过什么。"},
 			{"id": "f2n2_stamp", "summary": "请求盖章", "sentence": "请先证明这里曾经空着，再把我的句子写进去。"},
 		]},
-		{"line": "我们不再问你叫什么。我们只核对你携带了哪一句遗产。", "result": "无名信徒在听见遗产时微笑，在听见其余内容时闭上眼睛。", "choices": [
-			{"id": "f2n3_name", "summary": "坚持名字", "sentence": "遗产跟着我，但我的名字仍然应该先于它出现。"},
-			{"id": "f2n3_legacy", "summary": "出示遗产", "sentence": "我带着上一层最响的句子，它比我更容易被认出来。"},
+		{"line": "我们不再问你叫什么。我们只核对手机替你说过哪一句话。", "result": "无名信徒在听见屏幕用词时微笑，在听见其余内容时闭上眼睛。", "choices": [
+			{"id": "f2n3_name", "summary": "坚持名字", "sentence": "那句话跟着我，但我的名字仍然应该先于它出现。"},
+			{"id": "f2n3_legacy", "summary": "出示旧句", "sentence": "我带着上一层最响的句子，它比我更容易被认出来。"},
 			{"id": "f2n3_none", "summary": "声称空手", "sentence": "我想试着什么都不携带，只用今天剩下的词站在这里。"},
 		]},
 	],
@@ -195,69 +120,86 @@ const REALITY_DIALOGUES_BY_FLOOR := {
 			{"id": "f4n1_ask", "summary": "询问缺席者", "sentence": "这个空位原来属于谁，你们为什么不再唱那个人？"},
 		]},
 	],
-	5: [
-		{"line": "你 / 还 / 把 / 自己 / 带着吗", "result": "迟到者的嘴唇动了五次，只有斜线抵达空气。", "choices": [
-			{"id": "f5n0_here", "summary": "仍在这里", "sentence": "我还在这里，只是句子比我先到了一步。"},
-			{"id": "f5n0_lost", "summary": "遗失一部分", "sentence": "有一部分留在楼下，正在替我继续回答问题。"},
-			{"id": "f5n0_count", "summary": "逐字确认", "sentence": "我会一个字一个字地数，数到停下的地方就是我。"},
-		]},
-		{"line": "窗 / 外 / 有 / 一只 / 没有过去的鸟", "result": "旧帖目击者望向窗外。那里没有窗，鸟仍然飞过了一次。", "choices": [
-			{"id": "f5n1_bird", "summary": "描述那只鸟", "sentence": "它没有向前飞，只让身后的世界不断离开。"},
-			{"id": "f5n1_window", "summary": "寻找窗户", "sentence": "先找到窗户吧，不然我们不知道外面究竟属于哪里。"},
-			{"id": "f5n1_signal", "summary": "发送信号", "sentence": "如果它没有过去，就让这句话追上它，替我们问候一次。"},
-		]},
-	],
 }
-const MERCHANT_DIALOGUES_BY_FLOOR := {
-	1: {"line": "我卖的是能装住一个字的空框。字会漏出来，框不会。", "result": "信号商人敲了敲柜台，空框发出比内容更清楚的声音。"},
-	2: {"line": "本层交易必须附上一句遗产。价格不会因此减少。", "result": "信号商人收走了声音，没有说明它被记在哪一本账里。"},
-	3: {"line": "请确认购买者与说话者为同一实体。无法确认也可以签字。", "result": "信号商人把签名盖在照片上，照片里的人没有动。"},
-	4: {"line": "交换也是圣歌。你给出一句，我归还一个更响的空位。", "result": "信号商人低声唱出价格，数字在最后一个音里消失。"},
-	5: {"line": "买 / 卖 / 留下 / 哪一个", "result": "信号商人伸出空手。主角无法判断交易是否已经发生。"},
-}
-const MERCHANT_CHOICES_BY_FLOOR := {
-	1: [
-		{"id": "trade", "summary": "询问梗框", "sentence": "我想要一个只装一个字的框，它不需要替我解释。"},
-		{"id": "ask_empty", "summary": "询问空框", "sentence": "空框为什么比装进去的字更容易被人记住？"},
-		{"id": "leave", "summary": "暂不交易", "sentence": "我先保留手里的字，等它愿意进入一个边界。"},
-	],
-	2: [
-		{"id": "trade", "summary": "按遗产交易", "sentence": "我会带上旧句子，但梗框里只放今天拾到的字。"},
-		{"id": "ask_price", "summary": "质疑价格", "sentence": "遗产已经替我说过一次，为什么还要支付第二次价格？"},
-		{"id": "leave", "summary": "拒绝附言", "sentence": "不能不带旧话交易的话，我就让这次交易保持空白。"},
-	],
-	3: [
-		{"id": "trade", "summary": "签字购买", "sentence": "购买者和说话者暂时是同一个人，我愿意在这里签字。"},
-		{"id": "ask_form", "summary": "索要表格", "sentence": "请给我一份没有预填答案的申请表。"},
-		{"id": "leave", "summary": "撤回申请", "sentence": "如果签名会替我继续说话，我撤回这次购买。"},
-	],
-	4: [
-		{"id": "trade", "summary": "加入交换", "sentence": "我给出一句没有旋律的话，只换一个安静的梗框。"},
-		{"id": "ask_song", "summary": "询问价格歌", "sentence": "价格唱完以后消失了，我该把钱交给哪个音？"},
-		{"id": "leave", "summary": "退出合唱", "sentence": "我不想让交易变成副歌，今天先不买。"},
-	],
-	5: [
-		{"id": "trade", "summary": "买", "sentence": "我 / 买 / 一个 / 空框。"},
-		{"id": "ask_hand", "summary": "看空手", "sentence": "你 / 手里 / 已经 / 有 / 我的东西吗。"},
-		{"id": "leave", "summary": "留下", "sentence": "字 / 留下 / 我 / 走。"},
-	],
-}
-const REALITY_CORRUPTION_GLYPHS := ["■", "▦", "∴", "//", "哈", "吉", "米", "空位"]
-const COMMUNICATION_ITEMS := {
-	"silence_patch": {
-		"id": "silence_patch", "label": "静音贴", "price": 6, "charges": 2, "clarity_bonus": 18,
-		"description": "现实句子严重失真时，临时压低 18% 的污染噪声。",
+const REALITY_FOLLOWUPS_BY_NPC_INDEX := {
+	0: {
+		"turns": [
+			{"line": "站牌忽然显示“无信号”。可这条街从来没有接入过线路。你还要等吗？", "result": "迟到者把手机举向塔影，屏幕上的叉号短暂变成一扇门。", "choices": [
+				{"id": "late_signal_wait", "summary": "继续等候", "sentence": "再等一班吧；没有线路，不等于没有人正试着抵达。"},
+				{"id": "late_signal_tower", "summary": "追查塔影", "sentence": "信号也许不是从天上消失，而是被塔一层层收走了。"},
+				{"id": "late_signal_walk", "summary": "沿路步行", "sentence": "我们顺着屏幕留下的标记走，看看旧句子把终点改到了哪里。"},
+			]},
+			{"line": "车终于来了。报站器只念上一层留下的梗，不再念地名。你在哪里下车？", "result": "迟到者在没有地名的一站按铃。车门打开，塔的影子没有跟下来。", "choices": [
+				{"id": "late_stop_today", "summary": "旧句之后", "sentence": "等它念完屏幕借来的话，我要在第一个属于今天的停顿下车。"},
+				{"id": "late_stop_silence", "summary": "沉默站点", "sentence": "没有报站声的地方就是我的站，至少那里还没有被命名。"},
+				{"id": "late_stop_own", "summary": "留在车上", "sentence": "我先不下车，直到有人用自己的话说出一个方向。"},
+			]},
+		],
+		"interrupt": "报站声被污染成连续的旧梗。迟到者捂住听筒，车还没有来，谈话先驶远了。",
 	},
-	"semantic_anchor": {
-		"id": "semantic_anchor", "label": "语义锚", "price": 9, "charges": 3, "clarity_bonus": 14,
-		"description": "现实句子严重失真时，临时压低 14% 的污染噪声。",
+	1: {
+		"turns": [
+			{"line": "墙里的回声开始替我们回答，而且每次都比原话多一句屏幕里的旧话。要把哪一句留下？", "result": "回声住户贴近墙面，听见自己的声音从更高一层缓慢返回。", "choices": [
+				{"id": "echo_keep_original", "summary": "留下原话", "sentence": "只留下我们刚才说的句子，旧话可以经过，但不要冒充回声。"},
+				{"id": "echo_mark_legacy", "summary": "标记旧话", "sentence": "把多出来的旧话标上来源，让它不能假装今天才出生。"},
+				{"id": "echo_close_pipe", "summary": "关闭管道", "sentence": "先关掉这段管道，沉默也比被替写的回答更诚实。"},
+			]},
+			{"line": "水龙头流出一串陌生口音。住户说这就是语言污染的味道。你怎么确认还是水？", "result": "回声住户接住一滴无声的水。它没有复述任何人，钥匙终于松开。", "choices": [
+				{"id": "echo_check_reflection", "summary": "观察倒影", "sentence": "如果倒影还会被波纹打断，它至少没有完全变成一句口号。"},
+				{"id": "echo_try_name", "summary": "尝试命名", "sentence": "先叫它水一次；如果它立刻要求复读，我们就换一个杯子。"},
+				{"id": "echo_leave_nameless", "summary": "保持无名", "sentence": "不急着命名，让它在语言找到之前先作为液体留下。"},
+			]},
+		],
+		"interrupt": "管道抢先说完所有答案。回声住户关上阀门，墙里仍有人继续这场谈话。",
 	},
-	"dictionary_leaf": {
-		"id": "dictionary_leaf", "label": "旧词典页", "price": 12, "charges": 1, "clarity_bonus": 32,
-		"description": "仅能使用一次，但会压低 32% 的污染噪声。",
+	2: {
+		"turns": [
+			{"line": "档案柜要求给你的每句话填写“词语来源”。原创一栏已经被涂黑。你填什么？", "result": "抄写员把表格转过来，背面密密麻麻都是尚未发生的引用。", "choices": [
+				{"id": "copy_source_now", "summary": "填写此刻", "sentence": "来源写此刻；这句话也许借过词，但犹豫是我自己的。"},
+				{"id": "copy_refuse_source", "summary": "拒绝来源", "sentence": "我不替活着的话伪造祖先，请把这一栏保持空白。"},
+				{"id": "copy_mark_pollution", "summary": "登记污染", "sentence": "标注语言污染；相似不一定是继承，也可能是感染。"},
+			]},
+			{"line": "盖章机说，未被塔收录的句子不算存在。抄写员把印章递给你。", "result": "抄写员收回没有落下的印章，把你的句子夹进两页制度之间。", "choices": [
+				{"id": "copy_no_stamp", "summary": "不盖印章", "sentence": "存在不该由塔批准；让这句话带着空白离开档案。"},
+				{"id": "copy_edge_stamp", "summary": "盖在边缘", "sentence": "只盖在纸的边缘，证明制度碰过它，却没有拥有它。"},
+				{"id": "copy_rewrite_rule", "summary": "改写条款", "sentence": "先把条款改成“说出即存在”，再决定是否需要印章。"},
+			]},
+		],
+		"interrupt": "盖章机吞掉了句子的主语。抄写员拉下断电杆，本次登记以空白中止。",
+	},
+	3: {
+		"turns": [
+			{"line": "塔里的发射机没有接线，信徒却说每晚都能收到圣歌。你认为声音从哪里来？", "result": "无名信徒仰头辨认那段旋律，塔窗一层接一层地亮错顺序。", "choices": [
+				{"id": "believer_crowd", "summary": "来自人群", "sentence": "也许是人群在塔下互相复述，最后忘了第一句话属于谁。"},
+				{"id": "believer_legacy", "summary": "来自旧帖", "sentence": "旧帖里的句子会自己寻找嗓子，圣歌只是它们同时借到人的时刻。"},
+				{"id": "believer_static", "summary": "来自静电", "sentence": "没有信号时，静电也会被当成启示；先别急着跪下。"},
+			]},
+			{"line": "信徒请你献出一句不会污染别人的话，作为进入上层的圣歌。", "result": "无名信徒没有唱你的句子，只把它安静地留在门外。塔门第一次自己开了。", "choices": [
+				{"id": "believer_question", "summary": "保留疑问", "sentence": "我只能献出一个问题：我们是否允许别人不回答。"},
+				{"id": "believer_names", "summary": "归还名字", "sentence": "把每个人的名字还给本人，不把它们编进共同的副歌。"},
+				{"id": "believer_pause", "summary": "献出停顿", "sentence": "我献出一句话结束后的停顿，让下一人有地方开口。"},
+			]},
+		],
+		"interrupt": "圣歌突然只剩同一个梗。无名信徒停止合唱，塔门在污染扩散前合上。",
+	},
+	4: {
+		"turns": [
+			{"line": "旧帖显示这里“信号满格”，可所有回复都写着十年后发送。你要点开哪一条？", "result": "旧帖目击者滑动屏幕，日期栏像坏掉的电梯一样上下跳动。", "choices": [
+				{"id": "post_earliest", "summary": "最早回复", "sentence": "打开最早的一条，看看是谁先把未来误认成了旧记录。"},
+				{"id": "post_unsent", "summary": "未发回复", "sentence": "打开那条尚未发送的，也许它还来得及换一种说法。"},
+				{"id": "post_close", "summary": "关闭帖子", "sentence": "先关掉帖子；无信号时，时间不该假装自己已经上传。"},
+			]},
+			{"line": "最后一条回复只剩三个被划掉的词。帖子问：这句话原本是谁说的？", "result": "旧帖目击者没有截屏。三个词自行保存，却把说话者留成空白。", "choices": [
+				{"id": "post_leave_exist", "summary": "留下存在", "sentence": "留下“存在”；过去需要知道我们没有只活成引用。"},
+				{"id": "post_leave_signal", "summary": "留下无信号", "sentence": "留下“无信号”；让未来明白沉默也可能是线路断了。"},
+				{"id": "post_leave_nothing", "summary": "什么不留", "sentence": "什么都不留；过去不该提前继承我们尚未说完的话。"},
+			]},
+		],
+		"interrupt": "帖子开始自动复制你尚未说出的词。旧帖目击者拔掉电源，屏幕仍亮在中断处。",
 	},
 }
-const COMMUNICATION_ITEM_ROTATION := ["silence_patch", "semantic_anchor", "dictionary_leaf"]
+const REALITY_CORRUPTION_GLYPHS := ["■", "▦", "∴", "//", "□", "▧", "≠", "…"]
+const PROTECTED_PUNCTUATION := ["，", "。", "！", "？", "；", "：", "、", "…", ",", ".", "!", "?", ";", ":", "\"", "'", "（", "）", "(", ")"]
 const ENDING_LANGUAGE_CHOICES := [
 	{"id": "blank", "label": "空白", "output": "（空白）"},
 	{"id": "blocks", "label": "■■■■", "output": "■ ■ ■ ■"},
@@ -271,25 +213,46 @@ const PROLOGUE_LINES := [
 	"不。我在等路面停止向后移动。它每退一步，塔就多出一层。",
 	"城市广播说今天一切正常。广播重复了七次，正常因此变成一个可疑的词。",
 	"（从哪里开始？）",
-	"从一个字开始。先让它进入框里，再看它会把谁赶出去。",
+	"从三个词开始。先让它们组成一句完整的话，再看这句话到了另一个世界会变成什么。",
 ]
 const EPILOGUE_LINES := [
-	"所有遗产规则都说智者住在这里。这里没有智者。",
+	"所有被发布过的句子都说智者住在这里。这里没有智者。",
 	"塔顶只有一台没有接线的发射机。指示灯按照你的呼吸闪烁。",
 	"（它在发送什么？）",
 	"你把耳朵贴近外壳。里面传来整座城市的声音，每个人都在准确重复别人。",
 	"你想说一句普通的话。每一层却先替你开口。",
 ]
+const SAVE_DATA_VERSION := 5
+const SAVE_FIELD_NAMES := [
+	"day", "pollution", "tower_floor",
+	"ending_unlocked", "ending_language_choice", "ending_route", "formal_floor_three_complete",
+	"pending_floor_transition", "autoplay_enabled", "exit_prompt_seen",
+	"money", "actions_remaining", "max_actions_per_day",
+	"needs_day_settlement", "day_ended_reason", "pollution_flashback_seen", "pollution_flashback_pending",
+	"view_state", "phone_visible", "phone_open", "active_app", "active_app_window",
+	"notebook_tokens", "draft_slots", "completed_memes", "owned_meme_frames", "owned_meme_frame_ids",
+	"claimed_doll_ids", "doll_choice_results",
+	"fusion_slots", "fused_meme_pairs", "dialogue_blanks", "published_memes", "last_publish_result",
+	"event_log", "social_followed_handles", "social_liked_post_ids", "collected_world_item_ids",
+	"cover_watcher_seen_floors",
+	"revealed_prerequisite_item_ids", "collected_prerequisite_item_ids", "key_clue_progress",
+	"history_entries",
+	"language_sentence_slots", "sentence_records", "tutorial_progress",
+	"last_clean_sentence", "last_polluted_sentence",
+	"npc_understanding", "reality_phase", "relationship_residue", "last_relationship_residue_gain",
+	"last_relationship_money_loss", "reality_dialogue_count",
+]
 
 var day: int = 1
-var heat: int = 18
 var pollution: int = 0
-var clarity: int = 100
 var tower_floor: int = 1
-var threshold_discount: int = 0
-var next_threshold: int = 36
 var ending_unlocked: bool = false
 var ending_language_choice: String = ""
+var ending_route: String = ""
+var formal_floor_three_complete: bool = false
+var pending_floor_transition: int = 0
+var autoplay_enabled: bool = false
+var exit_prompt_seen: bool = false
 var money: int = 18
 var actions_remaining: int = 5
 var max_actions_per_day: int = 5
@@ -308,28 +271,28 @@ var notebook_tokens: Array = []
 var draft_slots: Dictionary = {}
 var completed_memes: Array = []
 var owned_meme_frames: int = 0
-var daily_meme_frame_bought: bool = false
+var owned_meme_frame_ids: Array[String] = []
+var claimed_doll_ids: Array[String] = []
+var doll_choice_results: Dictionary = {}
 var fusion_slots: Dictionary = {}
 var fused_meme_pairs: Array[String] = []
 var dialogue_blanks: Dictionary = {}
 var published_memes: Array = []
-var last_publish_breakdown: Dictionary = {}
+var last_publish_result: Dictionary = {}
 var event_log: Array[String] = []
 var social_followed_handles: Array[String] = []
 var social_liked_post_ids: Array[String] = []
 
 var collected_world_item_ids: Array[String] = []
-var pending_world_item_effects: Dictionary = {}
+var cover_watcher_seen_floors: Array[int] = []
+var revealed_prerequisite_item_ids: Array[String] = []
+var collected_prerequisite_item_ids: Array[String] = []
+var key_clue_progress: Dictionary = {}
+var history_entries: Array = []
 
-var permanent_modifiers: Array = []
-var owned_tarot_ids: Array[String] = []
-var pending_ascent_reward_choices: Array = []
-var pending_ascent_reward_floor: int = 0
-var queued_ascent_reward_floors: Array = []
-var rewarded_ascent_floors: Array = []
-
-var reality_sentence_slots: Dictionary = {}
-var legacy_rules: Array = []
+var language_sentence_slots: Dictionary = {}
+var sentence_records: Array = []
+var tutorial_progress: Dictionary = {}
 var last_clean_sentence: String = ""
 var last_polluted_sentence: String = ""
 var npc_understanding: int = 100
@@ -353,22 +316,33 @@ var conversation_attempts: int = 0
 var conversation_understood: bool = false
 var conversation_understanding_rolls: Array[int] = []
 var conversation_feedback: String = ""
-var owned_communication_items: Array = []
-var daily_communication_item_bought: bool = false
-var last_communication_item_used: String = ""
-var last_communication_item_remaining: int = 0
+var conversation_locale: String = "zh"
+var conversation_clean_units: Array[String] = []
+var conversation_mode: String = "authored"
+var conversation_world: String = "reality"
+var conversation_selected_token_ids: Array[String] = []
+var conversation_turns: Array = []
+var conversation_turn_index: int = 0
+var conversation_history: Array = []
+var conversation_can_continue: bool = false
+var conversation_completed: bool = false
+var conversation_interrupted: bool = false
+var conversation_interrupt_line: String = ""
+var conversation_action_spent: bool = false
+var conversation_reward: Dictionary = {}
 
 
 func new_run() -> void:
 	day = 1
-	heat = 18
 	pollution = 0
-	clarity = 100
 	tower_floor = 1
-	threshold_discount = 0
-	next_threshold = _tower_threshold(tower_floor)
 	ending_unlocked = false
 	ending_language_choice = ""
+	ending_route = ""
+	formal_floor_three_complete = false
+	pending_floor_transition = 0
+	autoplay_enabled = false
+	exit_prompt_seen = false
 	money = 18
 	max_actions_per_day = BASE_ACTIONS_PER_DAY
 	actions_remaining = max_actions_per_day
@@ -385,25 +359,26 @@ func new_run() -> void:
 	draft_slots = {}
 	completed_memes = []
 	owned_meme_frames = 0
-	daily_meme_frame_bought = false
+	owned_meme_frame_ids = []
+	claimed_doll_ids = []
+	doll_choice_results = {}
 	fusion_slots = {}
 	fused_meme_pairs = []
 	dialogue_blanks = {}
 	published_memes = []
-	last_publish_breakdown = {}
+	last_publish_result = {}
 	event_log = []
 	social_followed_handles = []
 	social_liked_post_ids = []
 	collected_world_item_ids = []
-	pending_world_item_effects = {}
-	permanent_modifiers = []
-	owned_tarot_ids = []
-	pending_ascent_reward_choices = []
-	pending_ascent_reward_floor = 0
-	queued_ascent_reward_floors = []
-	rewarded_ascent_floors = []
-	reality_sentence_slots = {}
-	legacy_rules = []
+	cover_watcher_seen_floors = []
+	revealed_prerequisite_item_ids = []
+	collected_prerequisite_item_ids = []
+	key_clue_progress = {}
+	history_entries = []
+	language_sentence_slots = {}
+	sentence_records = []
+	tutorial_progress = TutorialDirectorScript.initial_progress()
 	last_clean_sentence = ""
 	last_polluted_sentence = ""
 	npc_understanding = 100
@@ -412,11 +387,176 @@ func new_run() -> void:
 	last_relationship_residue_gain = 0
 	last_relationship_money_loss = 0
 	reality_dialogue_count = 0
-	owned_communication_items = []
-	daily_communication_item_bought = false
-	last_communication_item_used = ""
-	last_communication_item_remaining = 0
 	reset_typed_reality_conversation()
+
+
+func notify_tutorial(event_id: String, payload: Dictionary = {}) -> Dictionary:
+	tutorial_progress = TutorialDirectorScript.notify(tutorial_progress, StringName(event_id), payload)
+	return get_tutorial_step()
+
+
+func get_tutorial_step() -> Dictionary:
+	return TutorialDirectorScript.current_step(tutorial_progress)
+
+
+func skip_tutorial() -> void:
+	tutorial_progress = TutorialDirectorScript.skip(tutorial_progress)
+
+
+func replay_tutorial() -> void:
+	tutorial_progress = TutorialDirectorScript.replay(tutorial_progress)
+
+
+func to_save_data() -> Dictionary:
+	var state_data := {}
+	for field_name in SAVE_FIELD_NAMES:
+		var value: Variant = get(field_name)
+		state_data[field_name] = value.duplicate(true) if value is Array or value is Dictionary else value
+	return {
+		"version": SAVE_DATA_VERSION,
+		"state": state_data,
+	}
+
+
+func load_save_data(save_data: Dictionary) -> bool:
+	var loaded_version := int(save_data.get("version", -1))
+	if loaded_version not in [1, 2, 3, 4, SAVE_DATA_VERSION]:
+		return false
+	var state_data: Variant = save_data.get("state", {})
+	if not state_data is Dictionary:
+		return false
+	var saved_floor := int((state_data as Dictionary).get("tower_floor", 1))
+	new_run()
+	for field_name in SAVE_FIELD_NAMES:
+		if not state_data.has(field_name):
+			continue
+		var value: Variant = state_data[field_name]
+		set(field_name, value.duplicate(true) if value is Array or value is Dictionary else value)
+	day = maxi(1, day)
+	tower_floor = clampi(tower_floor, 1, MAX_TOWER_FLOOR)
+	max_actions_per_day = maxi(1, max_actions_per_day)
+	actions_remaining = clampi(actions_remaining, 0, max_actions_per_day)
+	pollution = clampi(pollution, 0, 100)
+	if loaded_version < 4 and saved_floor >= 4:
+		tower_floor = 3
+		ending_unlocked = false
+		ending_route = ""
+		formal_floor_three_complete = false
+		pending_floor_transition = 0
+	if loaded_version < 4 and saved_floor < 4:
+		_migrate_legacy_hidden_route_data(state_data as Dictionary)
+	var normalized_watcher_floors: Array[int] = []
+	for floor_value in cover_watcher_seen_floors:
+		var floor_number := clampi(int(floor_value), 1, MAX_TOWER_FLOOR)
+		if floor_number not in normalized_watcher_floors:
+			normalized_watcher_floors.append(floor_number)
+	cover_watcher_seen_floors = normalized_watcher_floors
+	_normalize_removed_shop_state()
+	_normalize_doll_state()
+	_normalize_language_bridge_state(loaded_version)
+	tutorial_progress = TutorialDirectorScript.normalize_progress(tutorial_progress)
+	if view_state != "phone_down" and view_state != "npc_up":
+		view_state = "phone_down"
+	reset_typed_reality_conversation()
+	return true
+
+
+func _normalize_language_bridge_state(loaded_version: int) -> void:
+	var normalized_tokens: Array = []
+	for token_index in notebook_tokens.size():
+		var token_value: Variant = notebook_tokens[token_index]
+		if token_value is Dictionary:
+			var token: Dictionary = (token_value as Dictionary).duplicate(true)
+			if not token.get("grammar_roles", null) is Array or (token.get("grammar_roles", []) as Array).is_empty():
+				token["grammar_roles"] = [str(LANGUAGE_RECIPE_SLOTS[token_index % LANGUAGE_RECIPE_SLOTS.size()].get("accepted_role", "subject"))]
+			if str(token.get("lexeme_id", "")).is_empty():
+				token["lexeme_id"] = str(token.get("id", "token-%d" % token_index))
+			normalized_tokens.append(LanguageBridgeScript.normalized_token(token))
+	notebook_tokens = normalized_tokens
+	if loaded_version <= 4:
+		language_sentence_slots.clear()
+		reality_phase = "npc_speaking"
+	var filtered_log: Array[String] = []
+	for entry in event_log:
+		var text := str(entry)
+		if not text.contains("遗产规则"):
+			filtered_log.append(text)
+	event_log = filtered_log
+
+
+func _migrate_legacy_hidden_route_data(state_data: Dictionary) -> void:
+	var legacy_fragments: Array = state_data.get("collected_echo_fragment_ids", [])
+	var legacy_fragment_ids := ["echo_room_name", "echo_safe_place", "echo_blank_voice"]
+	var item_ids := get_prerequisite_item_ids()
+	for index in legacy_fragment_ids.size():
+		if legacy_fragment_ids[index] not in legacy_fragments:
+			continue
+		var item_id := str(item_ids[index])
+		if item_id not in revealed_prerequisite_item_ids:
+			revealed_prerequisite_item_ids.append(item_id)
+		if item_id not in collected_prerequisite_item_ids:
+			collected_prerequisite_item_ids.append(item_id)
+		if item_id not in collected_world_item_ids:
+			collected_world_item_ids.append(item_id)
+	var legacy_keys: Array = state_data.get("completed_dialogue_key_ids", [])
+	var legacy_key_to_floor := {
+		"dialogue_key_name": 1,
+		"dialogue_key_source": 2,
+		"dialogue_key_voice": 3,
+	}
+	for legacy_key in legacy_keys:
+		var floor_number := int(legacy_key_to_floor.get(str(legacy_key), 0))
+		if floor_number == 0:
+			continue
+		var item_id := str(item_ids[floor_number - 1])
+		if item_id not in revealed_prerequisite_item_ids:
+			revealed_prerequisite_item_ids.append(item_id)
+
+
+func _normalize_removed_shop_state() -> void:
+	if active_app == "shop":
+		active_app = "social"
+	if active_app_window == "shop":
+		active_app_window = "social" if phone_open else ""
+
+
+func _normalize_doll_state() -> void:
+	var known_doll_ids: Array[String] = LanguageCorruptionContentScript.get_doll_ids()
+	var normalized_claims: Array[String] = []
+	for doll_id in claimed_doll_ids:
+		var normalized_id := str(doll_id)
+		if normalized_id in known_doll_ids and normalized_id not in normalized_claims:
+			normalized_claims.append(normalized_id)
+	claimed_doll_ids = normalized_claims
+
+	var normalized_results := {}
+	for doll_id in claimed_doll_ids:
+		var result: Variant = doll_choice_results.get(doll_id, {})
+		if not result is Dictionary:
+			continue
+		var encounter: Dictionary = LanguageCorruptionContentScript.get_doll_encounter_by_id(doll_id)
+		var choice_id := str((result as Dictionary).get("choice_id", ""))
+		var choice: Dictionary = _doll_choice_by_id(encounter, choice_id)
+		if choice.is_empty():
+			continue
+		normalized_results[doll_id] = {
+			"choice_id": choice_id,
+			"day": maxi(1, int((result as Dictionary).get("day", 1))),
+			"floor": clampi(int((result as Dictionary).get("floor", 1)), 1, 3),
+		}
+	doll_choice_results = normalized_results
+
+	var normalized_frame_ids: Array[String] = []
+	for frame_id in owned_meme_frame_ids:
+		var normalized_id := str(frame_id).strip_edges()
+		if not normalized_id.is_empty():
+			normalized_frame_ids.append(normalized_id)
+	owned_meme_frame_ids = normalized_frame_ids
+	owned_meme_frames = maxi(0, owned_meme_frames)
+	while owned_meme_frame_ids.size() < owned_meme_frames:
+		owned_meme_frame_ids.append("legacy_frame_%d" % (owned_meme_frame_ids.size() + 1))
+	if owned_meme_frame_ids.size() > owned_meme_frames:
+		owned_meme_frames = owned_meme_frame_ids.size()
 
 
 func set_phone_open(value: bool) -> void:
@@ -447,29 +587,125 @@ func is_world_item_collected(item_id: String) -> bool:
 	return item_id in collected_world_item_ids
 
 
+func get_prerequisite_item_ids() -> Array[String]:
+	var ids: Array[String] = []
+	for floor_number in [1, 2, 3]:
+		ids.append(str((PREREQUISITE_ITEMS[floor_number] as Dictionary).get("id", "")))
+	return ids
+
+
+func get_prerequisite_item_for_floor(floor_number: int) -> Dictionary:
+	return (PREREQUISITE_ITEMS.get(floor_number, {}) as Dictionary).duplicate(true)
+
+
+func get_key_clue_progress(floor_number: int) -> Dictionary:
+	return (key_clue_progress.get(str(clampi(floor_number, 1, 3)), {}) as Dictionary).duplicate(true)
+
+
+func reveal_prerequisite_item_for_floor(floor_number: int) -> bool:
+	var item := get_prerequisite_item_for_floor(floor_number)
+	var item_id := str(item.get("id", ""))
+	if item_id.is_empty() or item_id in revealed_prerequisite_item_ids:
+		return false
+	revealed_prerequisite_item_ids.append(item_id)
+	event_log.push_front(str(item.get("location_hint", "这一层有一件东西正等着被找到。")))
+	return true
+
+
+func is_prerequisite_item_revealed(item_id: String) -> bool:
+	return item_id in revealed_prerequisite_item_ids
+
+
+func collect_prerequisite_item(item_id: String) -> bool:
+	var normalized_id := item_id.strip_edges()
+	if normalized_id not in get_prerequisite_item_ids():
+		return false
+	if normalized_id not in revealed_prerequisite_item_ids or normalized_id in collected_prerequisite_item_ids:
+		return false
+	collected_prerequisite_item_ids.append(normalized_id)
+	if normalized_id not in collected_world_item_ids:
+		collected_world_item_ids.append(normalized_id)
+	event_log.push_front("你收起了这一层不该留下的东西。")
+	return true
+
+
+func is_hidden_layer_unlocked() -> bool:
+	return _contains_all_ids(collected_prerequisite_item_ids, get_prerequisite_item_ids())
+
+
+func record_history_line(line_data: Dictionary) -> bool:
+	var line_id := str(line_data.get("lineId", "")).strip_edges()
+	if line_id.is_empty():
+		return false
+	var normalized := {}
+	for field_name in HISTORY_FIELD_NAMES:
+		normalized[field_name] = line_data.get(field_name, 0 if field_name == "revisionStage" else "")
+	normalized["lineId"] = line_id
+	normalized["revisionStage"] = clampi(int(normalized["revisionStage"]), 0, 3)
+	for index in history_entries.size():
+		if str(history_entries[index].get("lineId", "")) == line_id:
+			history_entries[index] = normalized
+			return true
+	history_entries.append(normalized)
+	return true
+
+
+func get_history_entries() -> Array:
+	return history_entries.duplicate(true)
+
+
+func complete_floor_three() -> String:
+	if tower_floor != 3:
+		return ""
+	formal_floor_three_complete = true
+	if pollution >= int(POLLUTION_FLOOR_THRESHOLDS[3]) and is_hidden_layer_unlocked():
+		tower_floor = 4
+		pending_floor_transition = 0
+		ending_route = "hidden"
+		ending_unlocked = false
+		event_log.push_front("第四层没有登记记录。")
+		return "hidden-floor"
+	ending_route = "normal"
+	ending_unlocked = true
+	pending_floor_transition = 0
+	return "normal-ending"
+
+
+func request_floor_transition_for_pollution() -> int:
+	if pending_floor_transition > tower_floor:
+		return pending_floor_transition
+	if tower_floor == 1 and pollution >= int(POLLUTION_FLOOR_THRESHOLDS[1]):
+		pending_floor_transition = 2
+	elif tower_floor == 2 and pollution >= int(POLLUTION_FLOOR_THRESHOLDS[2]):
+		pending_floor_transition = 3
+	return pending_floor_transition
+
+
+func resolve_floor_transition_at_boundary() -> int:
+	request_floor_transition_for_pollution()
+	if pending_floor_transition != tower_floor + 1 or pending_floor_transition > 3:
+		return tower_floor
+	tower_floor = pending_floor_transition
+	pending_floor_transition = 0
+	event_log.push_front("你抵达了第 %d 层。" % tower_floor)
+	return tower_floor
+
+
+func has_seen_cover_watcher(floor_number: int) -> bool:
+	return clampi(floor_number, 1, MAX_TOWER_FLOOR) in cover_watcher_seen_floors
+
+
+func mark_cover_watcher_seen(floor_number: int) -> bool:
+	var safe_floor := clampi(floor_number, 1, MAX_TOWER_FLOOR)
+	if safe_floor in cover_watcher_seen_floors:
+		return false
+	cover_watcher_seen_floors.append(safe_floor)
+	return true
+
+
 func collect_world_item(item_data: Dictionary) -> bool:
 	var item_id := str(item_data.get("id", "")).strip_edges()
-	var effect := str(item_data.get("effect", "")).strip_edges()
-	var label := str(item_data.get("label", "街区遗物")).strip_edges()
-	if item_id.is_empty() or item_id in collected_world_item_ids:
-		return false
-	match effect:
-		"publish_base":
-			pending_world_item_effects["base_bonus"] = int(pending_world_item_effects.get("base_bonus", 0)) + int(item_data.get("value", 0))
-		"publish_multiplier_bonus":
-			pending_world_item_effects["multiplier_bonus"] = int(pending_world_item_effects.get("multiplier_bonus", 0)) + int(item_data.get("value", 0))
-		"clarity":
-			clarity = clampi(clarity + int(item_data.get("value", 0)), 0, 100)
-		_:
-			return false
-	collected_world_item_ids.append(item_id)
-	if effect != "clarity":
-		var labels: Array = pending_world_item_effects.get("labels", []).duplicate()
-		if label not in labels:
-			labels.append(label)
-		pending_world_item_effects["labels"] = labels
-	event_log.push_front("拾取街区遗物：%s。%s" % [label, str(item_data.get("description", "信号已经写入。"))])
-	return true
+	return collect_prerequisite_item(item_id)
 
 
 func get_ending_language_choices() -> Array:
@@ -500,8 +736,6 @@ func set_active_app(app_id: String) -> void:
 
 
 func spend_action(action_type: String) -> bool:
-	if not pending_ascent_reward_choices.is_empty():
-		return false
 	if actions_remaining <= 0:
 		actions_remaining = 0
 		needs_day_settlement = true
@@ -515,7 +749,7 @@ func spend_action(action_type: String) -> bool:
 
 
 func can_spend_action() -> bool:
-	return actions_remaining > 0 and pending_ascent_reward_choices.is_empty()
+	return actions_remaining > 0
 
 
 func is_social_following(handle: String) -> bool:
@@ -563,6 +797,14 @@ func check_pollution_flashback(previous_pollution: int) -> bool:
 	return true
 
 
+func change_pollution(amount: int) -> int:
+	var previous_pollution := pollution
+	pollution = clampi(pollution + amount, 0, 100)
+	request_floor_transition_for_pollution()
+	check_pollution_flashback(previous_pollution)
+	return pollution - previous_pollution
+
+
 func consume_pollution_flashback() -> bool:
 	if not pollution_flashback_pending:
 		return false
@@ -585,23 +827,34 @@ func start_typed_reality_conversation(actor_id: String, actor_type: String, acto
 	if not can_spend_action():
 		return false
 	conversation_actor_id = actor_id
-	conversation_actor_type = "merchant" if actor_type == "merchant" else "npc"
+	conversation_actor_type = actor_type if actor_type in ["npc", "key_npc", "doll", "doctor"] else "npc"
 	conversation_actor_label = actor_label
+	conversation_mode = "lexeme" if conversation_actor_type == "doctor" else "authored"
+	conversation_world = "doctor" if conversation_actor_type == "doctor" else "reality"
+	conversation_selected_token_ids = []
+	language_sentence_slots.clear()
 	var dialogue := _reality_dialogue_for_actor(actor_id, conversation_actor_type)
-	conversation_prompt = str(dialogue.get("line", "你打算说什么？"))
-	conversation_result_line = str(dialogue.get("result", "%s移开了视线。" % actor_label))
-	conversation_choices = (dialogue.get("choices", []) as Array).duplicate(true)
-	conversation_selected_choice_id = ""
-	conversation_clean_sentence = ""
-	conversation_revealed_units = []
-	conversation_reveal_index = 0
+	conversation_turns = [{
+		"line": str(dialogue.get("line", "你打算说什么？")),
+		"result": str(dialogue.get("result", "%s移开了视线。" % actor_label)),
+		"choices": (dialogue.get("choices", []) as Array).duplicate(true),
+	}]
+	for followup in dialogue.get("continuation_turns", []):
+		conversation_turns.append((followup as Dictionary).duplicate(true))
+	conversation_turn_index = 0
+	conversation_history = []
+	conversation_can_continue = false
+	conversation_completed = false
+	conversation_interrupted = false
+	conversation_interrupt_line = str(dialogue.get("interrupt", ""))
+	conversation_action_spent = false
+	conversation_reward = {}
 	conversation_attempts = 0
-	conversation_understood = false
-	conversation_understanding_rolls = []
-	conversation_feedback = ""
-	last_communication_item_used = ""
-	last_communication_item_remaining = 0
-	conversation_phase = "choosing"
+	conversation_locale = "zh"
+	_load_typed_reality_turn(0)
+	conversation_phase = "composing" if conversation_mode == "lexeme" else "choosing"
+	if conversation_mode == "lexeme":
+		reality_phase = "player_composing"
 	return true
 
 
@@ -623,100 +876,154 @@ func reset_typed_reality_conversation() -> void:
 	conversation_understood = false
 	conversation_understanding_rolls = []
 	conversation_feedback = ""
-	last_communication_item_used = ""
-	last_communication_item_remaining = 0
+	conversation_locale = "zh"
+	conversation_clean_units = []
+	conversation_mode = "authored"
+	conversation_world = "reality"
+	conversation_selected_token_ids = []
+	conversation_turns = []
+	conversation_turn_index = 0
+	conversation_history = []
+	conversation_can_continue = false
+	conversation_completed = false
+	conversation_interrupted = false
+	conversation_interrupt_line = ""
+	conversation_action_spent = false
+	conversation_reward = {}
 
 
 func get_typed_reality_choices() -> Array:
 	return conversation_choices.duplicate(true)
 
 
-func _reality_dialogue_for_actor(actor_id: String, actor_type: String) -> Dictionary:
-	var floor_number := clampi(tower_floor, 1, MAX_TOWER_FLOOR)
-	if actor_type == "merchant":
-		var merchant_entry: Dictionary = (MERCHANT_DIALOGUES_BY_FLOOR.get(floor_number, MERCHANT_DIALOGUES_BY_FLOOR[1]) as Dictionary).duplicate(true)
-		merchant_entry["choices"] = (MERCHANT_CHOICES_BY_FLOOR.get(floor_number, MERCHANT_CHOICES_BY_FLOOR[1]) as Array).duplicate(true)
-		return merchant_entry
-	var entries: Array = REALITY_DIALOGUES_BY_FLOOR.get(floor_number, REALITY_DIALOGUES_BY_FLOOR[1])
-	var actor_index := 0
-	for index in 8:
-		if actor_id.ends_with("npc%d" % index):
-			actor_index = index
-			break
-	if entries.is_empty():
-		return {"line": "你打算说什么？", "result": "对方没有马上回答。", "choices": (REALITY_RESPONSE_SETS["npc"] as Array).duplicate(true)}
-	return (entries[actor_index % entries.size()] as Dictionary).duplicate(true)
+func get_typed_reality_progress() -> Dictionary:
+	return {
+		"phase": conversation_phase,
+		"turn_index": conversation_turn_index,
+		"turn_number": conversation_turn_index + 1 if not conversation_turns.is_empty() else 0,
+		"total_turns": conversation_turns.size(),
+		"can_continue": conversation_can_continue,
+		"completed": conversation_completed,
+		"interrupted": conversation_interrupted,
+		"action_spent": conversation_action_spent,
+		"history_count": conversation_history.size(),
+		"reward": conversation_reward.duplicate(true),
+	}
 
 
-func get_daily_communication_item() -> Dictionary:
-	var index := posmod(day + tower_floor - 2, COMMUNICATION_ITEM_ROTATION.size())
-	var item_id := str(COMMUNICATION_ITEM_ROTATION[index])
-	return (COMMUNICATION_ITEMS.get(item_id, {}) as Dictionary).duplicate(true)
+func get_typed_reality_history() -> Array:
+	return conversation_history.duplicate(true)
 
 
-func buy_daily_communication_item() -> bool:
-	if daily_communication_item_bought:
+func continue_typed_reality_conversation() -> bool:
+	if conversation_phase != "result" or not conversation_can_continue:
 		return false
-	var item := get_daily_communication_item()
-	if item.is_empty():
+	var next_turn := conversation_turn_index + 1
+	if next_turn >= conversation_turns.size():
 		return false
-	var price := int(item.get("price", 0))
-	if money < price or not spend_action("buy-communication-item"):
-		return false
-	money -= price
-	daily_communication_item_bought = true
-	var item_id := str(item.get("id", ""))
-	var stacked := false
-	for index in owned_communication_items.size():
-		var owned: Dictionary = owned_communication_items[index]
-		if str(owned.get("id", "")) != item_id:
-			continue
-		owned["charges"] = int(owned.get("charges", 0)) + int(item.get("charges", 0))
-		owned_communication_items[index] = owned
-		stacked = true
-		break
-	if not stacked:
-		owned_communication_items.append(item.duplicate(true))
-	event_log.push_front("你从信号商人那里买到%s，可用 %d 次。" % [str(item.get("label", "沟通辅助")), int(item.get("charges", 0))])
+	conversation_can_continue = false
+	_load_typed_reality_turn(next_turn)
+	conversation_phase = "choosing"
 	return true
 
 
-func get_active_communication_item() -> Dictionary:
-	var best: Dictionary = {}
-	for item in owned_communication_items:
-		if int(item.get("charges", 0)) <= 0:
-			continue
-		if best.is_empty() or int(item.get("clarity_bonus", 0)) > int(best.get("clarity_bonus", 0)):
-			best = item
-	return best.duplicate(true)
+func _load_typed_reality_turn(turn_index: int) -> void:
+	if turn_index < 0 or turn_index >= conversation_turns.size():
+		return
+	var turn: Dictionary = conversation_turns[turn_index]
+	conversation_turn_index = turn_index
+	conversation_prompt = str(turn.get("line", "你打算说什么？"))
+	conversation_result_line = str(turn.get("result", "%s移开了视线。" % conversation_actor_label))
+	conversation_choices = (turn.get("choices", []) as Array).duplicate(true)
+	if conversation_actor_type == "doll":
+		for choice_index in conversation_choices.size():
+			var choice: Dictionary = (conversation_choices[choice_index] as Dictionary).duplicate(true)
+			choice["locked"] = _doll_choice_is_locked(choice)
+			if bool(choice["locked"]) and not str(choice.get("locked_summary", "")).is_empty():
+				choice["summary"] = str(choice.get("locked_summary", ""))
+			conversation_choices[choice_index] = choice
+	conversation_selected_choice_id = ""
+	conversation_clean_sentence = ""
+	conversation_revealed_units = []
+	conversation_reveal_index = 0
+	conversation_understood = false
+	conversation_understanding_rolls = []
+	conversation_feedback = ""
+	conversation_clean_units = []
 
 
-func get_communication_item_status() -> String:
-	var item := get_active_communication_item()
-	if item.is_empty():
-		return ""
-	return "%s ×%d" % [str(item.get("label", "沟通辅助")), int(item.get("charges", 0))]
+func configure_conversation_locale(locale_code: String, _unused_legacy_texts: Array[String] = []) -> void:
+	conversation_locale = locale_code if locale_code in ["zh", "ja", "en"] else "zh"
+	if not conversation_clean_sentence.is_empty():
+		conversation_clean_units = _conversation_units(conversation_clean_sentence)
 
 
-func should_show_merchant_communication_offer() -> bool:
-	return conversation_actor_type == "merchant" and conversation_phase == "result" and conversation_selected_choice_id == "trade"
+func _reality_dialogue_for_actor(actor_id: String, actor_type: String) -> Dictionary:
+	var floor_number := clampi(tower_floor, 1, 3)
+	if actor_type == "doctor":
+		var doctor_dialogue: Dictionary = DOCTOR_DIALOGUES_BY_FLOOR.get(clampi(tower_floor, 1, 4), DOCTOR_DIALOGUES_BY_FLOOR[1])
+		return {
+			"line": str(doctor_dialogue.get("line", "用你从屏幕里带回来的词说一句完整的话。")),
+			"result": str(doctor_dialogue.get("result", "医生把句子写了下来。")),
+			"choices": [],
+		}
+	if actor_type == "doll":
+		var encounter: Dictionary = LanguageCorruptionContentScript.get_doll_encounter_by_id(actor_id)
+		if encounter.is_empty():
+			encounter = LanguageCorruptionContentScript.get_doll_encounter_for_floor(floor_number)
+		var doll_turns: Array = encounter.get("turns", [])
+		if doll_turns.is_empty():
+			return {"line": "布偶的缝线动了一下。", "result": "它没有留下任何东西。", "choices": []}
+		var first_doll_turn: Dictionary = (doll_turns[0] as Dictionary).duplicate(true)
+		first_doll_turn["continuation_turns"] = doll_turns.slice(1).duplicate(true)
+		return first_doll_turn
+	if actor_type == "key_npc":
+		var key_dialogue: Dictionary = LanguageCorruptionContentScript.get_key_npc_dialogue_for_floor(floor_number)
+		var key_turns: Array = key_dialogue.get("turns", [])
+		if key_turns.is_empty():
+			return {"line": "你来得太早了。", "result": "对方没有再开口。", "choices": []}
+		var first_turn: Dictionary = (key_turns[0] as Dictionary).duplicate(true)
+		first_turn["continuation_turns"] = key_turns.slice(1).duplicate(true)
+		return first_turn
+	var entries: Array = LanguageCorruptionContentScript.get_dialogues_for_floor(floor_number)
+	var actor_index := _reality_actor_index(actor_id)
+	if entries.is_empty():
+		return {"line_id": "fallback", "speaker": "", "line": "你打算说什么？", "result": "对方没有马上回答。", "choices": []}
+	var dialogue: Dictionary = (entries[actor_index % entries.size()] as Dictionary).duplicate(true)
+	var arc: Dictionary = LanguageCorruptionContentScript.get_followups_for_archetype(actor_index)
+	dialogue["continuation_turns"] = (arc.get("turns", []) as Array).duplicate(true)
+	dialogue["interrupt"] = str(arc.get("interrupt", ""))
+	return dialogue
+
+
+func _reality_actor_index(actor_id: String) -> int:
+	for index in 8:
+		if actor_id.ends_with("npc%d" % index):
+			return index
+	return 0
 
 
 func preview_typed_reality_choice(choice_id: String) -> String:
 	for choice in conversation_choices:
 		if str(choice.get("id", "")) == choice_id:
-			return _sentence_with_legacy(str(choice.get("sentence", "")))
+			if bool(choice.get("locked", false)):
+				return ""
+			return str(choice.get("sentence", "")).strip_edges()
 	return ""
 
 
 func select_typed_reality_choice(choice_id: String) -> bool:
 	if conversation_phase != "choosing":
 		return false
+	for choice: Dictionary in conversation_choices:
+		if str(choice.get("id", "")) == choice_id and bool(choice.get("locked", false)):
+			return false
 	var sentence := preview_typed_reality_choice(choice_id)
 	if sentence.is_empty():
 		return false
 	conversation_selected_choice_id = choice_id
 	conversation_clean_sentence = sentence
+	conversation_clean_units = _conversation_units(sentence)
 	conversation_revealed_units = []
 	conversation_reveal_index = 0
 	conversation_understood = false
@@ -732,14 +1039,19 @@ func advance_typed_reality_character() -> Dictionary:
 		"action_spent": false,
 		"understood": false,
 		"locked_out": false,
+		"conversation_completed": false,
+		"can_continue": false,
+		"interrupted": false,
+		"reward": {},
 	}
 	if conversation_phase != "typing":
 		return result
-	if conversation_reveal_index >= conversation_clean_sentence.length():
+	if conversation_reveal_index >= conversation_clean_units.size():
 		return result
-	var clean_character := conversation_clean_sentence.substr(conversation_reveal_index, 1)
+	var clean_character := conversation_clean_units[conversation_reveal_index]
 	var roll := _conversation_roll("character", conversation_reveal_index, 0)
-	var corrupted := roll < pollution
+	var garble_percent := mini(pollution, 65)
+	var corrupted := roll < garble_percent and clean_character not in PROTECTED_PUNCTUATION
 	var display_character := clean_character
 	if corrupted:
 		display_character = _conversation_corruption_text(roll, conversation_reveal_index)
@@ -751,31 +1063,179 @@ func advance_typed_reality_character() -> Dictionary:
 	})
 	conversation_reveal_index += 1
 	result["advanced"] = true
-	if conversation_reveal_index < conversation_clean_sentence.length():
+	if conversation_reveal_index < conversation_clean_units.size():
 		return result
 
 	result["completed"] = true
-	if not spend_action("typed-reality-dialogue"):
-		conversation_phase = "result"
-		conversation_feedback = "今天已经没有能说出口的行动。"
-		return result
-	result["action_spent"] = true
+	var is_key_npc_final_turn := conversation_actor_type == "key_npc" and conversation_turn_index + 1 >= conversation_turns.size()
+	var is_claimed_doll_repeat := conversation_actor_type == "doll" and is_doll_claimed(conversation_actor_id)
+	var should_spend_now := conversation_actor_type != "doll" and (conversation_actor_type != "key_npc" or is_key_npc_final_turn) and not is_claimed_doll_repeat
+	if not conversation_action_spent and should_spend_now:
+		if not spend_action("typed-reality-dialogue"):
+			conversation_phase = "result"
+			conversation_interrupted = true
+			conversation_feedback = "今天已经没有能说出口的行动。"
+			result["locked_out"] = true
+			result["interrupted"] = true
+			return result
+		conversation_action_spent = true
+		result["action_spent"] = true
+		reality_dialogue_count += 1
 	conversation_attempts += 1
-	reality_dialogue_count += 1
 	last_clean_sentence = conversation_clean_sentence
 	last_polluted_sentence = get_typed_reality_spoken_sentence()
-	var understood := _resolve_typed_reality_understanding()
+	var understood := true
+	if conversation_actor_type in ["key_npc", "doll"]:
+		conversation_understanding_rolls = []
+		npc_understanding = 100
+	else:
+		understood = _resolve_typed_reality_understanding()
 	conversation_understood = understood
 	result["understood"] = understood
 	if not understood:
-		last_relationship_residue_gain = clampi(1 + int(pollution / 18.0) + legacy_rules.size(), 1, 14)
+		last_relationship_residue_gain = clampi(1 + int(pollution / 18.0), 1, 14)
 		relationship_residue = clampi(relationship_residue + last_relationship_residue_gain, 0, 100)
-	conversation_phase = "result"
 	conversation_feedback = conversation_result_line
-	var aid_feedback := _communication_item_feedback()
-	if not aid_feedback.is_empty():
-		conversation_feedback += "\n" + aid_feedback
+	conversation_history.append({
+		"turn_index": conversation_turn_index,
+		"prompt": conversation_prompt,
+		"choice_id": conversation_selected_choice_id,
+		"clean_sentence": conversation_clean_sentence,
+		"spoken_sentence": last_polluted_sentence,
+		"understood": understood,
+		"understanding_rolls": conversation_understanding_rolls.duplicate(),
+		"result": conversation_result_line,
+	})
+	conversation_phase = "result"
+	if not understood:
+		conversation_can_continue = false
+		conversation_interrupted = true
+		if not conversation_interrupt_line.is_empty():
+			conversation_feedback += "\n" + conversation_interrupt_line
+		result["interrupted"] = true
+		return result
+
+	if conversation_turn_index + 1 < conversation_turns.size():
+		conversation_can_continue = true
+		result["can_continue"] = true
+		return result
+
+	conversation_can_continue = false
+	conversation_completed = true
+	result["conversation_completed"] = true
+	if conversation_actor_type == "key_npc":
+		conversation_reward = _resolve_key_npc_clue_attempt()
+		result["reward"] = conversation_reward.duplicate(true)
+		conversation_feedback += "\n" + str(conversation_reward.get("feedback", ""))
+	elif conversation_actor_type == "doll":
+		conversation_reward = _resolve_doll_choice_attempt()
+		result["reward"] = conversation_reward.duplicate(true)
+		conversation_feedback += "\n" + str(conversation_reward.get("feedback", ""))
 	return result
+
+
+func _resolve_key_npc_clue_attempt() -> Dictionary:
+	var floor_number := clampi(tower_floor, 1, 3)
+	var key_dialogue: Dictionary = LanguageCorruptionContentScript.get_key_npc_dialogue_for_floor(floor_number)
+	var turns: Array = key_dialogue.get("turns", [])
+	var selected_ids: Array[String] = []
+	for history_entry: Dictionary in conversation_history:
+		selected_ids.append(str(history_entry.get("choice_id", "")))
+	var correct_count := 0
+	for turn_index in mini(turns.size(), selected_ids.size()):
+		var turn: Dictionary = turns[turn_index]
+		for choice: Dictionary in turn.get("choices", []):
+			if bool(choice.get("correct", false)) and str(choice.get("id", "")) == selected_ids[turn_index]:
+				correct_count += 1
+				break
+	var solved := turns.size() == 2 and correct_count == turns.size()
+	var progress_key := str(floor_number)
+	var previous: Dictionary = (key_clue_progress.get(progress_key, {}) as Dictionary).duplicate(true)
+	var progress := {
+		"attempts": int(previous.get("attempts", 0)) + 1,
+		"correct_answers": correct_count,
+		"last_answers": selected_ids.duplicate(),
+		"solved": bool(previous.get("solved", false)) or solved,
+	}
+	key_clue_progress[progress_key] = progress
+	var item := get_prerequisite_item_for_floor(floor_number)
+	var item_id := str(item.get("id", ""))
+	var newly_revealed := false
+	var feedback := str(key_dialogue.get("failure_line", "对方没有说出地点。"))
+	if solved:
+		newly_revealed = reveal_prerequisite_item_for_floor(floor_number)
+		feedback = "%s\n%s" % [
+			str(key_dialogue.get("success_line", "对方终于说出了地点。")),
+			str(item.get("location_hint", "这一层有一件东西正等着被找到。")),
+		]
+	return {
+		"kind": "prerequisite_clue",
+		"floor": floor_number,
+		"item_id": item_id,
+		"correct_answers": correct_count,
+		"solved": solved,
+		"newly_revealed": newly_revealed,
+		"feedback": feedback,
+	}
+
+
+func is_doll_claimed(doll_id: String) -> bool:
+	return doll_id in claimed_doll_ids
+
+
+func get_doll_choice_result(doll_id: String) -> Dictionary:
+	return (doll_choice_results.get(doll_id, {}) as Dictionary).duplicate(true)
+
+
+func _doll_choice_by_id(encounter: Dictionary, choice_id: String) -> Dictionary:
+	for turn: Dictionary in encounter.get("turns", []):
+		for choice: Dictionary in turn.get("choices", []):
+			if str(choice.get("id", "")) == choice_id:
+				return choice.duplicate(true)
+	return {}
+
+
+func _doll_choice_is_locked(choice: Dictionary) -> bool:
+	var minimum_pollution := int(choice.get("required_pollution_min", 0))
+	var maximum_pollution := int(choice.get("required_pollution_max", 100))
+	return pollution < minimum_pollution or pollution > maximum_pollution
+
+
+func _resolve_doll_choice_attempt() -> Dictionary:
+	var encounter: Dictionary = LanguageCorruptionContentScript.get_doll_encounter_by_id(conversation_actor_id)
+	var choice: Dictionary = _doll_choice_by_id(encounter, conversation_selected_choice_id)
+	var reward := {
+		"kind": "guide_tutorial",
+		"doll_id": conversation_actor_id,
+		"choice_id": conversation_selected_choice_id,
+		"guided": false,
+		"duplicate": false,
+		"locked": false,
+		"feedback": "布偶把缝线朝向了下一步。",
+	}
+	if encounter.is_empty() or choice.is_empty():
+		return reward
+	if is_doll_claimed(conversation_actor_id):
+		reward["duplicate"] = true
+		reward["feedback"] = str(encounter.get("repeat_line", "布偶重复了一遍刚才的方向。"))
+		return reward
+	if _doll_choice_is_locked(choice):
+		reward["locked"] = true
+		reward["feedback"] = "那一段话还没有长到你能听见的位置。"
+		return reward
+
+	var result_record := {
+		"choice_id": conversation_selected_choice_id,
+		"day": day,
+		"floor": clampi(tower_floor, 1, 3),
+	}
+	claimed_doll_ids.append(conversation_actor_id)
+	doll_choice_results[conversation_actor_id] = result_record
+	reward["guided"] = true
+	reward["feedback"] = str(choice.get("guide_feedback", "它让你先照做，理由可以晚一点再问。"))
+	event_log.push_front("缝线布偶指向了下一步。")
+	notify_tutorial("guide_found", {"doll_id": conversation_actor_id})
+	return reward
 
 
 func get_typed_reality_spoken_sentence() -> String:
@@ -786,21 +1246,20 @@ func get_typed_reality_spoken_sentence() -> String:
 
 
 func get_typed_reality_unrevealed_suffix() -> String:
-	if conversation_clean_sentence.is_empty() or conversation_reveal_index >= conversation_clean_sentence.length():
+	if conversation_clean_units.is_empty() or conversation_reveal_index >= conversation_clean_units.size():
 		return ""
-	return conversation_clean_sentence.substr(conversation_reveal_index)
+	var suffix := ""
+	for index in range(conversation_reveal_index, conversation_clean_units.size()):
+		suffix += conversation_clean_units[index]
+	return suffix
 
 
-func _sentence_with_legacy(base_sentence: String) -> String:
-	var sentence := base_sentence.strip_edges()
-	while sentence.ends_with("。") or sentence.ends_with("！") or sentence.ends_with("？"):
-		sentence = sentence.substr(0, sentence.length() - 1)
-	for rule in legacy_rules:
-		var required_text := str(rule.get("required_text", "")).strip_edges()
-		if required_text.is_empty() or sentence.contains(required_text):
-			continue
-		sentence += "，" + required_text
-	return sentence + "。"
+func get_typed_reality_unit_count() -> int:
+	return conversation_clean_units.size()
+
+
+func _conversation_units(sentence: String) -> Array[String]:
+	return GameLocaleScript.split_dialogue_units(sentence, conversation_locale)
 
 
 func _conversation_corruption_text(roll: int, character_index: int) -> String:
@@ -815,46 +1274,16 @@ func _conversation_corruption_text(roll: int, character_index: int) -> String:
 
 func _resolve_typed_reality_understanding() -> bool:
 	conversation_understanding_rolls = []
-	last_communication_item_used = ""
-	last_communication_item_remaining = 0
-	var legacy_penalty := legacy_rules.size() * 6
-	var base_clear_chance := clampi(100 - pollution - legacy_penalty, 5, 96)
-	var check_count := 3 if conversation_actor_type == "merchant" else 1
+	var base_clear_chance := clampi(100 - pollution, 5, 96)
+	var check_count := 1
 	var understood := false
 	for check_index in check_count:
-		var roll := _conversation_roll("understanding", conversation_reveal_index, check_index)
+		var roll := _conversation_roll("understanding", 0, check_index)
 		conversation_understanding_rolls.append(roll)
 		if roll < base_clear_chance:
 			understood = true
-	var effective_clear_chance := base_clear_chance
-	if not understood:
-		var aid := get_active_communication_item()
-		if not aid.is_empty():
-			effective_clear_chance = clampi(base_clear_chance + int(aid.get("clarity_bonus", 0)), 5, 98)
-			_consume_communication_item(str(aid.get("id", "")))
-			for roll in conversation_understanding_rolls:
-				if roll < effective_clear_chance:
-					understood = true
-	npc_understanding = effective_clear_chance
+	npc_understanding = base_clear_chance
 	return understood
-
-
-func _consume_communication_item(item_id: String) -> void:
-	for index in owned_communication_items.size():
-		var item: Dictionary = owned_communication_items[index]
-		if str(item.get("id", "")) != item_id or int(item.get("charges", 0)) <= 0:
-			continue
-		item["charges"] = maxi(0, int(item.get("charges", 0)) - 1)
-		owned_communication_items[index] = item
-		last_communication_item_used = str(item.get("label", "沟通辅助"))
-		last_communication_item_remaining = int(item.get("charges", 0))
-		return
-
-
-func _communication_item_feedback() -> String:
-	if last_communication_item_used.is_empty():
-		return ""
-	return "（%s生效，剩余 %d 次）" % [last_communication_item_used, last_communication_item_remaining]
 
 
 func _conversation_roll(channel: String, character_index: int, check_index: int) -> int:
@@ -882,123 +1311,107 @@ func settle_day_if_needed() -> bool:
 	draft_slots.clear()
 	fusion_slots.clear()
 	dialogue_blanks.clear()
-	reality_sentence_slots.clear()
+	language_sentence_slots.clear()
 	reset_reality_phase_for_day()
 	reset_typed_reality_conversation()
-	daily_meme_frame_bought = false
-	daily_communication_item_bought = false
-	last_communication_item_used = ""
-	last_communication_item_remaining = 0
-	heat = maxi(10, int(round(float(heat) * 0.82)))
-	money += 5 + tower_floor * 2
 	return true
 
 
 func pick_token(post_id: String, token: Dictionary) -> bool:
-	var picked_character := _first_pickable_character(str(token.get("text", "")))
-	if picked_character.is_empty():
+	var content_locale := str(token.get("content_locale", "zh"))
+	var picked_text := str(token.get("text", "")).strip_edges()
+	if picked_text.is_empty():
 		return false
 	var note := {
 		"id": "%s-%s-%d" % [post_id, token.get("id", "token"), day],
-		"text": picked_character,
+		"text": picked_text,
+		"lexeme_id": str(token.get("lexeme_id", token.get("id", "token"))),
+		"grammar_roles": (token.get("grammar_roles", [str(token.get("grammar_role", "subject"))]) as Array).duplicate(),
+		"phone_surface": str(token.get("phone_surface", picked_text)),
+		"doctor_surface": str(token.get("doctor_surface", picked_text)),
+		"doll_surface": str(token.get("doll_surface", picked_text)),
+		"source_text": str(token.get("source_text", token.get("text", ""))),
+		"content_locale": content_locale,
 		"source_post_id": post_id,
 		"tags": token.get("tags", []),
 		"rarity": int(token.get("rarity", 1)),
 		"picked_day": day,
 		"source_card_id": str(token.get("source_card_id", "")),
-		"source_passive": token.get("source_passive", {}).duplicate(true),
+		"pollution_stage": 0,
+		"used_worlds": [],
 	}
+	note = LanguageBridgeScript.normalized_token(note)
 	for existing in notebook_tokens:
 		if existing.get("id", "") == note["id"]:
 			return false
 	if not spend_action("pick-token"):
 		return false
 	notebook_tokens.append(note)
-	var previous_pollution := pollution
-	pollution = clampi(pollution + maxi(0, int(note["rarity"]) - 1), 0, 100)
-	check_pollution_flashback(previous_pollution)
-	return true
-
-
-func get_daily_meme_frame_offer() -> Dictionary:
-	var available := day == 1 or posmod(day - 1, MEME_FRAME_OFFER_INTERVAL) == 0
-	if not available:
-		return {}
-	return {
-		"id": "meme-frame-day-%d" % day,
-		"label": "梗框",
-		"price": MEME_FRAME_PRICE + maxi(0, tower_floor - 1) * 2,
-		"available": true,
-		"bought": daily_meme_frame_bought,
-	}
-
-
-func buy_daily_meme_frame() -> bool:
-	var offer := get_daily_meme_frame_offer()
-	if offer.is_empty() or daily_meme_frame_bought:
-		return false
-	var price := int(offer.get("price", MEME_FRAME_PRICE))
-	if money < price or not spend_action("buy-meme-frame"):
-		return false
-	money -= price
-	owned_meme_frames += 1
-	daily_meme_frame_bought = true
-	event_log.push_front("你买到一个梗框。它只能容纳一个字。")
+	notify_tutorial("collect_word", {"token_id": str(note.get("id", ""))})
 	return true
 
 
 func get_craft_slots() -> Array:
-	return [{"id": "glyph", "label": "梗框", "placeholder": "放入一个字", "required": true}]
+	return LANGUAGE_RECIPE_SLOTS.duplicate(true)
 
 
-func get_draft_source_passives() -> Array:
-	var result: Array = []
-	for token_id in [str(draft_slots.get("glyph", ""))]:
-		var passive := _find_token_source_passive(token_id)
-		if passive.is_empty():
-			continue
-		var passive_id := str(passive.get("id", ""))
-		var already_added := false
-		for existing_passive in result:
-			if str(existing_passive.get("id", "")) == passive_id:
-				already_added = true
-				break
-		if not already_added:
-			result.append(passive)
-	return result
+func get_craft_sentence_preview(world: String = "phone") -> Dictionary:
+	return LanguageBridgeScript.compose_sentence(draft_slots, notebook_tokens, world, conversation_locale)
 
 
 func place_token_in_slot(slot_id: String, token_id: String) -> bool:
-	if slot_id != "glyph" or _find_token_text(token_id).is_empty():
+	var token := _find_token(token_id)
+	if token.is_empty():
+		return false
+	var accepted_role := ""
+	for slot: Dictionary in LANGUAGE_RECIPE_SLOTS:
+		if str(slot.get("id", "")) == slot_id:
+			accepted_role = str(slot.get("accepted_role", ""))
+			break
+	if accepted_role.is_empty():
+		return false
+	var token_roles: Array = token.get("grammar_roles", [])
+	if accepted_role not in token_roles:
 		return false
 	draft_slots[slot_id] = token_id
 	return true
 
 
 func confirm_craft() -> bool:
-	var token_id := str(draft_slots.get("glyph", ""))
-	var glyph_text := _find_token_text(token_id)
-	if owned_meme_frames <= 0 or glyph_text.is_empty():
+	var validation: Dictionary = LanguageBridgeScript.validate_recipe(draft_slots, notebook_tokens)
+	if not bool(validation.get("valid", false)):
+		return false
+	var composition: Dictionary = LanguageBridgeScript.compose_sentence(draft_slots, notebook_tokens, "phone", conversation_locale)
+	if not bool(composition.get("valid", false)):
 		return false
 	if not spend_action("craft-meme"):
 		return false
-	owned_meme_frames -= 1
-	var tags: Array = _unique(_find_token_tags(token_id))
-	var source_passives: Array = get_draft_source_passives()
+	var token_ids: Array = composition.get("token_ids", [])
+	var tags: Array = []
+	var rarity_total := 0
+	for token_id_value in token_ids:
+		var token := _find_token(str(token_id_value))
+		tags.append_array(token.get("tags", []))
+		rarity_total += int(token.get("rarity", 1))
+	tags = _unique(tags)
+	var sentence_text := str(composition.get("world_sentence", composition.get("clean_sentence", "")))
 	var meme := {
 		"id": "meme-%d-%d" % [day, completed_memes.size() + 1],
-		"title": "梗字「%s」" % glyph_text,
-		"text": glyph_text,
+		"title": "句子「%s」" % sentence_text,
+		"text": sentence_text,
+		"clean_text": str(composition.get("clean_sentence", sentence_text)),
+		"token_ids": token_ids.duplicate(),
+		"lexeme_ids": (composition.get("lexeme_ids", []) as Array).duplicate(),
 		"tags": tags,
 		"rarity": _meme_rarity_from_tags(tags),
-		"pollution_bias": maxi(1, int(_find_token_rarity(token_id)) - 1),
-		"clarity_bias": -1,
+		"pollution_bias": maxi(1, rarity_total - token_ids.size()),
 		"fusion_level": 0,
-		"source_passives": source_passives,
+		"unit_count": token_ids.size(),
 		"created_day": day,
 	}
 	completed_memes.push_front(meme)
 	draft_slots.clear()
+	notify_tutorial("sentence_composed", {"meme_id": str(meme.get("id", ""))})
 	return true
 
 
@@ -1034,16 +1447,6 @@ func confirm_meme_fusion() -> bool:
 	var right: Dictionary = completed_memes[right_index]
 	var fusion_level := mini(3, maxi(int(left.get("fusion_level", 0)), int(right.get("fusion_level", 0))) + 1)
 	var tags: Array = _unique((left.get("tags", []) as Array) + (right.get("tags", []) as Array))
-	var source_passives: Array = []
-	for passive in (left.get("source_passives", []) as Array) + (right.get("source_passives", []) as Array):
-		var passive_id := str(passive.get("id", ""))
-		var already_present := false
-		for existing in source_passives:
-			if str(existing.get("id", "")) == passive_id:
-				already_present = true
-				break
-		if not already_present:
-			source_passives.append((passive as Dictionary).duplicate(true))
 	var left_text := str(left.get("text", ""))
 	var right_text := str(right.get("text", ""))
 	var fused_text := "%s%s" % [left_text, right_text]
@@ -1054,18 +1457,15 @@ func confirm_meme_fusion() -> bool:
 		"tags": tags,
 		"rarity": clampi(maxi(int(left.get("rarity", 1)), int(right.get("rarity", 1))) + 1, 1, 5),
 		"pollution_bias": int(left.get("pollution_bias", 0)) + int(right.get("pollution_bias", 0)) + 6 + fusion_level * 2,
-		"clarity_bias": int(left.get("clarity_bias", 0)) + int(right.get("clarity_bias", 0)) - 4,
 		"fusion_level": fusion_level,
+		"unit_count": maxi(2, int(left.get("unit_count", 1)) + int(right.get("unit_count", 1))),
 		"fused_from": pair_ids,
-		"source_passives": source_passives,
 		"created_day": day,
 	}
 	completed_memes.push_front(meme)
 	fused_meme_pairs.append(pair_key)
 	fusion_slots.clear()
-	var previous_pollution := pollution
-	pollution = clampi(pollution + 3 + fusion_level * 2, 0, 100)
-	check_pollution_flashback(previous_pollution)
+	change_pollution(3 + fusion_level * 2)
 	event_log.push_front("两个旧梗粘在一起。新梗更响，也更脏。")
 	return true
 
@@ -1079,159 +1479,142 @@ func confirm_dialogue() -> bool:
 	var meme := _get_first_placed_meme()
 	if meme.is_empty():
 		return false
-	var matching_tags: Array = _intersect(meme.get("tags", []), _current_accepted_tags())
-	var breakdown := _calculate_publish_breakdown(meme, matching_tags)
-	var score := int(breakdown.get("score", 1))
-	var heat_gain := maxi(6, int(round(float(score) * 0.42)))
-	var pollution_gain := 4 + matching_tags.size() * 2 + int(meme.get("pollution_bias", 0))
-	pollution_gain += int(breakdown.get("contract_pollution_risk", 0))
+	var publish_result := get_publish_result(meme)
 	if not spend_action("confirm-dialogue"):
 		return false
-	last_publish_breakdown = breakdown.duplicate(true)
-	if bool(breakdown.get("contract_matched", false)):
-		event_log.push_front("牌型完成：%s，整数倍率 +%d。" % [
-			str(breakdown.get("contract_label", "未知牌型")),
-			int(breakdown.get("contract_multiplier_bonus", 0)),
-		])
-	var world_item_labels: Array = breakdown.get("active_world_item_labels", [])
-	if not world_item_labels.is_empty():
-		event_log.push_front("街区遗物结算：%s。" % " / ".join(world_item_labels))
-	heat = clampi(heat + heat_gain, 0, 999)
-	var previous_pollution := pollution
-	pollution = clampi(pollution + pollution_gain, 0, 100)
-	check_pollution_flashback(previous_pollution)
-	var clarity_loss := maxi(1, int(round(float(pollution_gain) * 0.35))) + maxi(0, -int(meme.get("clarity_bias", 0)))
-	clarity = clampi(clarity - clarity_loss, 0, 100)
-	money += maxi(3, int(floor(float(heat_gain) * 0.22)))
+	last_publish_result = publish_result.duplicate(true)
+	money += int(publish_result.get("money_gain", 0))
+	change_pollution(int(publish_result.get("pollution_gain", 0)))
 	var record: Dictionary = meme.duplicate(true)
 	record["floor"] = tower_floor
-	record["score"] = score
-	record["score_breakdown"] = breakdown.duplicate(true)
-	record["heat_gain"] = heat_gain
+	record["money_gain"] = int(publish_result.get("money_gain", 0))
+	record["pollution_gain"] = int(publish_result.get("pollution_gain", 0))
 	record["published_day"] = day
 	published_memes.push_front(record)
+	var published_token_ids: Array = record.get("token_ids", [])
+	if not published_token_ids.is_empty():
+		notebook_tokens = LanguageBridgeScript.mark_tokens_used(notebook_tokens, published_token_ids, "phone")
 	dialogue_blanks.clear()
-	pending_world_item_effects.clear()
+	event_log.push_front("发布完成：资金 +%d，污染 +%d%%。" % [
+		int(publish_result.get("money_gain", 0)),
+		int(publish_result.get("pollution_gain", 0)),
+	])
+	notify_tutorial("sentence_published", {"meme_id": str(record.get("id", ""))})
 	return true
 
 
-func register_legacy_rule_for_ascent(previous_floor: int) -> bool:
-	if previous_floor < 1 or previous_floor >= MAX_TOWER_FLOOR:
+func get_language_token_options(world: String = "doctor") -> Array:
+	var result: Array = []
+	for token_value in notebook_tokens:
+		if not token_value is Dictionary:
+			continue
+		var token: Dictionary = token_value
+		var used_worlds: Array = token.get("used_worlds", [])
+		if world == "doctor" and "phone" not in used_worlds:
+			continue
+		var option := token.duplicate(true)
+		option["display_text"] = LanguageBridgeScript.token_surface(token, world)
+		result.append(option)
+	return result
+
+
+func place_language_token(slot_id: String, token_id: String, world: String = "doctor") -> bool:
+	var token := _find_token(token_id)
+	if token.is_empty():
 		return false
-	for rule in legacy_rules:
-		if int(rule.get("floor", -1)) == previous_floor:
-			return false
-
-	var hottest := _hottest_published_meme_for_floor(previous_floor)
-	var required_text := ""
-	var tags: Array = []
-	var source_meme_id := ""
-	var strength := previous_floor
-	if hottest.is_empty():
-		var fallback: Dictionary = FALLBACK_LEGACY_TEXTS.get(previous_floor, FALLBACK_LEGACY_TEXTS[1])
-		required_text = str(fallback.get("text", "哈吉米，必须补票"))
-		tags = fallback.get("tags", [])
-	else:
-		required_text = str(hottest.get("text", ""))
-		tags = hottest.get("tags", [])
-		source_meme_id = str(hottest.get("id", ""))
-		strength = maxi(previous_floor, int(ceil(float(hottest.get("score", 0)) / 30.0)))
-	if required_text.is_empty():
-		required_text = "哈吉米，必须补票"
-
-	legacy_rules.append({
-		"id": "legacy-%d" % previous_floor,
-		"floor": previous_floor,
-		"source_meme_id": source_meme_id,
-		"required_text": required_text,
-		"tags": tags,
-		"created_day": day,
-		"strength": strength,
-	})
-	event_log.push_front("第 %d 层留下遗产规则：%s" % [previous_floor, required_text])
+	var is_available := false
+	for option: Dictionary in get_language_token_options(world):
+		if str(option.get("id", "")) == token_id:
+			is_available = true
+			break
+	if not is_available:
+		return false
+	var accepted_role := ""
+	for slot: Dictionary in LANGUAGE_RECIPE_SLOTS:
+		if str(slot.get("id", "")) == slot_id:
+			accepted_role = str(slot.get("accepted_role", ""))
+			break
+	if accepted_role.is_empty():
+		return false
+	var token_roles: Array = token.get("grammar_roles", [])
+	if accepted_role not in token_roles:
+		return false
+	language_sentence_slots[slot_id] = token_id
+	conversation_selected_token_ids = []
+	for recipe_slot: Dictionary in LANGUAGE_RECIPE_SLOTS:
+		var selected_id := str(language_sentence_slots.get(str(recipe_slot.get("id", "")), ""))
+		if not selected_id.is_empty():
+			conversation_selected_token_ids.append(selected_id)
 	return true
 
 
-func get_required_legacy_tiles() -> Array:
-	var result: Array = []
-	for rule in legacy_rules:
-		var rule_id := str(rule.get("id", ""))
-		result.append({
-			"id": "legacy:%s" % rule_id,
-			"rule_id": rule_id,
-			"text": str(rule.get("required_text", "")),
-			"floor": int(rule.get("floor", 1)),
-			"locked": pollution >= POLLUTION_LOCK_THRESHOLD,
-			"tags": rule.get("tags", []),
-			"strength": int(rule.get("strength", 1)),
-		})
-	return result
+func clear_language_sentence() -> void:
+	language_sentence_slots.clear()
+	conversation_selected_token_ids.clear()
 
 
-func get_reality_tile_options() -> Array:
-	var result: Array = []
-	for word in CLEAN_WORDS:
-		result.append({"id": "clean:%s" % word, "text": word, "kind": "clean"})
-	for tile in get_required_legacy_tiles():
-		result.append({"id": tile["id"], "text": tile["text"], "kind": "legacy", "locked": tile["locked"]})
-	return result
+func get_language_sentence_preview(world: String = "doctor") -> Dictionary:
+	return LanguageBridgeScript.compose_sentence(language_sentence_slots, notebook_tokens, world, conversation_locale)
 
 
-func place_reality_tile(slot_id: String, tile_id: String) -> bool:
-	reality_sentence_slots[slot_id] = tile_id
+func confirm_doctor_sentence() -> bool:
+	if conversation_mode != "lexeme" or conversation_phase != "composing":
+		return false
+	var composition := get_language_sentence_preview("doctor")
+	if not bool(composition.get("valid", false)):
+		return false
+	if not spend_action("doctor-dialogue"):
+		return false
+
+	var token_ids: Array = composition.get("token_ids", [])
+	var doctor_sentence := str(composition.get("world_sentence", ""))
+	last_clean_sentence = str(composition.get("clean_sentence", doctor_sentence))
+	last_polluted_sentence = pollute_reality_sentence(doctor_sentence, pollution)
+	notebook_tokens = LanguageBridgeScript.mark_tokens_used(notebook_tokens, token_ids, "doctor")
+	var shifted_token_count := _token_count_with_world_shift(token_ids, "doctor")
+	var distortion_penalty := 10 if last_polluted_sentence != doctor_sentence else 0
+	npc_understanding = clampi(100 - int(round(float(pollution) * 0.45)) - shifted_token_count * 7 - distortion_penalty, 0, 100)
+	reality_dialogue_count += 1
+	last_relationship_residue_gain = maxi(0, int(ceil(float(maxi(0, 80 - npc_understanding)) / 12.0)))
+	relationship_residue = clampi(relationship_residue + last_relationship_residue_gain, 0, 100)
+	last_relationship_money_loss = 0
+	change_pollution(clampi(2 + shifted_token_count, 2, 8))
+	conversation_clean_sentence = last_clean_sentence
+	conversation_revealed_units = []
+	for index in last_polluted_sentence.length():
+		var clean_unit := last_clean_sentence.substr(index, 1) if index < last_clean_sentence.length() else ""
+		var display_unit := last_polluted_sentence.substr(index, 1)
+		conversation_revealed_units.append({"clean": clean_unit, "display": display_unit, "corrupted": clean_unit != display_unit, "roll": -1})
+	conversation_reveal_index = conversation_revealed_units.size()
+	conversation_clean_units = _conversation_units(last_clean_sentence)
+	conversation_understood = npc_understanding >= 45
+	conversation_action_spent = true
+	conversation_completed = true
+	conversation_feedback = conversation_result_line
+	conversation_phase = "result"
+	reality_phase = "reality_result"
+	var record := {
+		"id": "sentence-%d-%d" % [day, sentence_records.size() + 1],
+		"world": "doctor",
+		"floor": tower_floor,
+		"day": day,
+		"token_ids": token_ids.duplicate(),
+		"lexeme_ids": (composition.get("lexeme_ids", []) as Array).duplicate(),
+		"clean_sentence": last_clean_sentence,
+		"world_sentence": doctor_sentence,
+		"spoken_sentence": last_polluted_sentence,
+		"pollution": pollution,
+		"understanding": npc_understanding,
+	}
+	sentence_records.append(record)
+	conversation_history.append(record.duplicate(true))
+	clear_language_sentence()
+	notify_tutorial("doctor_spoken", {"sentence_id": str(record.get("id", ""))})
 	return true
 
 
 func confirm_reality_dialogue() -> bool:
-	var required_tiles := get_required_legacy_tiles()
-	var locked_texts: Array[String] = []
-	for tile in required_tiles:
-		if bool(tile.get("locked", false)):
-			locked_texts.append(str(tile.get("text", "")))
-			continue
-		if not _reality_slots_include(str(tile.get("id", ""))):
-			return false
-
-	var clean_parts: Array[String] = []
-	for text in locked_texts:
-		if not text.is_empty() and text not in clean_parts:
-			clean_parts.append(text)
-
-	var keys := reality_sentence_slots.keys()
-	keys.sort()
-	for key in keys:
-		var text := _reality_tile_text(str(reality_sentence_slots[key]))
-		if text.is_empty():
-			continue
-		if text not in clean_parts:
-			clean_parts.append(text)
-	if clean_parts.is_empty():
-		return false
-	if not spend_action("reality-dialogue"):
-		return false
-
-	last_clean_sentence = " ".join(clean_parts)
-	last_polluted_sentence = pollute_reality_sentence(last_clean_sentence, pollution, legacy_rules)
-	var pollution_penalty := int(round(float(pollution) * 0.45))
-	var legacy_strength := 0
-	for rule in legacy_rules:
-		legacy_strength += maxi(1, int(rule.get("strength", 1)))
-	var legacy_relief := int(round(_modifier_total("legacy_relief")))
-	var legacy_penalty_per_rule := maxi(4, 12 - legacy_relief)
-	var legacy_penalty := legacy_strength * legacy_penalty_per_rule
-	var distortion_penalty := 8 if last_clean_sentence != last_polluted_sentence else 0
-	npc_understanding = clampi(100 - pollution_penalty - legacy_penalty - distortion_penalty, 0, 100)
-	clarity = clampi(clarity - maxi(1, int(round(float(legacy_penalty + pollution_penalty) * 0.12))), 0, 100)
-	reality_dialogue_count += 1
-	last_relationship_residue_gain = maxi(0, int(ceil(float(maxi(0, 80 - npc_understanding)) / 12.0)) + legacy_rules.size())
-	relationship_residue = clampi(relationship_residue + last_relationship_residue_gain, 0, 100)
-	var raw_money_loss := maxi(0, int(ceil(float(maxi(0, 70 - npc_understanding)) / 18.0)))
-	var relationship_shield := int(round(_modifier_total("relationship_shield")))
-	last_relationship_money_loss = maxi(0, raw_money_loss - relationship_shield)
-	money = maxi(0, money - last_relationship_money_loss)
-	reality_sentence_slots.clear()
-	reality_phase = "reality_result"
-	return true
+	return confirm_doctor_sentence()
 
 
 func get_relationship_state_label() -> String:
@@ -1244,52 +1627,10 @@ func get_relationship_state_label() -> String:
 	return "彼此已无法确认"
 
 
-func get_pending_ascent_reward_choices() -> Array:
-	return pending_ascent_reward_choices.duplicate(true)
-
-
-func get_active_tarot_combos() -> Array:
-	var result: Array = []
-	for combo in TAROT_COMBOS:
-		var complete := true
-		for tarot_id in combo.get("requires", []):
-			if str(tarot_id) not in owned_tarot_ids:
-				complete = false
-				break
-		if complete:
-			result.append(combo.duplicate(true))
-	return result
-
-
-func choose_ascent_reward(reward_id: String) -> bool:
-	var selected: Dictionary = {}
-	for reward in pending_ascent_reward_choices:
-		if str(reward.get("id", "")) == reward_id:
-			selected = reward
-			break
-	if selected.is_empty():
-		return false
-	permanent_modifiers.append(selected.duplicate(true))
-	var tarot_id := str(selected.get("tarot_id", selected.get("id", "")))
-	if not tarot_id.is_empty() and tarot_id not in owned_tarot_ids:
-		owned_tarot_ids.append(tarot_id)
-	var previous_capacity := max_actions_per_day
-	max_actions_per_day = BASE_ACTIONS_PER_DAY + int(round(_tarot_combo_total("max_actions_bonus")))
-	if max_actions_per_day > previous_capacity:
-		actions_remaining += max_actions_per_day - previous_capacity
-	event_log.push_front("第 %d 层许可：%s" % [pending_ascent_reward_floor, str(selected.get("label", "永久修正"))])
-	pending_ascent_reward_choices.clear()
-	pending_ascent_reward_floor = 0
-	if not queued_ascent_reward_floors.is_empty():
-		var next_floor := int(queued_ascent_reward_floors.pop_front())
-		_set_pending_ascent_reward(next_floor)
-	return true
-
-
-func pollute_reality_sentence(sentence: String, pollution_value: int, rules: Array) -> String:
+func pollute_reality_sentence(sentence: String, pollution_value: int, _unused_rules: Array = []) -> String:
 	if pollution_value < 35:
 		return sentence
-	var markers := ["哈吉米", "□", "刷新", "塔", "禁问", "……"]
+	var markers := ["■", "□", "▦", "∴", "//", "≠", "…"]
 	var step := maxi(2, 9 - int(pollution_value / 12))
 	var result := ""
 	for index in sentence.length():
@@ -1297,11 +1638,9 @@ func pollute_reality_sentence(sentence: String, pollution_value: int, rules: Arr
 		if ch == " ":
 			result += ch
 		elif index % step == 0:
-			result += markers[(index + day + rules.size()) % markers.size()]
+			result += markers[(index + day) % markers.size()]
 		else:
 			result += ch
-	if pollution_value >= POLLUTION_LOCK_THRESHOLD and not result.begins_with("哈吉米"):
-		result = "哈吉米 " + result
 	return result
 
 
@@ -1314,333 +1653,53 @@ func _get_first_placed_meme() -> Dictionary:
 
 
 func _find_token_text(token_id: String) -> String:
-	for token in notebook_tokens:
-		if str(token.get("id", "")) == token_id:
-			return str(token.get("text", ""))
-	return ""
+	return str(_find_token(token_id).get("text", ""))
 
 
-func _find_token_tags(token_id: String) -> Array:
-	for token in notebook_tokens:
-		if str(token.get("id", "")) == token_id:
-			return token.get("tags", [])
-	return []
-
-
-func _find_token_rarity(token_id: String) -> int:
-	for token in notebook_tokens:
-		if str(token.get("id", "")) == token_id:
-			return int(token.get("rarity", 1))
-	return 1
-
-
-func _find_token_source_passive(token_id: String) -> Dictionary:
-	for token in notebook_tokens:
-		if str(token.get("id", "")) == token_id:
-			return (token.get("source_passive", {}) as Dictionary).duplicate(true)
+func _find_token(token_id: String) -> Dictionary:
+	for token_value in notebook_tokens:
+		if token_value is Dictionary and str((token_value as Dictionary).get("id", "")) == token_id:
+			return (token_value as Dictionary).duplicate(true)
 	return {}
 
 
-func _current_accepted_tags() -> Array:
-	return ACCEPTED_TAG_ROTATION[(day - 1) % ACCEPTED_TAG_ROTATION.size()].duplicate()
+func _find_token_tags(token_id: String) -> Array:
+	return (_find_token(token_id).get("tags", []) as Array).duplicate()
 
 
-func get_publish_breakdown(meme: Dictionary) -> Dictionary:
+func _find_token_rarity(token_id: String) -> int:
+	return int(_find_token(token_id).get("rarity", 1))
+
+
+func _token_count_with_world_shift(token_ids: Array, world: String) -> int:
+	var shifted := 0
+	for token_id_value in token_ids:
+		var token := _find_token(str(token_id_value))
+		if not token.is_empty() and LanguageBridgeScript.token_surface(token, world) != str(token.get("text", "")):
+			shifted += 1
+	return shifted
+
+
+func get_gameplay_metrics() -> Dictionary:
+	return {"money": money, "pollution": pollution}
+
+
+func get_publish_result(meme: Dictionary) -> Dictionary:
 	if meme.is_empty():
 		return {}
-	var matching_tags := _intersect(meme.get("tags", []), _current_accepted_tags())
-	return _calculate_publish_breakdown(meme, matching_tags)
-
-
-func get_daily_signal_contract() -> Dictionary:
-	return SIGNAL_CONTRACTS[posmod(day - 1, SIGNAL_CONTRACTS.size())].duplicate(true)
-
-
-func _score_meme_publish(meme: Dictionary, matching_tags: Array) -> int:
-	return int(_calculate_publish_breakdown(meme, matching_tags).get("score", 1))
-
-
-func _calculate_publish_breakdown(meme: Dictionary, matching_tags: Array) -> Dictionary:
-	var rarity := int(meme.get("rarity", 1))
-	var repeat_count := 0
-	for record in published_memes:
-		if str(record.get("text", "")) == str(meme.get("text", "")):
-			repeat_count += 1
-	var tags: Array = meme.get("tags", [])
-	var contract_result := _evaluate_signal_contract(meme, matching_tags, repeat_count)
-	var source_base_bonus := 0
-	var source_repeat_grace := 0
-	var active_source_passive_labels: Array[String] = []
-	for passive in meme.get("source_passives", []):
-		var effect_id := str(passive.get("effect", ""))
-		var value := float(passive.get("value", 0.0))
-		var active := false
-		match effect_id:
-			"base_bonus":
-				source_base_bonus += int(round(value))
-				active = true
-			"trend_base":
-				if not matching_tags.is_empty():
-					source_base_bonus += int(round(value))
-					active = true
-			"pollution_base":
-				if pollution >= 40:
-					source_base_bonus += int(round(value))
-					active = true
-			"repeat_grace":
-				source_repeat_grace += maxi(0, int(round(value)))
-				active = repeat_count > 0
-			# Older crafted memes remain readable after the integer-score migration.
-			"synergy_step":
-				if not matching_tags.is_empty():
-					source_base_bonus += int(round(value * 100.0))
-					active = true
-			"pollution_bonus":
-				if pollution >= 40:
-					source_base_bonus += int(round(value * 100.0))
-					active = true
-			"repeat_relief":
-				source_repeat_grace += 1 if value > 0.0 else 0
-				active = repeat_count > 0
-		if active:
-			active_source_passive_labels.append(str(passive.get("label", "来源被动")))
-	var empty_base_bonus := int(round(_modifier_total("empty_base"))) if ("空位" in tags or "沉默" in tags) else 0
-	var pollution_base_bonus := int(round(_modifier_total("pollution_base"))) if pollution >= 40 else 0
-	var permanent_base_bonus := int(round(_modifier_total("publish_base")))
-	var fusion_level := maxi(0, int(meme.get("fusion_level", 0)))
-	var fusion_base_bonus := fusion_level * 18
-	var contract_base_bonus := int(contract_result.get("base_bonus", 0)) if bool(contract_result.get("matched", false)) else 0
-	if bool(contract_result.get("matched", false)):
-		contract_base_bonus += int(round(_modifier_total("contract_base")))
-	var world_item_base_bonus := int(pending_world_item_effects.get("base_bonus", 0))
-	var base_value: int = 12 + rarity * 6 + matching_tags.size() * 8 + empty_base_bonus + pollution_base_bonus + permanent_base_bonus + fusion_base_bonus + source_base_bonus + contract_base_bonus + world_item_base_bonus
-	var trend_multiplier_bonus := mini(2, matching_tags.size())
-	if matching_tags.size() >= 2:
-		trend_multiplier_bonus += int(round(_modifier_total("trend_multiplier_bonus")))
-	var pollution_multiplier_bonus := (1 if pollution >= 40 else 0) + (1 if pollution >= 70 else 0)
-	var effective_repeat_count := maxi(0, repeat_count - int(round(_modifier_total("repeat_grace"))) - int(round(_tarot_combo_total("repeat_grace"))) - source_repeat_grace)
-	var repeat_penalty := mini(2, effective_repeat_count)
-	var contract_multiplier_bonus := int(contract_result.get("multiplier_bonus", 0)) if bool(contract_result.get("matched", false)) else 0
-	var world_item_multiplier_bonus := int(pending_world_item_effects.get("multiplier_bonus", 0))
-	var fusion_multiplier_bonus := mini(2, fusion_level)
-	if fusion_level > 0:
-		fusion_multiplier_bonus += int(round(_modifier_total("fusion_multiplier_bonus"))) + int(round(_tarot_combo_total("fusion_multiplier_bonus")))
-	var total_multiplier := maxi(1, 1 + trend_multiplier_bonus + pollution_multiplier_bonus + contract_multiplier_bonus + fusion_multiplier_bonus + world_item_multiplier_bonus - repeat_penalty)
-	var score := maxi(1, base_value * total_multiplier)
-	var active_modifier_labels: Array[String] = []
-	for modifier in permanent_modifiers:
-		var effect_id := str(modifier.get("effect", ""))
-		var is_active := effect_id == "publish_base"
-		is_active = is_active or (effect_id == "pollution_base" and pollution >= 40)
-		is_active = is_active or (effect_id == "trend_multiplier_bonus" and matching_tags.size() >= 2)
-		is_active = is_active or (effect_id == "repeat_grace" and repeat_count > 0)
-		is_active = is_active or (effect_id == "empty_base" and empty_base_bonus > 0)
-		is_active = is_active or (effect_id == "contract_base" and bool(contract_result.get("matched", false)))
-		is_active = is_active or (effect_id == "fusion_multiplier_bonus" and fusion_level > 0)
-		if is_active:
-			active_modifier_labels.append(str(modifier.get("label", "永久许可")))
+	var rarity := clampi(int(meme.get("rarity", 1)), 1, 5)
+	var fusion_level := clampi(int(meme.get("fusion_level", 0)), 0, 3)
+	var pollution_bias := maxi(0, int(meme.get("pollution_bias", 0)))
 	return {
-		"base_value": base_value,
-		"matching_tags": matching_tags.duplicate(),
-		"trend_multiplier_bonus": trend_multiplier_bonus,
-		"pollution_multiplier_bonus": pollution_multiplier_bonus,
-		"repeat_penalty": repeat_penalty,
-		"synergy_multiplier": 1 + trend_multiplier_bonus,
-		"pollution_multiplier": 1 + pollution_multiplier_bonus,
-		"fusion_level": fusion_level,
-		"fusion_base_bonus": fusion_base_bonus,
-		"fusion_multiplier_bonus": fusion_multiplier_bonus,
-		"repeat_multiplier": 1,
-		"contract_id": str(contract_result.get("id", "")),
-		"contract_label": str(contract_result.get("label", "未命名牌型")),
-		"contract_description": str(contract_result.get("description", "")),
-		"contract_progress": str(contract_result.get("progress", "")),
-		"contract_matched": bool(contract_result.get("matched", false)),
-		"contract_base_bonus": contract_base_bonus,
-		"contract_multiplier_bonus": contract_multiplier_bonus,
-		"contract_multiplier": 1 + contract_multiplier_bonus,
-		"contract_pollution_risk": int(contract_result.get("pollution_risk", 0)) if bool(contract_result.get("matched", false)) else 0,
-		"world_item_base_bonus": world_item_base_bonus,
-		"world_item_multiplier_bonus": world_item_multiplier_bonus,
-		"world_item_multiplier": 1 + world_item_multiplier_bonus,
-		"active_world_item_labels": (pending_world_item_effects.get("labels", []) as Array).duplicate(),
-		"total_multiplier": total_multiplier,
-		"repeat_count": repeat_count,
-		"effective_repeat_count": effective_repeat_count,
-		"modifier_base_bonus": empty_base_bonus + pollution_base_bonus + permanent_base_bonus + fusion_base_bonus,
-		"active_modifier_labels": active_modifier_labels,
-		"active_source_passive_labels": active_source_passive_labels,
-		"score": score,
+		"money_gain": 2 + rarity * 2 + fusion_level,
+		"pollution_gain": clampi(2 + rarity + fusion_level * 2 + pollution_bias, 1, 30),
 	}
 
 
-func _evaluate_signal_contract(meme: Dictionary, matching_tags: Array, repeat_count: int) -> Dictionary:
-	var contract := get_daily_signal_contract()
-	var tags: Array = meme.get("tags", [])
-	var rule := str(contract.get("rule", ""))
-	var threshold := int(contract.get("threshold", 0))
-	var current := 0
-	var matched := false
-	var progress := ""
-	match rule:
-		"matching_tags":
-			current = matching_tags.size()
-			matched = current >= threshold
-			progress = "%d/%d 今日风向" % [mini(current, threshold), threshold]
-		"tag_count":
-			current = tags.size()
-			matched = current >= threshold
-			progress = "%d/%d 隐藏标签" % [mini(current, threshold), threshold]
-		"text_length":
-			current = str(meme.get("text", "")).length()
-			matched = current == threshold
-			progress = "%d/%d 字" % [current, threshold]
-		"all_tags":
-			var required_tags: Array = contract.get("required_tags", [])
-			for required_tag in required_tags:
-				if required_tag in tags:
-					current += 1
-			matched = current >= required_tags.size()
-			progress = "%d/%d 必要标签" % [current, required_tags.size()]
-		"repeat_any_tag":
-			var required_tags: Array = contract.get("required_tags", [])
-			var has_required_tag := false
-			for required_tag in required_tags:
-				if required_tag in tags:
-					has_required_tag = true
-					break
-			current = repeat_count
-			matched = repeat_count >= threshold and has_required_tag
-			progress = "%d/%d 复读 · %s" % [mini(repeat_count, threshold), threshold, "标签命中" if has_required_tag else "缺反问/禁问"]
-	contract["matched"] = matched
-	contract["progress"] = progress
-	return contract
-
-
-func _hottest_published_meme_for_floor(floor: int) -> Dictionary:
-	var best: Dictionary = {}
-	var best_score := -999999
-	for record in published_memes:
-		if int(record.get("floor", -1)) != floor:
-			continue
-		var score := int(record.get("score", 0))
-		if score > best_score:
-			best = record
-			best_score = score
-	return best
-
-
-func _reality_slots_include(tile_id: String) -> bool:
-	for value in reality_sentence_slots.values():
-		if str(value) == tile_id:
-			return true
-	return false
-
-
-func _reality_tile_text(tile_id: String) -> String:
-	if tile_id.begins_with("clean:"):
-		return tile_id.substr(6)
-	if tile_id.begins_with("legacy:"):
-		var rule_id := tile_id.substr(7)
-		for rule in legacy_rules:
-			if str(rule.get("id", "")) == rule_id:
-				return str(rule.get("required_text", ""))
-	return ""
-
-
 func _resolve_tower_step() -> void:
-	var previous_floor := tower_floor
-	var threshold := _tower_threshold(tower_floor)
-	var progress := _progress_score()
-	if progress >= threshold:
-		tower_floor = clampi(tower_floor + 1, 1, MAX_TOWER_FLOOR)
-		if tower_floor > previous_floor:
-			register_legacy_rule_for_ascent(previous_floor)
-			_queue_ascent_reward(previous_floor)
-		threshold_discount = maxi(0, threshold_discount - 32)
-		event_log.push_front("第二天，巴别塔把你标记到第 %d 层。" % tower_floor)
-	elif tower_floor > 1 and progress < int(float(threshold) * 0.62):
-		tower_floor = clampi(tower_floor - 1, 1, MAX_TOWER_FLOOR)
-		threshold_discount = clampi(threshold_discount + 64, 0, MAX_THRESHOLD_DISCOUNT)
-		event_log.push_front("第二天，楼层退回第 %d 层，但遗产规则没有消失。" % tower_floor)
-	else:
-		threshold_discount = clampi(threshold_discount + 24, 0, MAX_THRESHOLD_DISCOUNT)
-		event_log.push_front("第二天，塔没有移动，只是把门槛悄悄放低。")
-	var guaranteed_floor := _minimum_floor_for_day(day)
-	while tower_floor < guaranteed_floor:
-		var catchup_floor := tower_floor
-		tower_floor += 1
-		register_legacy_rule_for_ascent(catchup_floor)
-		_queue_ascent_reward(catchup_floor)
-		event_log.push_front("第 %d 天，塔强制收录你到第 %d 层。" % [day, tower_floor])
-	next_threshold = _tower_threshold(tower_floor)
-	if tower_floor >= MAX_TOWER_FLOOR:
-		ending_unlocked = true
-
-
-func _queue_ascent_reward(previous_floor: int) -> void:
-	# The final ascent immediately enters the ending, so rewards live on floors 2-4.
-	if previous_floor < 1 or previous_floor >= MAX_TOWER_FLOOR - 1:
-		return
-	if previous_floor in rewarded_ascent_floors:
-		return
-	rewarded_ascent_floors.append(previous_floor)
-	if pending_ascent_reward_choices.is_empty():
-		_set_pending_ascent_reward(previous_floor)
-	elif previous_floor not in queued_ascent_reward_floors:
-		queued_ascent_reward_floors.append(previous_floor)
-
-
-func _set_pending_ascent_reward(previous_floor: int) -> void:
-	pending_ascent_reward_floor = previous_floor + 1
-	pending_ascent_reward_choices.clear()
-	var owned_ids: Array[String] = []
-	for modifier in permanent_modifiers:
-		owned_ids.append(str(modifier.get("id", "")))
-	var start_index := (previous_floor * 2 + day) % ASCENT_REWARDS.size()
-	for offset in ASCENT_REWARDS.size():
-		var reward: Dictionary = ASCENT_REWARDS[(start_index + offset) % ASCENT_REWARDS.size()]
-		var reward_id := str(reward.get("id", ""))
-		if reward_id in owned_ids:
-			continue
-		pending_ascent_reward_choices.append(reward.duplicate(true))
-		if pending_ascent_reward_choices.size() == 3:
-			break
-	if not pending_ascent_reward_choices.is_empty():
-		event_log.push_front("第 %d 层开放三项许可，必须保留其中一项。" % pending_ascent_reward_floor)
-
-
-func _modifier_total(effect_id: String) -> float:
-	var total := 0.0
-	for modifier in permanent_modifiers:
-		if str(modifier.get("effect", "")) == effect_id:
-			total += float(modifier.get("value", 0.0))
-	return total
-
-
-func _tarot_combo_total(effect_id: String) -> float:
-	var total := 0.0
-	for combo in get_active_tarot_combos():
-		if str(combo.get("effect", "")) == effect_id:
-			total += float(combo.get("value", 0.0))
-	return total
-
-
-func _tower_threshold(floor: int) -> int:
-	var index := clampi(floor, 1, MAX_TOWER_FLOOR)
-	return maxi(72, int(TOWER_THRESHOLDS[index]) - threshold_discount)
-
-
-func _progress_score() -> int:
-	return int(round(float(heat) + float(pollution) * 0.55 + float(100 - clarity) * 0.18))
-
-
-func _minimum_floor_for_day(current_day: int) -> int:
-	var result := 1
-	for deadline in FLOOR_DEADLINES.keys():
-		if current_day >= int(deadline):
-			result = maxi(result, int(FLOOR_DEADLINES[deadline]))
-	return result
+	resolve_floor_transition_at_boundary()
+	if tower_floor == 3 and pollution >= int(POLLUTION_FLOOR_THRESHOLDS[3]) and not formal_floor_three_complete:
+		complete_floor_three()
 
 
 func _find_completed_meme_index(meme_id: String) -> int:
@@ -1662,6 +1721,13 @@ func _intersect(left: Array, right: Array) -> Array:
 	return result
 
 
+func _contains_all_ids(values: Array, required_ids: Array) -> bool:
+	for required_id in required_ids:
+		if required_id not in values:
+			return false
+	return true
+
+
 func _unique(values: Array) -> Array:
 	var result: Array = []
 	for value in values:
@@ -1670,8 +1736,21 @@ func _unique(values: Array) -> Array:
 	return result
 
 
-func _first_pickable_character(value: String) -> String:
-	var ignored := " \t\r\n，。！？；：、,.!?;:（）()【】[]《》<>“”\"'—-…"
+func _first_pickable_character(value: String, locale_code: String = "zh") -> String:
+	if locale_code == "en":
+		var word_regex := RegEx.new()
+		word_regex.compile("[A-Za-z0-9']+")
+		var match_result := word_regex.search(value)
+		return match_result.get_string() if match_result != null else ""
+	var ignored := " \t\r\n　，。！？；：、,.!?;:（）()【】[]《》<>〈〉「」『』〔〕“”\"'—-…・"
+	if locale_code == "ja":
+		var start := 0
+		var end := value.length()
+		while start < end and ignored.contains(value.substr(start, 1)):
+			start += 1
+		while end > start and ignored.contains(value.substr(end - 1, 1)):
+			end -= 1
+		return value.substr(start, end - start)
 	for index in value.length():
 		var character := value.substr(index, 1)
 		if not ignored.contains(character):
