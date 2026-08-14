@@ -4,6 +4,10 @@ const PROJECT_DIR := "/Users/zhang/Documents/游戏/babel-meme-game"
 const CONSENT_OUTPUT := PROJECT_DIR + "/tools/current_camera_consent.png"
 const XRAY_OUTPUT := PROJECT_DIR + "/tools/current_hand_xray.png"
 const SETTINGS_OUTPUT := PROJECT_DIR + "/tools/current_camera_settings.png"
+const PHONE_SETTINGS_OUTPUT := PROJECT_DIR + "/tools/current_camera_settings_phone.png"
+const PHONE_SEARCHING_OUTPUT := PROJECT_DIR + "/tools/current_phone_camera_connection_searching.png"
+const PHONE_ERROR_OUTPUT := PROJECT_DIR + "/tools/current_phone_camera_connection_error.png"
+const PHONE_READY_OUTPUT := PROJECT_DIR + "/tools/current_phone_camera_connection_ready.png"
 const VIEW_SIZE := Vector2i(1600, 900)
 const HEADLESS_CAPTURE_ERROR := "Screenshot capture requires a rendered display. Run this tool without --headless from a GUI session."
 
@@ -39,18 +43,44 @@ func _capture() -> void:
 	main._hand_xray_overlay.set_tracking_enabled(true)
 	main._on_hand_tracking_frame(_make_two_hands(), Time.get_ticks_msec())
 	main._update_visibility()
-	await _wait_frames(6)
+	await _wait_frames(3)
+	main._hand_xray_overlay.force_signal_glitch_for_test()
+	await _wait_frames(1)
 	if not _save_viewport(XRAY_OUTPUT):
 		return
 
 	main._toggle_settings_window()
 	await _wait_frames(4)
+	main._camera_source = "computer"
 	main._camera_access_toggle.set_pressed_no_signal(true)
 	main._refresh_camera_source_buttons()
 	await _wait_frames(2)
 	if not _save_viewport(SETTINGS_OUTPUT):
 		return
-	print("saved hand X-ray evidence: ", CONSENT_OUTPUT, ", ", XRAY_OUTPUT, ", ", SETTINGS_OUTPUT)
+	main._camera_source = "phone"
+	main._camera_tracking_status = "等待手部追踪数据"
+	main._camera_ready_source = ""
+	main._camera_ready_index = -1
+	main._refresh_camera_source_buttons()
+	main._refresh_camera_status_ui()
+	await _wait_frames(2)
+	if not _save_viewport(PHONE_SETTINGS_OUTPUT):
+		return
+	main._show_phone_camera_connection_overlay()
+	await _wait_frames(6)
+	if not _save_viewport(PHONE_SEARCHING_OUTPUT):
+		return
+	main._on_hand_tracking_status_changed("摄像头不可用或权限被拒绝")
+	await _wait_frames(20)
+	if not _save_viewport(PHONE_ERROR_OUTPUT):
+		return
+	main._on_camera_source_ready("phone", 2)
+	await _wait_frames(8)
+	if not _save_viewport(PHONE_READY_OUTPUT):
+		return
+	print("saved hand X-ray and camera-source evidence")
+	main.queue_free()
+	await _wait_frames(3)
 	quit(0)
 
 

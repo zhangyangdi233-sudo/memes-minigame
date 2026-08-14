@@ -14,7 +14,7 @@ func _init() -> void:
 		test_clues_without_physical_items_do_not_unlock_the_hidden_floor()
 		test_floor_three_without_hidden_route_enters_normal_ending()
 		test_floor_three_with_hidden_route_enters_unregistered_floor_four()
-		test_v4_save_round_trip_preserves_hidden_language_state()
+		test_v5_save_round_trip_preserves_hidden_language_state()
 		test_v1_floor_five_save_cannot_bypass_the_hidden_route()
 		test_random_dialogue_garble_is_capped_and_preserves_punctuation()
 		test_floor_transition_request_waits_for_an_explicit_boundary()
@@ -112,18 +112,18 @@ func test_floor_three_with_hidden_route_enters_unregistered_floor_four() -> void
 	_assert_eq(game.ending_route, "hidden", "the hidden route should survive save and ending routing")
 
 
-func test_v4_save_round_trip_preserves_hidden_language_state() -> void:
+func test_v5_save_round_trip_preserves_hidden_language_state() -> void:
 	var source: RefCounted = _state_script.new()
 	source.new_run()
 	source.pollution = 73
 	source.reveal_prerequisite_item_for_floor(1)
 	source.collect_prerequisite_item("artifact_named_lamp_tag")
 	var save_data: Dictionary = source.to_save_data()
-	_assert_eq(int(save_data.get("version", 0)), 4, "new doll-aware saves should use version four")
+	_assert_eq(int(save_data.get("version", 0)), 5, "tutorial and language-bridge saves should use version five")
 
 	var restored: RefCounted = _state_script.new()
-	_assert_true(restored.load_save_data(save_data), "a version-four save should load")
-	_assert_eq(restored.pollution, 73, "pollution should survive the version-four round trip")
+	_assert_true(restored.load_save_data(save_data), "a version-five save should load")
+	_assert_eq(restored.pollution, 73, "pollution should survive the version-five round trip")
 	_assert_true("artifact_named_lamp_tag" in restored.revealed_prerequisite_item_ids, "the NPC clue should survive save restoration")
 	_assert_true("artifact_named_lamp_tag" in restored.collected_prerequisite_item_ids, "the physical prerequisite should survive save restoration")
 
@@ -183,11 +183,18 @@ func test_effective_pollution_actions_queue_floor_transitions() -> void:
 	var game: RefCounted = _state_script.new()
 	game.new_run()
 	game.pollution = 24
-	_assert_true(game.pick_token("threshold-post", {
-		"id": "threshold-token", "text": "醒", "tags": ["空位"], "rarity": 2,
-	}), "an ordinary pickup should still use the existing action flow")
-	_assert_eq(game.pollution, 25, "the pickup should raise pollution through the canonical path")
-	_assert_eq(game.pending_floor_transition, 2, "crossing 25% during an action should queue floor two")
+	game.completed_memes = [{
+		"id": "threshold-sentence",
+		"text": "屏幕替我说话。",
+		"tags": ["空位"],
+		"rarity": 1,
+		"pollution_bias": 0,
+		"fusion_level": 0,
+	}]
+	_assert_true(game.place_meme_in_blank("blank_1", "threshold-sentence"), "placing a composed sentence should remain free")
+	_assert_true(game.confirm_dialogue(), "publishing should use the effective action flow")
+	_assert_true(game.pollution >= 25, "publishing should raise pollution through the canonical path")
+	_assert_eq(game.pending_floor_transition, 2, "crossing 25% during publication should queue level two")
 	_assert_eq(game.tower_floor, 1, "the queued transition must wait for the UI or day boundary")
 
 

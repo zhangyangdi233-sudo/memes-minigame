@@ -1,5 +1,7 @@
 extends SceneTree
 
+const LanguageBridgeScript = preload("res://scripts/narrative/language_bridge.gd")
+
 var _failures: Array[String] = []
 var _state_script: Script = null
 
@@ -24,14 +26,11 @@ func _run() -> void:
 	test_social_follow_and_like_toggles_are_free_and_persistent()
 	test_pick_token_costs_action_and_adds_notebook_token()
 	test_japanese_pickup_preserves_complete_token()
-	test_single_character_craft_consumes_doll_frame()
-	test_meme_fusion_combines_two_memes_and_increases_pollution()
+	test_complete_sentence_craft_uses_authored_phone_surfaces()
 	test_publish_updates_money_and_pollution_only()
-	test_published_memes_make_legacy_rules_on_ascent()
-	test_fallback_legacy_rule_is_used_without_published_memes()
-	test_reality_dialogue_requires_all_legacy_tiles()
-	test_high_pollution_locks_legacy_tiles_and_pollutes_sentence()
-	test_reality_phase_moves_from_npc_to_player_to_result()
+	test_floor_ascent_does_not_create_inherited_language_rules()
+	test_doctor_only_accepts_words_published_in_phone_world()
+	test_doctor_sentence_uses_authored_surfaces_and_adds_pollution()
 	test_typed_reality_reveals_one_character_and_never_grants_frames()
 	test_first_crossing_sixty_triggers_flashback_and_forces_day_end()
 	test_flashback_trigger_is_once_per_run()
@@ -70,12 +69,21 @@ func test_pick_token_costs_action_and_adds_notebook_token() -> void:
 	var game: RefCounted = _state_script.new()
 	game.new_run()
 	_assert_true(game.pick_token("p1", {
-		"id": "t1", "text": "哈吉米", "tags": ["哈吉米"], "rarity": 2,
+		"id": "t1",
+		"text": "末班电梯",
+		"lexeme_id": "subject.last_lift",
+		"grammar_roles": ["subject"],
+		"phone_surface": "末班电梯账号",
+		"doctor_surface": "反复梦见电梯的患者",
+		"doll_surface": "回家的电梯",
+		"tags": ["巴别塔"],
+		"rarity": 2,
 	}), "a new Chinese token should be pickable")
 	_assert_eq(game.actions_remaining, 4, "picking a token should spend one action")
 	_assert_eq(game.notebook_tokens.size(), 1, "picked token should enter the notebook")
-	_assert_eq(str(game.notebook_tokens[0].get("text", "")), "哈", "Chinese pickup should keep one visible character")
-	_assert_eq(game.pollution, 1, "rarer pickup should increase pollution through the canonical path")
+	_assert_eq(str(game.notebook_tokens[0].get("text", "")), "末班电梯", "Chinese pickup should preserve the authored phrase")
+	_assert_eq(str(game.notebook_tokens[0].get("lexeme_id", "")), "subject.last_lift", "pickup should preserve a stable lexeme id")
+	_assert_eq(game.pollution, 0, "collecting vocabulary should not pollute the player before it is used")
 
 
 func test_japanese_pickup_preserves_complete_token() -> void:
@@ -84,54 +92,37 @@ func test_japanese_pickup_preserves_complete_token() -> void:
 	_assert_true(game.pick_token("ja-existence", {
 		"id": "existence", "text": "  「存在」。 ", "content_locale": "ja", "tags": ["空位"], "rarity": 1,
 	}), "Japanese existence token should be pickable")
-	_assert_eq(str(game.notebook_tokens[0].get("text", "")), "存在", "Japanese pickup should preserve a complete token")
+	_assert_eq(str(game.notebook_tokens[0].get("text", "")), "「存在」。", "Japanese pickup should preserve the complete authored selection")
 	_assert_true(game.pick_token("ja-elevator", {
 		"id": "elevator", "text": "『エレベーター』", "content_locale": "ja", "tags": ["巴别塔"], "rarity": 1,
 	}), "Japanese elevator token should be pickable")
-	_assert_eq(str(game.notebook_tokens[1].get("text", "")), "エレベーター", "Japanese kana pickup should remain intact")
+	_assert_eq(str(game.notebook_tokens[1].get("text", "")), "『エレベーター』", "Japanese kana selection should remain intact")
 
 
-func test_single_character_craft_consumes_doll_frame() -> void:
+func test_complete_sentence_craft_uses_authored_phone_surfaces() -> void:
 	var game: RefCounted = _state_script.new()
 	game.new_run()
-	game.notebook_tokens = [{"id": "n1", "text": "哈", "tags": ["哈吉米"], "rarity": 2}]
-	game.owned_meme_frames = 1
-	game.owned_meme_frame_ids.append("frame_kept_name")
-	_assert_eq(game.get_craft_slots().size(), 1, "the notebook should expose one glyph frame")
-	_assert_true(game.place_token_in_slot("glyph", "n1"), "the glyph should enter the doll-granted frame")
-	_assert_eq(game.actions_remaining, 5, "arranging the frame should remain free")
-	_assert_true(game.confirm_craft(), "one frame plus one glyph should create a meme")
+	game.notebook_tokens = _complete_note_tokens()
+	_assert_eq(game.get_craft_slots().size(), 3, "the notebook should expose subject, action, and object slots")
+	_assert_true(game.place_token_in_slot("subject", "subject-1"), "a subject word should enter the subject slot")
+	_assert_true(game.place_token_in_slot("action", "action-1"), "an action word should enter the action slot")
+	_assert_true(game.place_token_in_slot("object", "object-1"), "an object word should enter the object slot")
+	_assert_eq(game.actions_remaining, 5, "arranging sentence words should remain free")
+	var preview: Dictionary = game.get_craft_sentence_preview("phone")
+	_assert_eq(str(preview.get("clean_sentence", "")), "我看见塔。", "the notebook should retain the player's clean sentence")
+	_assert_eq(str(preview.get("world_sentence", "")), "本账号捕获信号塔。", "the phone preview should use authored social-media surfaces")
+	_assert_true(game.confirm_craft(), "a complete three-part sentence should craft")
 	_assert_eq(game.actions_remaining, 4, "confirming craft should spend one action")
-	_assert_eq(str(game.completed_memes[0].get("text", "")), "哈", "basic crafted meme should retain its character")
-	_assert_eq(game.owned_meme_frames, 0, "crafting should consume one doll-granted frame")
-	_assert_true(game.owned_meme_frame_ids.is_empty(), "consumed frame provenance should leave the inventory")
-
-
-func test_meme_fusion_combines_two_memes_and_increases_pollution() -> void:
-	var game: RefCounted = _state_script.new()
-	game.new_run()
-	var first := {"id": "m-a", "text": "哈", "tags": ["哈吉米"], "rarity": 1, "pollution_bias": 1, "fusion_level": 0}
-	var second := {"id": "m-b", "text": "塔", "tags": ["巴别塔"], "rarity": 2, "pollution_bias": 2, "fusion_level": 0}
-	game.completed_memes = [first, second]
-	var pollution_before: int = game.pollution
-	_assert_true(game.place_meme_in_fusion_slot("left", "m-a"), "first meme should enter the left fusion slot")
-	_assert_true(game.place_meme_in_fusion_slot("right", "m-b"), "second meme should enter the right fusion slot")
-	_assert_true(game.confirm_meme_fusion(), "two different memes should fuse")
-	var fused: Dictionary = game.completed_memes[0]
-	_assert_eq(str(fused.get("text", "")), "哈塔", "fusion should visibly join both source memes")
-	_assert_eq(int(fused.get("fusion_level", 0)), 1, "first fusion should record level one")
-	_assert_true(game.pollution > pollution_before, "fusion should immediately raise pollution")
-	game.fusion_slots = {"left": "m-a", "right": "m-b"}
-	_assert_true(not game.confirm_meme_fusion(), "the same pair should not be farmed repeatedly")
+	_assert_eq(str(game.completed_memes[0].get("text", "")), "本账号捕获信号塔。", "crafted phone sentence should preserve its authored world surface")
+	_assert_eq(str(game.completed_memes[0].get("clean_text", "")), "我看见塔。", "crafted data should preserve the player's original sentence")
+	_assert_eq(game.owned_meme_frames, 0, "sentence crafting should not require or consume a doll frame")
 
 
 func test_publish_updates_money_and_pollution_only() -> void:
 	var game: RefCounted = _state_script.new()
 	game.new_run()
-	var meme := {
-		"id": "m-publish", "text": "哈", "tags": ["哈吉米"],
-		"rarity": 2, "pollution_bias": 1, "fusion_level": 0,
-	}
+	game.notebook_tokens = _complete_note_tokens()
+	var meme := _completed_sentence_meme()
 	game.completed_memes = [meme]
 	var expected: Dictionary = game.get_publish_result(meme)
 	var money_before: int = game.money
@@ -141,65 +132,57 @@ func test_publish_updates_money_and_pollution_only() -> void:
 	_assert_eq(game.money, money_before + int(expected.get("money_gain", 0)), "publishing should add the previewed money")
 	_assert_eq(game.pollution, pollution_before + int(expected.get("pollution_gain", 0)), "publishing should add the previewed pollution")
 	_assert_eq(game.published_memes.size(), 1, "publication should leave one floor record")
-	_assert_eq(int(game.published_memes[0].get("money_gain", 0)), int(expected.get("money_gain", 0)), "record should preserve money gain for legacy ranking")
+	_assert_eq(int(game.published_memes[0].get("money_gain", 0)), int(expected.get("money_gain", 0)), "record should preserve the money calculation")
+	for token: Dictionary in game.notebook_tokens:
+		_assert_true("phone" in token.get("used_worlds", []), "publishing should mark every sentence word as used by the phone world")
 
 
-func test_published_memes_make_legacy_rules_on_ascent() -> void:
+func test_floor_ascent_does_not_create_inherited_language_rules() -> void:
 	var game: RefCounted = _state_script.new()
 	game.new_run()
-	game.published_memes = [
-		{"id": "low", "text": "普通追问", "tags": ["追问"], "floor": 1, "money_gain": 4},
-		{"id": "hot", "text": "哈吉米，必须补票", "tags": ["哈吉米"], "floor": 1, "money_gain": 9},
-	]
-	_assert_true(game.register_legacy_rule_for_ascent(1), "ascent should create one legacy rule")
-	_assert_eq(str(game.legacy_rules[0].get("source_meme_id", "")), "hot", "legacy should use the floor's highest-earning post")
-	_assert_eq(str(game.legacy_rules[0].get("required_text", "")), "哈吉米，必须补票", "legacy should preserve the chosen meme text")
+	game.published_memes = [_completed_sentence_meme()]
+	game.pollution = 25
+	_assert_eq(game.resolve_floor_transition_at_boundary(), 2, "pollution boundary should still advance the floor")
+	_assert_true(not game.has_method("register_legacy_rule_for_ascent"), "floor ascent should no longer register inherited sentence rules")
+	_assert_true(not game.has_method("get_required_legacy_tiles"), "doctor dialogue should no longer expose legacy tiles")
 
 
-func test_fallback_legacy_rule_is_used_without_published_memes() -> void:
+func test_doctor_only_accepts_words_published_in_phone_world() -> void:
 	var game: RefCounted = _state_script.new()
 	game.new_run()
-	_assert_true(game.register_legacy_rule_for_ascent(2), "empty floor should still leave an authored legacy")
-	_assert_eq(str(game.legacy_rules[0].get("source_meme_id", "missing")), "", "fallback legacy should not claim a player post")
-	_assert_true(not str(game.legacy_rules[0].get("required_text", "")).is_empty(), "fallback legacy should contain required text")
+	game.notebook_tokens = _complete_note_tokens()
+	_assert_true(game.get_language_token_options("doctor").is_empty(), "unpublished notebook words should not be available to the doctor")
+	game.notebook_tokens = LanguageBridgeScript.mark_tokens_used(
+		game.notebook_tokens,
+		["subject-1", "action-1", "object-1"],
+		"phone"
+	)
+	_assert_eq(game.get_language_token_options("doctor").size(), 3, "published words should cross into the doctor world")
+	_assert_true(game.start_typed_reality_conversation("doctor_floor1", "doctor", "医生"), "doctor conversation should enter lexeme composition")
+	_assert_true(not game.place_language_token("subject", "object-1", "doctor"), "a word cannot enter the wrong grammar slot")
 
 
-func test_reality_dialogue_requires_all_legacy_tiles() -> void:
+func test_doctor_sentence_uses_authored_surfaces_and_adds_pollution() -> void:
 	var game: RefCounted = _state_script.new()
 	game.new_run()
-	game.legacy_rules = [_legacy_rule(1)]
-	game.place_reality_tile("slot_0", "clean:我")
-	_assert_true(not game.confirm_reality_dialogue(), "an unlocked legacy phrase must be placed explicitly")
-	_assert_eq(game.actions_remaining, 5, "invalid sentence should not spend an action")
-	game.place_reality_tile("slot_1", "legacy:legacy-1")
-	_assert_true(game.confirm_reality_dialogue(), "sentence containing the legacy phrase should resolve")
-	_assert_true(game.last_clean_sentence.contains("哈吉米，必须补票"), "spoken sentence should contain inherited language")
-
-
-func test_high_pollution_locks_legacy_tiles_and_pollutes_sentence() -> void:
-	var game: RefCounted = _state_script.new()
-	game.new_run()
-	game.pollution = 82
-	game.legacy_rules = [_legacy_rule(2)]
-	var tiles: Array = game.get_required_legacy_tiles()
-	_assert_true(bool(tiles[0].get("locked", false)), "high pollution should lock the legacy phrase into place")
-	game.place_reality_tile("slot_0", "clean:我")
-	_assert_true(game.confirm_reality_dialogue(), "locked legacy phrase should be inserted automatically")
-	_assert_true(game.last_polluted_sentence != game.last_clean_sentence, "high pollution should alter the spoken sentence")
-	_assert_true(game.relationship_residue > 0, "damaged communication should leave relationship residue")
-
-
-func test_reality_phase_moves_from_npc_to_player_to_result() -> void:
-	var game: RefCounted = _state_script.new()
-	game.new_run()
-	_assert_eq(game.reality_phase, "npc_speaking", "new day should begin with the NPC speaking")
-	_assert_true(game.begin_reality_player_turn(), "clicking the NPC line should begin composition")
-	_assert_eq(game.reality_phase, "player_composing", "player turn should expose the language puzzle")
-	game.place_reality_tile("slot_0", "clean:我")
-	_assert_true(game.confirm_reality_dialogue(), "clean sentence should resolve without legacy rules")
-	_assert_eq(game.reality_phase, "reality_result", "confirmed sentence should show its result")
-	game.reset_reality_phase_for_day()
-	_assert_eq(game.reality_phase, "npc_speaking", "day reset should restore the NPC phase")
+	game.notebook_tokens = _published_note_tokens()
+	_assert_true(game.start_typed_reality_conversation("doctor_floor1", "doctor", "医生"), "doctor conversation should start")
+	_assert_true(game.place_language_token("subject", "subject-1", "doctor"), "doctor subject should be placeable")
+	_assert_true(game.place_language_token("action", "action-1", "doctor"), "doctor action should be placeable")
+	_assert_true(game.place_language_token("object", "object-1", "doctor"), "doctor object should be placeable")
+	_assert_eq(game.actions_remaining, 5, "arranging doctor words should remain free")
+	var preview: Dictionary = game.get_language_sentence_preview("doctor")
+	_assert_eq(str(preview.get("clean_sentence", "")), "我看见塔。", "doctor bridge should preserve the original player sentence")
+	_assert_eq(str(preview.get("world_sentence", "")), "患者报告病区。", "doctor bridge should use authored clinical surfaces")
+	var money_before: int = game.money
+	var pollution_before: int = game.pollution
+	_assert_true(game.confirm_doctor_sentence(), "a complete doctor sentence should resolve")
+	_assert_eq(game.actions_remaining, 4, "speaking to the doctor should spend exactly one action")
+	_assert_eq(game.money, money_before, "doctor dialogue should never grant or remove money")
+	_assert_true(game.pollution > pollution_before, "using phone words with the doctor should increase pollution")
+	_assert_eq(game.reality_phase, "reality_result", "doctor confirmation should expose the reality result")
+	_assert_eq(game.sentence_records.size(), 1, "doctor speech should leave one auditable sentence record")
+	_assert_eq(str(game.sentence_records[0].get("world_sentence", "")), "患者报告病区。", "sentence record should retain the authored doctor wording")
 
 
 func test_typed_reality_reveals_one_character_and_never_grants_frames() -> void:
@@ -254,15 +237,57 @@ func test_gameplay_metrics_are_limited_to_money_and_pollution() -> void:
 	_assert_true(metrics.has("money") and metrics.has("pollution"), "the two metrics should be money and pollution")
 
 
-func _legacy_rule(strength: int) -> Dictionary:
+func _complete_note_tokens() -> Array:
+	return [
+		_note_token("subject-1", "我", "speaker.self", ["subject"], "本账号", "患者", "你"),
+		_note_token("action-1", "看见", "perceive.see", ["action"], "捕获", "报告", "记得"),
+		_note_token("object-1", "塔", "place.tower", ["object"], "信号塔", "病区", "出口"),
+	]
+
+
+func _published_note_tokens() -> Array:
+	var tokens := _complete_note_tokens()
+	for token: Dictionary in tokens:
+		token["used_worlds"] = ["phone"]
+		token["pollution_stage"] = 1
+	return tokens
+
+
+func _note_token(
+	token_id: String,
+	text: String,
+	lexeme_id: String,
+	roles: Array,
+	phone_surface: String,
+	doctor_surface: String,
+	doll_surface: String
+) -> Dictionary:
 	return {
-		"id": "legacy-1",
-		"floor": 1,
-		"source_meme_id": "m1",
-		"required_text": "哈吉米，必须补票",
-		"tags": ["哈吉米"],
-		"created_day": 2,
-		"strength": strength,
+		"id": token_id,
+		"text": text,
+		"lexeme_id": lexeme_id,
+		"grammar_roles": roles,
+		"phone_surface": phone_surface,
+		"doctor_surface": doctor_surface,
+		"doll_surface": doll_surface,
+		"tags": ["test"],
+		"rarity": 1,
+		"pollution_stage": 0,
+		"used_worlds": [],
+	}
+
+
+func _completed_sentence_meme() -> Dictionary:
+	return {
+		"id": "m-publish",
+		"text": "本账号捕获信号塔。",
+		"clean_text": "我看见塔。",
+		"token_ids": ["subject-1", "action-1", "object-1"],
+		"lexeme_ids": ["speaker.self", "perceive.see", "place.tower"],
+		"tags": ["test"],
+		"rarity": 2,
+		"pollution_bias": 1,
+		"fusion_level": 0,
 	}
 
 

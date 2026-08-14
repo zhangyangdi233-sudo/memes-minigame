@@ -9,6 +9,7 @@ func _init() -> void:
 
 func _run() -> void:
 	for script_path in [
+		"res://tools/capture_hand_xray.gd",
 		"res://tools/capture_main_scene.gd",
 		"res://tools/capture_phone_launcher.gd",
 		"res://tools/capture_notebook_scene.gd",
@@ -43,6 +44,11 @@ func _run() -> void:
 		"res://tools/current_doll_dialogue.png",
 		"res://tools/current_doll_reward.png",
 	], "doll discovery, authored choice, and notebook reward")
+	_assert_distinct_capture_sequence([
+		"res://tools/current_phone_camera_connection_searching.png",
+		"res://tools/current_phone_camera_connection_error.png",
+		"res://tools/current_phone_camera_connection_ready.png",
+	], "phone camera searching, recoverable error, and real-frame ready states")
 	_assert_meme_bank_motion_trace("res://tools/current_meme_bank_motion_trace.json")
 
 	if _failures.is_empty():

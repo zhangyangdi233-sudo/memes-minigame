@@ -37,7 +37,7 @@ func _run_async() -> void:
 			_assert_true(game_root._try_reality_interaction(), "the physical doll should open its authored conversation")
 			_assert_eq(game_root.game.conversation_actor_type, "doll", "doll interaction should enter the doll conversation branch")
 			var choices: Array = game_root.game.get_typed_reality_choices()
-			_assert_eq(choices.size(), 3, "the discovery should offer three authored frame intentions")
+			_assert_eq(choices.size(), 3, "the guide should offer three authored tutorial responses")
 			if not choices.is_empty():
 				var actions_before: int = game_root.game.actions_remaining
 				game_root._on_reality_choice_selected(str(choices[0].get("id", "")))
@@ -45,30 +45,28 @@ func _run_async() -> void:
 					if game_root.game.conversation_phase != "typing":
 						break
 					game_root._advance_typed_reality_character()
-				_assert_true(bool(game_root.game.conversation_reward.get("awarded", false)), "finishing the doll reply should grant one frame")
-				_assert_eq(game_root.game.owned_meme_frames, 1, "the granted frame should enter the notebook inventory")
-				_assert_eq(game_root.game.actions_remaining, actions_before - 1, "claiming a doll frame should spend one action")
-				_assert_true(bool(doll.get_meta("claimed", false)), "the world doll should immediately remember that its frame was claimed")
+				_assert_true(bool(game_root.game.conversation_reward.get("guided", false)), "finishing the doll reply should advance the tutorial")
+				_assert_eq(game_root.game.owned_meme_frames, 0, "the guide should no longer grant an obsolete meme frame")
+				_assert_eq(game_root.game.actions_remaining, actions_before, "speaking to the tutorial guide should not consume a daily action")
+				_assert_eq(str(game_root.game.get_tutorial_step().get("id", "")), "open_social", "guide discovery should advance the tutorial to the phone")
+				_assert_true(bool(doll.get_meta("claimed", false)), "the world doll should remember that its first guidance was heard")
 				if game_root._input_locked:
 					game_root._finish_action_spend_animation()
 
 		game_root.set_view_state("phone_down")
 		game_root._on_app_pressed("notebook")
 		await process_frame
-		var doll_hint := _find_node_by_name(game_root, "NotebookDollFrameHint") as Label
-		_assert_true(doll_hint != null and doll_hint.text.contains("缝线布偶"), "the notebook should explain the physical-world source of frames")
-		_assert_true(game_root.game.pick_token("doll-flow-post", {
-			"id": "word",
-			"text": "月",
-			"tags": ["名字"],
-			"rarity": 1,
-		}), "test setup should add one collected word")
-		var token_id := str(game_root.game.notebook_tokens.back().get("id", ""))
-		_assert_true(game_root.game.place_token_in_slot("glyph", token_id), "the collected word should enter the frame slot")
+		_assert_true(_find_node_by_name(game_root, "NotebookSentenceHeader") is Control, "the notebook should present complete sentence composition")
+		_assert_true(game_root.game.pick_token("doll-flow-post", _token("subject", "我", "subject", "本账号", "患者")), "test setup should add one subject")
+		_assert_true(game_root.game.pick_token("doll-flow-post", _token("action", "看见", "action", "捕获", "报告")), "test setup should add one action")
+		_assert_true(game_root.game.pick_token("doll-flow-post", _token("object", "塔", "object", "信号塔", "病区")), "test setup should add one object")
+		_assert_true(game_root.game.place_token_in_slot("subject", "doll-flow-post-subject-1"), "subject should enter its sentence slot")
+		_assert_true(game_root.game.place_token_in_slot("action", "doll-flow-post-action-1"), "action should enter its sentence slot")
+		_assert_true(game_root.game.place_token_in_slot("object", "doll-flow-post-object-1"), "object should enter its sentence slot")
 		var completed_before: int = game_root.game.completed_memes.size()
 		game_root._on_confirm_craft_pressed()
-		_assert_eq(game_root.game.completed_memes.size(), completed_before + 1, "the doll frame should craft one completed meme")
-		_assert_eq(game_root.game.owned_meme_frames, 0, "crafting should consume the granted doll frame")
+		_assert_eq(game_root.game.completed_memes.size(), completed_before + 1, "three collected words should craft one complete sentence")
+		_assert_eq(str(game_root.game.completed_memes[0].get("clean_text", "")), "我看见塔。", "crafted data should preserve the clean sentence")
 
 		game_root.queue_free()
 		await process_frame
@@ -80,6 +78,20 @@ func _run_async() -> void:
 		for failure in _failures:
 			push_error(failure)
 		quit(1)
+
+
+func _token(token_id: String, text: String, role: String, phone_surface: String, doctor_surface: String) -> Dictionary:
+	return {
+		"id": token_id,
+		"text": text,
+		"lexeme_id": "test.%s" % token_id,
+		"grammar_roles": [role],
+		"phone_surface": phone_surface,
+		"doctor_surface": doctor_surface,
+		"doll_surface": text,
+		"tags": ["test"],
+		"rarity": 1,
+	}
 
 
 func _find_actor_by_type(game_root: Node, actor_type: String) -> Area3D:

@@ -11,6 +11,7 @@ import socket
 import subprocess
 import sys
 import tempfile
+import threading
 import time
 from pathlib import Path
 from typing import Any
@@ -18,6 +19,8 @@ from typing import Any
 
 SCHEMA_VERSION = 1
 RUNNING = True
+PHONE_FALLBACK_INDICES = (1, 2, 3, 4, 5)
+HOST_WATCH_INTERVAL_SECONDS = 0.25
 
 _mpl_cache = Path(tempfile.gettempdir()) / "babel-mediapipe-matplotlib"
 _mpl_cache.mkdir(parents=True, exist_ok=True)
@@ -39,12 +42,46 @@ def parse_args() -> argparse.Namespace:
     parser.add_argument("--self-test", action="store_true")
     parser.add_argument("--simulate", action="store_true")
     parser.add_argument("--max-frames", type=int, default=0)
+    parser.add_argument("--host-pid", type=int, default=0)
     return parser.parse_args()
 
 
 def _stop(_signum: int, _frame: Any) -> None:
     global RUNNING
     RUNNING = False
+
+
+def _process_exists(pid: int) -> bool:
+    if pid <= 0:
+        return False
+    try:
+        os.kill(pid, 0)
+    except ProcessLookupError:
+        return False
+    except PermissionError:
+        return True
+    return True
+
+
+def _exit_when_host_dies(host_pid: int) -> None:
+    while _process_exists(host_pid):
+        time.sleep(HOST_WATCH_INTERVAL_SECONDS)
+    # The camera read may be blocked, so a flag or graceful signal is not
+    # enough here. Exiting the orphaned process guarantees that the OS closes
+    # its AVFoundation handle even when Godot could not run `_exit_tree()`.
+    os._exit(0)
+
+
+def _start_host_watchdog(host_pid: int) -> None:
+    if host_pid <= 0:
+        return
+    watchdog = threading.Thread(
+        target=_exit_when_host_dies,
+        args=(host_pid,),
+        name="babel-hand-tracker-host-watchdog",
+        daemon=True,
+    )
+    watchdog.start()
 
 
 def _load_cv2() -> Any:
@@ -96,6 +133,15 @@ def _is_phone_camera(device: dict[str, Any]) -> bool:
 
 
 def _camera_candidates(source: str, requested_index: int) -> list[int]:
+    if source == "phone":
+        forced_phone_index = os.environ.get("BABEL_PHONE_CAMERA_INDEX", "").strip()
+        if forced_phone_index:
+            try:
+                parsed_index = int(forced_phone_index)
+            except ValueError:
+                parsed_index = -1
+            if parsed_index >= 0:
+                return [parsed_index]
     devices = _macos_camera_devices()
     if sys.platform == "darwin":
         if devices:
@@ -104,10 +150,23 @@ def _camera_candidates(source: str, requested_index: int) -> list[int]:
                 for index, device in enumerate(devices)
                 if _is_phone_camera(device) == (source == "phone")
             ]
-            return matching
-        return [requested_index] if source == "computer" else []
+            if source == "computer":
+                return matching if matching else [requested_index]
+            known_computer_indices = {
+                index for index, device in enumerate(devices) if not _is_phone_camera(device)
+            }
+            fallback = [
+                index
+                for index in PHONE_FALLBACK_INDICES
+                if index not in known_computer_indices and index not in matching
+            ]
+            return matching + fallback
+        # `system_profiler` can return an empty list even while AVFoundation can
+        # open cameras. Keep index 0 reserved for the computer button and probe
+        # likely Continuity/virtual-camera slots for the phone button.
+        return [requested_index] if source == "computer" else list(PHONE_FALLBACK_INDICES)
     if source == "phone":
-        return [index for index in (1, 2, 3, 4, 0) if index >= 0]
+        return list(PHONE_FALLBACK_INDICES)
     return [requested_index]
 
 
@@ -310,6 +369,7 @@ def main() -> int:
     args = parse_args()
     signal.signal(signal.SIGINT, _stop)
     signal.signal(signal.SIGTERM, _stop)
+    _start_host_watchdog(args.host_pid)
     try:
         if args.simulate:
             return run_simulator(args)

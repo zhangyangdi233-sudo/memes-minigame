@@ -45,7 +45,7 @@ func start(launch_sidecar: bool = true) -> bool:
 	if launch_sidecar:
 		_launch_sidecar()
 	else:
-		_set_status("等待双手进入画面")
+		_set_status("等待手部进入画面")
 	return true
 
 
@@ -114,7 +114,7 @@ func ingest_packet(packet: Dictionary) -> bool:
 			_clear_ready_source()
 			_set_status("手部追踪程序发生错误")
 		_:
-			_set_status("已锁定双手指尖" if hands.size() >= 2 else "等待双手进入画面")
+			_set_status("已收到手部关键点" if not hands.is_empty() else "等待手部进入画面")
 	frame_received.emit(hands, timestamp_msec)
 	return true
 
@@ -183,6 +183,7 @@ func _launch_sidecar() -> void:
 		"--port", str(port),
 		"--camera-source", camera_source,
 		"--camera-index", str(camera_index),
+		"--host-pid", str(OS.get_process_id()),
 	])
 	_sidecar_pid = OS.create_process(python_path, arguments, false)
 	if _sidecar_pid <= 0:

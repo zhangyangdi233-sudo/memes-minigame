@@ -154,11 +154,14 @@ func _run() -> void:
 
 	var doll := _find_actor(floor_root, "doll")
 	var ordinary_npcs := _count_actors(floor_root, "npc")
+	var doctors := _count_actors(floor_root, "doctor")
 	_assert_true(doll != null, "each normal floor should contain one discoverable stitched doll")
 	_assert_true(_find_actor(floor_root, "merchant") == null, "removed merchant actor must not return")
-	_assert_eq(ordinary_npcs, 4, "first floor should place all four ordinary NPC billboards")
+	_assert_eq(ordinary_npcs + doctors, 4, "first floor should preserve its four-character population after one existing NPC becomes the doctor")
+	_assert_eq(doctors, 1, "first floor should reuse exactly one existing NPC slot for the doctor")
 	var npc_z_positions: Array[float] = []
 	_collect_actor_z_positions(floor_root, "npc", npc_z_positions)
+	_collect_actor_z_positions(floor_root, "doctor", npc_z_positions)
 	npc_z_positions.sort()
 	for index in range(1, npc_z_positions.size()):
 		_assert_true(npc_z_positions[index] - npc_z_positions[index - 1] >= 25.0, "ordinary NPCs should be spaced across the five-times-long street")
@@ -336,7 +339,8 @@ func _run() -> void:
 	_assert_eq(int(floor_root.get_meta("room_count", 0)), 6, "second floor should retain its six gameplay rooms")
 	_assert_eq(int(floor_root.get_meta("logical_room_count", 0)), 6, "second floor should expose all six rooms as logical gameplay anchors")
 	_assert_eq(int(floor_root.get_meta("ordinary_npc_count", 0)), 3, "second floor should reduce ordinary NPCs to three")
-	_assert_eq(_count_actors(floor_root, "npc"), 3, "second-floor actor population should match its metadata")
+	_assert_eq(_count_actors(floor_root, "npc") + _count_actors(floor_root, "doctor"), 3, "second-floor actor population should match its metadata while reusing one slot for the doctor")
+	_assert_eq(_count_actors(floor_root, "doctor"), 1, "second floor should contain exactly one doctor")
 	_assert_eq(str(floor_root.get_meta("district_style", "")), "night_white_blocks", "second floor should use the night white-block district")
 	_assert_eq(str(floor_root.get_meta("layout_mode", "")), "irregular_disc", "second floor should replace the linear street with one broad irregular clearing")
 	_assert_eq(str(floor_root.get_meta("terrain_profile", "")), "undulating_irregular_disc", "second floor should identify its filled rolling-disc terrain")
@@ -431,7 +435,8 @@ func _run() -> void:
 	await physics_frame
 	_assert_eq(str(floor_root.get_meta("district_style", "")), "overgrown_gallery", "third floor should use the overgrown white-gallery district")
 	_assert_eq(int(floor_root.get_meta("ordinary_npc_count", 0)), 2, "third floor should reduce ordinary NPCs to two")
-	_assert_eq(_count_actors(floor_root, "npc"), 2, "third-floor actor population should match its metadata")
+	_assert_eq(_count_actors(floor_root, "npc") + _count_actors(floor_root, "doctor"), 2, "third-floor actor population should match its metadata while reusing one slot for the doctor")
+	_assert_eq(_count_actors(floor_root, "doctor"), 1, "third floor should contain exactly one doctor")
 	_assert_eq(str(floor_root.get_meta("layout_mode", "")), "skylit_overgrown_gallery", "third floor should expose its meadow-and-skylight layout")
 	_assert_eq(str(floor_root.get_meta("terrain_profile", "")), "full_map_meadow_gallery", "third floor should identify its full-map meadow terrain")
 	_assert_true(_find_node_by_name(floor_root, "GalleryRoof") != null and _find_node_by_name(floor_root, "GalleryCeilingSpan") != null and _find_node_by_name(floor_root, "FullMapGrass") != null, "overgrown district should combine a skylit white colonnade with one full-map grass field")

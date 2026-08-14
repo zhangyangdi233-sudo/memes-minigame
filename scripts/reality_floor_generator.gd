@@ -125,6 +125,7 @@ var _authored_event_day := 1
 var _cover_watcher_root: Node3D
 var _cover_watcher_sprite: Sprite3D
 var _cover_watcher_state: Dictionary = {}
+var _playtest_assist_enabled := false
 
 
 static func room_count_for_floor(floor_number: int) -> int:
@@ -240,6 +241,7 @@ func rebuild(
 	_build_architecture(palette)
 	_build_prerequisite_item(prerequisite_item, palette)
 	_build_actors(actor_textures)
+	_refresh_playtest_markers()
 	configure_authored_events(day_number, palette)
 	_build_cover_watcher_event(palette, cover_watcher_seen)
 	set_meta("useful_item_count", useful_item_count)
@@ -284,6 +286,67 @@ func sync_prerequisite_items(revealed_ids: Array[String], collected_ids: Array[S
 		item.visible = revealed and not collected
 		item.monitoring = revealed and not collected
 		item.monitorable = revealed and not collected
+	_refresh_playtest_markers()
+
+
+func set_playtest_assist_enabled(value: bool) -> void:
+	_playtest_assist_enabled = value
+	_refresh_playtest_markers()
+
+
+func _refresh_playtest_markers() -> void:
+	for actor in _actors:
+		if not is_instance_valid(actor):
+			continue
+		var actor_type := str(actor.get_meta("actor_type", "npc"))
+		var marker_text := ""
+		match actor_type:
+			"doll":
+				marker_text = "TEST  教程引导"
+			"key_npc":
+				marker_text = "TEST  隐藏路线关键 NPC"
+			"doctor":
+				marker_text = "TEST  医生 / 语言拼句"
+		var existing_actor_marker := actor.get_node_or_null("PlaytestMarker") as Label3D
+		if marker_text.is_empty() or not _playtest_assist_enabled:
+			if existing_actor_marker != null:
+				existing_actor_marker.visible = false
+			continue
+		if existing_actor_marker == null:
+			existing_actor_marker = _make_playtest_marker(marker_text, 2.55 if actor_type != "doll" else 1.35)
+			actor.add_child(existing_actor_marker)
+		existing_actor_marker.text = marker_text
+		existing_actor_marker.visible = true
+
+	for item in _items:
+		if not is_instance_valid(item) or not bool(item.get_meta("prerequisite_item", false)):
+			continue
+		var existing_item_marker := item.get_node_or_null("PlaytestMarker") as Label3D
+		if not _playtest_assist_enabled:
+			if existing_item_marker != null:
+				existing_item_marker.visible = false
+			continue
+		if existing_item_marker == null:
+			existing_item_marker = _make_playtest_marker("TEST  前置物：%s" % str(item.get_meta("display_name", "未登记物")), 1.75)
+			item.add_child(existing_item_marker)
+		existing_item_marker.visible = bool(item.get_meta("revealed", false)) and not bool(item.get_meta("collected", false))
+
+
+func _make_playtest_marker(marker_text: String, height: float) -> Label3D:
+	var marker := Label3D.new()
+	marker.name = "PlaytestMarker"
+	marker.text = marker_text
+	marker.position = Vector3(0.0, height, 0.0)
+	marker.font_size = 14
+	marker.pixel_size = 0.0024
+	marker.billboard = BaseMaterial3D.BILLBOARD_ENABLED
+	marker.fixed_size = true
+	marker.modulate = Color("D8FF66")
+	marker.outline_modulate = Color("050705")
+	marker.outline_size = 3
+	marker.no_depth_test = true
+	marker.render_priority = 20
+	return marker
 
 
 func sync_claimed_dolls(claimed_ids: Array[String]) -> void:
@@ -2417,7 +2480,10 @@ func _build_actors(actor_textures: Dictionary) -> void:
 		var npc_texture: Texture2D = fallback_texture
 		if not npc_textures.is_empty() and npc_textures[index % npc_textures.size()] is Texture2D:
 			npc_texture = npc_textures[index % npc_textures.size()]
-		var actor := _make_actor("NPC%d" % index, "npc", labels[index % labels.size()], actor_position, npc_texture, index % 3)
+		var actor_type := "doctor" if index == 0 else "npc"
+		var actor_label: String = "医生" if index == 0 else str(labels[index % labels.size()])
+		var actor := _make_actor("NPC%d" % index, actor_type, actor_label, actor_position, npc_texture, index % 3)
+		actor.set_meta("language_bridge_actor", actor_type == "doctor")
 		actors.add_child(actor)
 		_actors.append(actor)
 

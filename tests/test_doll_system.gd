@@ -10,8 +10,8 @@ func _init() -> void:
 	_content_script = load("res://scripts/narrative/language_corruption_content.gd") as Script
 	_assert_true(_state_script != null and _content_script != null, "doll system dependencies should load")
 	if _state_script != null and _content_script != null:
-		test_three_authored_dolls_offer_distinct_frames()
-		test_doll_choice_grants_once_and_spends_one_action()
+		test_three_authored_doll_appearances_offer_tutorial_responses()
+		test_doll_choice_guides_once_without_spending_an_action()
 		test_pollution_locked_doll_choice_stays_unavailable_until_ready()
 		test_ordinary_npc_never_grants_a_meme_frame()
 		test_doll_state_round_trips_and_legacy_shop_state_is_normalized()
@@ -24,9 +24,8 @@ func _init() -> void:
 		quit(1)
 
 
-func test_three_authored_dolls_offer_distinct_frames() -> void:
+func test_three_authored_doll_appearances_offer_tutorial_responses() -> void:
 	var doll_ids: Array[String] = []
-	var frame_ids: Array[String] = []
 	for floor_number in [1, 2, 3]:
 		var encounter: Dictionary = _content_script.get_doll_encounter_for_floor(floor_number)
 		var doll_id := str(encounter.get("doll_id", ""))
@@ -38,16 +37,14 @@ func test_three_authored_dolls_offer_distinct_frames() -> void:
 		if turns.is_empty():
 			continue
 		var choices: Array = (turns[0] as Dictionary).get("choices", [])
-		_assert_eq(choices.size(), 3, "each doll should offer three authored intentions")
+		_assert_eq(choices.size(), 3, "each guide appearance should offer three authored tutorial responses")
 		for choice: Dictionary in choices:
-			var frame_id := str(choice.get("frame_id", ""))
-			_assert_true(not frame_id.is_empty(), "every doll choice should name the frame it leaves behind")
-			_assert_true(frame_id not in frame_ids, "different authored choices should lead to distinct frame ids")
-			_assert_true(not str(choice).contains("price"), "doll choices must not expose a shop price")
-			frame_ids.append(frame_id)
+			_assert_true(not str(choice.get("guide_feedback", "")).is_empty(), "every guide response should explain the next step")
+			_assert_true(not choice.has("frame_id") and not choice.has("frame_label"), "guide responses must not retain obsolete frame rewards")
+			_assert_true(not str(choice).contains("price"), "guide responses must not expose a shop price")
 
 
-func test_doll_choice_grants_once_and_spends_one_action() -> void:
+func test_doll_choice_guides_once_without_spending_an_action() -> void:
 	var game: RefCounted = _state_script.new()
 	game.new_run()
 	var encounter: Dictionary = _content_script.get_doll_encounter_for_floor(1)
@@ -56,21 +53,20 @@ func test_doll_choice_grants_once_and_spends_one_action() -> void:
 	_assert_true(game.start_typed_reality_conversation(doll_id, "doll", "缝线布偶"), "a discovered doll should start its authored conversation")
 	var first_choice: Dictionary = game.get_typed_reality_choices()[0]
 	var choice_id := str(first_choice.get("id", ""))
-	var frame_id := str(first_choice.get("frame_id", ""))
 	_finish_typed_turn(game, choice_id)
-	_assert_eq(game.actions_remaining, actions_before - 1, "claiming a frame through conversation should spend one action")
-	_assert_eq(game.owned_meme_frames, 1, "the first doll choice should grant one usable frame")
-	_assert_true(frame_id in game.owned_meme_frame_ids, "the inventory should preserve which authored frame was granted")
-	_assert_true(doll_id in game.claimed_doll_ids, "the doll should be marked claimed atomically with the frame grant")
+	_assert_eq(game.actions_remaining, actions_before, "tutorial guidance should not consume one of five daily actions")
+	_assert_eq(game.owned_meme_frames, 0, "the guide should not grant an obsolete frame")
+	_assert_true(doll_id in game.claimed_doll_ids, "the doll should remember that its first guidance was heard")
 	_assert_eq(str((game.doll_choice_results.get(doll_id, {}) as Dictionary).get("choice_id", "")), choice_id, "the selected intention should persist")
-	_assert_true(bool(game.conversation_reward.get("awarded", false)), "the result surface should expose the successful grant")
+	_assert_true(bool(game.conversation_reward.get("guided", false)), "the result surface should expose successful guidance")
+	_assert_eq(str(game.get_tutorial_step().get("id", "")), "open_social", "first guidance should advance onboarding to the phone")
 
 	var repeat_actions: int = game.actions_remaining
 	_assert_true(game.start_typed_reality_conversation(doll_id, "doll", "缝线布偶"), "a claimed guide doll should still be speakable")
 	_finish_typed_turn(game, str(game.get_typed_reality_choices()[1].get("id", "")))
-	_assert_eq(game.actions_remaining, repeat_actions, "listening to an already-claimed doll should not waste an action")
-	_assert_eq(game.owned_meme_frames, 1, "a claimed doll must never grant a second frame")
-	_assert_true(bool(game.conversation_reward.get("duplicate", false)), "repeat dialogue should explain that the frame was already left behind")
+	_assert_eq(game.actions_remaining, repeat_actions, "repeated guidance should remain free")
+	_assert_eq(game.owned_meme_frames, 0, "repeated guidance must not create frame stock")
+	_assert_true(bool(game.conversation_reward.get("duplicate", false)), "repeat dialogue should be identified without replaying tutorial progress")
 
 
 func test_pollution_locked_doll_choice_stays_unavailable_until_ready() -> void:
@@ -82,8 +78,8 @@ func test_pollution_locked_doll_choice_stays_unavailable_until_ready() -> void:
 	var doll_id := str(encounter.get("doll_id", ""))
 	_assert_true(game.start_typed_reality_conversation(doll_id, "doll", "缝线布偶"), "floor three doll should be available")
 	var locked_choice: Dictionary = _choice_with_pollution_gate(game.get_typed_reality_choices())
-	_assert_true(not locked_choice.is_empty(), "one floor-three frame should require reading the polluted structure")
-	_assert_true(bool(locked_choice.get("locked", false)), "the gated frame should be visibly unavailable below its threshold")
+	_assert_true(not locked_choice.is_empty(), "one floor-three guide response should require reading the polluted structure")
+	_assert_true(bool(locked_choice.get("locked", false)), "the gated response should be visibly unavailable below its threshold")
 	_assert_true(not game.select_typed_reality_choice(str(locked_choice.get("id", ""))), "a locked doll choice must not be selectable")
 
 	game.reset_typed_reality_conversation()
@@ -92,7 +88,7 @@ func test_pollution_locked_doll_choice_stays_unavailable_until_ready() -> void:
 	var unlocked_choice: Dictionary = _choice_by_id(game.get_typed_reality_choices(), str(locked_choice.get("id", "")))
 	_assert_true(not bool(unlocked_choice.get("locked", true)), "the authored polluted choice should unlock at the required pollution")
 	_finish_typed_turn(game, str(unlocked_choice.get("id", "")))
-	_assert_true(bool(game.conversation_reward.get("awarded", false)), "the unlocked choice should grant its frame normally")
+	_assert_true(bool(game.conversation_reward.get("guided", false)), "the unlocked response should complete guidance without a frame reward")
 
 
 func test_ordinary_npc_never_grants_a_meme_frame() -> void:
@@ -122,12 +118,12 @@ func test_doll_state_round_trips_and_legacy_shop_state_is_normalized() -> void:
 	_assert_true(game.start_typed_reality_conversation(doll_id, "doll", "缝线布偶"), "floor two doll should start")
 	_finish_typed_turn(game, str(game.get_typed_reality_choices()[0].get("id", "")))
 	var save_data: Dictionary = game.to_save_data()
-	_assert_eq(int(save_data.get("version", 0)), 4, "the doll migration should advance the state save version")
+	_assert_eq(int(save_data.get("version", 0)), 5, "the tutorial and language bridge should advance the state save version")
 	var restored: RefCounted = _state_script.new()
 	_assert_true(restored.load_save_data(save_data), "current doll save should load")
 	_assert_eq(restored.claimed_doll_ids, game.claimed_doll_ids, "claimed dolls should survive save/load")
 	_assert_eq(restored.doll_choice_results, game.doll_choice_results, "doll choices should survive save/load")
-	_assert_eq(restored.owned_meme_frame_ids, game.owned_meme_frame_ids, "frame provenance should survive save/load")
+	_assert_true(restored.owned_meme_frame_ids.is_empty(), "current guide state should not create frame provenance")
 
 	var legacy_state: Dictionary = save_data.get("state", {}).duplicate(true)
 	legacy_state.erase("claimed_doll_ids")

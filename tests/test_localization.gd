@@ -112,7 +112,7 @@ func _test_language_specific_pickup_units() -> void:
 		"tags": ["空位"],
 		"rarity": 1,
 	}), "English token pickup should succeed")
-	_assert_eq(str(game.notebook_tokens[0].get("text", "")), "nonexistent", "English notes should store one semantic word")
+	_assert_eq(str(game.notebook_tokens[0].get("text", "")), "nonexistent floor", "English notes should preserve the exact selected phrase")
 
 
 func _test_japanese_dialogue_units() -> void:
@@ -133,11 +133,15 @@ func _test_audited_localization_copy() -> void:
 	var ui_ja: Dictionary = ui_catalog.entries("ja")
 	var state_en: Dictionary = state_catalog.entries("en")
 	var state_ja: Dictionary = state_catalog.entries("ja")
-	var doll_hint := "在现实区域找到缝线布偶。听完它的话，梗框会留在这里。"
 	_assert_true(not ui_en.has("店\n梗框商店") and not ui_en.has("信号商店"), "removed shop navigation should not survive in the UI catalog")
 	_assert_true(not state_en.has("信号商人"), "removed merchant identity should not survive in the state catalog")
-	_assert_eq(ui_en[doll_hint], "Find the stitched doll in the physical world. Hear it out, and the frame it leaves will appear here.", "English notebook guidance should explain the discovery-based frame source")
-	_assert_eq(ui_ja[doll_hint], "現実の区域で縫い目のあるぬいぐるみを探す。その話を最後まで聞けば、残された枠がここに現れる。", "Japanese notebook guidance should explain the discovery-based frame source")
+	var locale = LocaleScript.new()
+	locale.set_locale("zh")
+	_assert_eq(locale.level_display_name(1), "第一层", "Chinese level naming should not use the old region label")
+	locale.set_locale("en")
+	_assert_eq(locale.level_display_name(4), "LEVEL 4", "English hidden level should use the requested LEVEL naming")
+	locale.set_locale("ja")
+	_assert_eq(locale.level_display_name(3), "レベル3", "Japanese level naming should use the requested レベル form")
 	_assert_eq(state_en["你把我放反了。缝口应该朝着路，不是朝着你。……算了。今天要留哪个字？"], "You set me down backward. The seam should face the road, not you. ...Never mind. Which word are we keeping today?", "English doll dialogue should keep its concrete, conversational rhythm")
 	_assert_eq(state_ja["缝线布偶"], "縫い目のあるぬいぐるみ", "Japanese should name the guide doll without shop language")
 	_assert_eq(ui_ja["塔下施工档案"], "塔のふもとの工事記録", "Japanese archive title should use natural grammar")
@@ -173,29 +177,44 @@ func _test_audited_localization_copy() -> void:
 
 
 func _test_english_reality_dialogue_uses_words() -> void:
-	var locale = LocaleScript.new()
-	locale.set_locale("en")
 	var game = StateScript.new()
 	game.new_run()
-	game.legacy_rules = [{"required_text": "哈吉米，必须补票", "tags": ["哈吉米"]}]
-	_assert_true(game.start_typed_reality_conversation("npc_1_npc0", "npc", "Latecomer"), "English reality conversation should start")
-	game.conversation_prompt = locale.translate(game.conversation_prompt)
-	game.conversation_result_line = locale.translate(game.conversation_result_line)
-	var localized_choices: Array = []
-	for choice in game.conversation_choices:
-		var localized_choice: Dictionary = (choice as Dictionary).duplicate(true)
-		localized_choice["summary"] = locale.translate(str(localized_choice.get("summary", "")))
-		localized_choice["sentence"] = locale.translate(str(localized_choice.get("sentence", "")))
-		localized_choices.append(localized_choice)
-	game.conversation_choices = localized_choices
-	game.configure_conversation_locale("en", [locale.translate("哈吉米，必须补票")])
-	var choice_id := str(game.conversation_choices[0].get("id", ""))
-	_assert_true(game.select_typed_reality_choice(choice_id), "localized English choice should enter typing")
-	_assert_true(game.get_typed_reality_unit_count() < game.conversation_clean_sentence.length(), "English typing should reveal words instead of individual letters")
-	var first_result: Dictionary = game.advance_typed_reality_character()
-	_assert_true(bool(first_result.get("advanced", false)), "one input should reveal one English word unit")
-	_assert_true(str(game.conversation_revealed_units[0].get("clean", "")).ends_with(" ") or game.get_typed_reality_unit_count() < 12, "the revealed English unit should be a complete word chunk")
-	_assert_true(game.conversation_clean_sentence.contains("Hajimi"), "localized legacy text should be inserted into the English sentence")
+	game.conversation_locale = "en"
+	game.notebook_tokens = [
+		_english_bridge_token("subject", "I", "subject", "this account", "the patient"),
+		_english_bridge_token("action", "remember", "action", "reposts", "reports"),
+		_english_bridge_token("object", "home", "object", "the home signal", "a recurring room"),
+	]
+	_assert_true(game.start_typed_reality_conversation("doctor_floor1", "doctor", "Doctor"), "English doctor dialogue should start")
+	game.configure_conversation_locale("en")
+	_assert_true(game.place_language_token("subject", "subject", "doctor"), "English subject should enter its slot")
+	_assert_true(game.place_language_token("action", "action", "doctor"), "English action should enter its slot")
+	_assert_true(game.place_language_token("object", "object", "doctor"), "English object should enter its slot")
+	var preview: Dictionary = game.get_language_sentence_preview("doctor")
+	_assert_eq(str(preview.get("clean_sentence", "")), "I remember home.", "English clean language should join whole words with spaces")
+	_assert_eq(str(preview.get("world_sentence", "")), "the patient reports a recurring room.", "English doctor language should use authored whole-word surfaces")
+	_assert_true(game.confirm_doctor_sentence(), "complete English doctor sentence should resolve")
+	_assert_true(not game.last_clean_sentence.contains("Hajimi"), "removed legacy text should never be injected into the sentence")
+
+
+func _english_bridge_token(
+	token_id: String,
+	text: String,
+	role: String,
+	phone_surface: String,
+	doctor_surface: String
+) -> Dictionary:
+	return {
+		"id": token_id,
+		"text": text,
+		"lexeme_id": "test.%s" % token_id,
+		"grammar_roles": [role],
+		"phone_surface": phone_surface,
+		"doctor_surface": doctor_surface,
+		"doll_surface": text,
+		"used_worlds": ["phone"],
+		"pollution_stage": 1,
+	}
 
 
 func _test_language_selection_and_settings_ui() -> void:

@@ -6,8 +6,17 @@ const SUPPORTED_LOCALES := ["zh", "ja", "en"]
 const CATALOG_PATHS := [
 	"res://scripts/localization/ui_catalog.gd",
 	"res://scripts/localization/state_catalog.gd",
+	"res://scripts/localization/language_bridge_catalog.gd",
 ]
 const JAPANESE_STANDALONE_PARTICLES := ["の", "に", "へ", "を", "が", "は", "で", "と"]
+const CHINESE_LEVEL_NAMES := ["第一层", "第二层", "第三层", "第四层"]
+const LEVEL_DISPLAY_SOURCE_PATTERNS := [
+	"^第\\s*([0-9]+)\\s*层(?:\\s*/\\s*[0-9]+)?$",
+	"^(?:FLOOR|LEVEL)\\s*([0-9]+)(?:\\s*/\\s*[0-9]+)?$",
+	"^(?:第\\s*)?([0-9]+)\\s*階(?:\\s*/\\s*[0-9]+)?$",
+	"^レベル\\s*([0-9]+)(?:\\s*/\\s*[0-9]+)?$",
+	"^塔层\\s*([0-9]+)(?:\\s*/\\s*[0-9]+)?$",
+]
 
 var current_locale := "zh"
 var language_selected := false
@@ -15,6 +24,10 @@ var preferences_path := PREFERENCES_PATH
 var _entries: Dictionary = {}
 var _compiled_templates: Array[Dictionary] = []
 var _compiled_patterns: Array[Dictionary] = []
+
+
+func _init() -> void:
+	_compile_patterns()
 
 
 func load_preferences(default_volume: float, default_vhs: bool) -> Dictionary:
@@ -85,8 +98,24 @@ func native_language_name(locale_code: String) -> String:
 			return "中文"
 
 
+func level_display_name(floor_number: int) -> String:
+	var clamped_floor := clampi(floor_number, 1, 4)
+	match normalize_locale(current_locale):
+		"en":
+			return "LEVEL %d" % clamped_floor
+		"ja":
+			return "レベル%d" % clamped_floor
+		_:
+			return CHINESE_LEVEL_NAMES[clamped_floor - 1]
+
+
 func translate(source: String) -> String:
-	if current_locale == "zh" or source.is_empty():
+	if source.is_empty():
+		return source
+	var canonical_level_name := _translate_level_display(source)
+	if not canonical_level_name.is_empty():
+		return canonical_level_name
+	if current_locale == "zh":
 		return source
 	if _entries.has(source):
 		return str(_entries[source])
@@ -103,8 +132,12 @@ func translate(source: String) -> String:
 		return str(template_data["translation"]) % arguments
 	for pattern_data in _compiled_patterns:
 		var regex := pattern_data["regex"] as RegEx
-		if regex.search(source) != null:
-			return regex.sub(source, str(pattern_data["replacement"]), true)
+		var pattern_match := regex.search(source)
+		if pattern_match == null:
+			continue
+		if bool(pattern_data.get("level_display", false)):
+			return level_display_name(int(pattern_match.get_string(1)))
+		return regex.sub(source, str(pattern_data["replacement"]), true)
 	if source.contains("\n"):
 		var localized_lines: Array[String] = []
 		for line in source.split("\n", true):
@@ -295,41 +328,62 @@ func _compile_patterns() -> void:
 		_compiled_patterns.append({
 			"regex": regex,
 			"replacement": str(pattern_data.get("replacement", "")),
+			"level_display": bool(pattern_data.get("level_display", false)),
 		})
 
 
+func _translate_level_display(source: String) -> String:
+	for pattern_data in _compiled_patterns:
+		if not bool(pattern_data.get("level_display", false)):
+			continue
+		var regex := pattern_data["regex"] as RegEx
+		var match_result := regex.search(source)
+		if match_result != null:
+			return level_display_name(int(match_result.get_string(1)))
+	return ""
+
+
+func _level_display_dynamic_patterns() -> Array[Dictionary]:
+	var result: Array[Dictionary] = []
+	for pattern in LEVEL_DISPLAY_SOURCE_PATTERNS:
+		result.append({"pattern": pattern, "level_display": true})
+	return result
+
+
 func _dynamic_patterns() -> Dictionary:
+	var zh_patterns: Array[Dictionary] = _level_display_dynamic_patterns()
+	var ja_patterns: Array[Dictionary] = _level_display_dynamic_patterns()
+	var en_patterns: Array[Dictionary] = _level_display_dynamic_patterns()
+	ja_patterns.append_array([
+		{"pattern": "^DAY ([0-9]+)$", "replacement": "DAY $1"},
+		{"pattern": "^污染 ([0-9]+)%$", "replacement": "汚染度 $1%"},
+		{"pattern": "^资金 ([0-9]+)$", "replacement": "資金 $1"},
+		{"pattern": "^下一门槛：([0-9]+)$", "replacement": "次の閾値：$1"},
+		{"pattern": "^持有 ([0-9]+)$", "replacement": "所持数 $1"},
+		{"pattern": "^已合成梗：([0-9]+)$", "replacement": "作成済みミーム：$1"},
+		{"pattern": "^污染：([0-9]+)%$", "replacement": "汚染度：$1%"},
+		{"pattern": "^任意键  ([0-9]+) / ([0-9]+)$", "replacement": "いずれかのキー  $1 / $2"},
+		{"pattern": "^([0-9]+) 资金$", "replacement": "$1 資金"},
+		{"pattern": "^梗库\\n([0-9]+)$", "replacement": "ミーム庫\\n$1"},
+		{"pattern": "^梗字「(.+)」$", "replacement": "単語ミーム「$1」"},
+		{"pattern": "^复合「(.+)」$", "replacement": "融合「$1」"},
+	])
+	en_patterns.append_array([
+		{"pattern": "^DAY ([0-9]+)$", "replacement": "DAY $1"},
+		{"pattern": "^污染 ([0-9]+)%$", "replacement": "CORRUPTION $1%"},
+		{"pattern": "^资金 ([0-9]+)$", "replacement": "FUNDS $1"},
+		{"pattern": "^下一门槛：([0-9]+)$", "replacement": "NEXT THRESHOLD: $1"},
+		{"pattern": "^持有 ([0-9]+)$", "replacement": "OWNED $1"},
+		{"pattern": "^已合成梗：([0-9]+)$", "replacement": "CRAFTED MEMES: $1"},
+		{"pattern": "^污染：([0-9]+)%$", "replacement": "CORRUPTION: $1%"},
+		{"pattern": "^任意键  ([0-9]+) / ([0-9]+)$", "replacement": "ANY KEY  $1 / $2"},
+		{"pattern": "^([0-9]+) 资金$", "replacement": "$1 FUNDS"},
+		{"pattern": "^梗库\\n([0-9]+)$", "replacement": "MEME BANK\\n$1"},
+		{"pattern": "^梗字「(.+)」$", "replacement": "WORD MEME \"$1\""},
+		{"pattern": "^复合「(.+)」$", "replacement": "FUSION \"$1\""},
+	])
 	return {
-		"ja": [
-			{"pattern": "^DAY ([0-9]+)$", "replacement": "DAY $1"},
-			{"pattern": "^污染 ([0-9]+)%$", "replacement": "汚染度 $1%"},
-			{"pattern": "^资金 ([0-9]+)$", "replacement": "資金 $1"},
-			{"pattern": "^第 ([0-9]+) 层 / ([0-9]+)$", "replacement": "$1階 / $2"},
-			{"pattern": "^塔层 ([0-9]+)/([0-9]+)$", "replacement": "階層 $1/$2"},
-			{"pattern": "^下一门槛：([0-9]+)$", "replacement": "次の閾値：$1"},
-			{"pattern": "^持有 ([0-9]+)$", "replacement": "所持数 $1"},
-			{"pattern": "^已合成梗：([0-9]+)$", "replacement": "作成済みミーム：$1"},
-			{"pattern": "^污染：([0-9]+)%$", "replacement": "汚染度：$1%"},
-			{"pattern": "^任意键  ([0-9]+) / ([0-9]+)$", "replacement": "いずれかのキー  $1 / $2"},
-			{"pattern": "^([0-9]+) 资金$", "replacement": "$1 資金"},
-			{"pattern": "^梗库\\n([0-9]+)$", "replacement": "ミーム庫\\n$1"},
-			{"pattern": "^梗字「(.+)」$", "replacement": "単語ミーム「$1」"},
-			{"pattern": "^复合「(.+)」$", "replacement": "融合「$1」"},
-		],
-		"en": [
-			{"pattern": "^DAY ([0-9]+)$", "replacement": "DAY $1"},
-			{"pattern": "^污染 ([0-9]+)%$", "replacement": "CORRUPTION $1%"},
-			{"pattern": "^资金 ([0-9]+)$", "replacement": "FUNDS $1"},
-			{"pattern": "^第 ([0-9]+) 层 / ([0-9]+)$", "replacement": "FLOOR $1 / $2"},
-			{"pattern": "^塔层 ([0-9]+)/([0-9]+)$", "replacement": "FLOOR $1/$2"},
-			{"pattern": "^下一门槛：([0-9]+)$", "replacement": "NEXT THRESHOLD: $1"},
-			{"pattern": "^持有 ([0-9]+)$", "replacement": "OWNED $1"},
-			{"pattern": "^已合成梗：([0-9]+)$", "replacement": "CRAFTED MEMES: $1"},
-			{"pattern": "^污染：([0-9]+)%$", "replacement": "CORRUPTION: $1%"},
-			{"pattern": "^任意键  ([0-9]+) / ([0-9]+)$", "replacement": "ANY KEY  $1 / $2"},
-			{"pattern": "^([0-9]+) 资金$", "replacement": "$1 FUNDS"},
-			{"pattern": "^梗库\\n([0-9]+)$", "replacement": "MEME BANK\\n$1"},
-			{"pattern": "^梗字「(.+)」$", "replacement": "WORD MEME \"$1\""},
-			{"pattern": "^复合「(.+)」$", "replacement": "FUSION \"$1\""},
-		],
+		"zh": zh_patterns,
+		"ja": ja_patterns,
+		"en": en_patterns,
 	}

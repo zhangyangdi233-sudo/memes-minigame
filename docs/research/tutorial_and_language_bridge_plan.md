@@ -62,3 +62,36 @@ TutorialDirector.replay(progress) -> Dictionary
 | `complete` | 无 | 终态 |
 
 `notify()` 只处理当前步骤期待的事件，忽略越序事件，也不修改传入字典。`payload.amount` 可一次累计多个同类事件，默认值为 1。进度只包含 JSON 可序列化数据；旧键名、非法步骤、负数计数和不连续完成记录由 `normalize_progress()` 归一化。`skip()` 进入终态但只保留真实完成步骤；`replay()` 清空步骤和计数并增加重播次数。所有方法都不接触行动数。
+
+## 两个世界的语言污染研究
+
+### 互动必须就是表达
+
+- *Florence* 把拖动和拼图直接当成角色表达的隐喻；团队强调故事感受应该来自交互本身，而不是一张图后面附着无关小游戏。因此本项目的三词拼句不是发布前的装饰操作，它就是玩家当次说话的过程。[Designing Florence to convey the ineffable feeling of being in love](https://www.gamedeveloper.com/audio/designing-i-florence-i-to-convey-the-ineffable-feeling-of-being-in-love)
+- *Signs of the Sojourner* 将玩家手上的对话牌理解为情绪状态和被他人理解的不完全控制，并让对话无论是否顺利都继续。本项目因此不将医生对话做成“答错重来”，而是保留玩家已经说出的句子和污染结果。[Creating conversations from card game mechanics in Signs of the Sojourner](https://www.gamedeveloper.com/design/creating-conversations-from-card-game-mechanics-in-i-signs-of-the-sojourner-i-)
+- *Heaven's Vault* 的语言推理让词的意义在多个上下文中逐渐稳定，而不是每次随机改义。这支持了“稳定 lexeme ID + 作者预写世界表面”的实现：玩家能认出这还是同一个词，却无法确定哪个世界的释义才是原义。[How Inkle developed its own ancient language for Heaven's Vault](https://www.gamedeveloper.com/design/how-inkle-developed-its-own-ancient-language-for-i-heaven-s-vault-i-)
+- Godot `Control` 的拖放 API 提供 `_get_drag_data()`、`_can_drop_data()` 和 `_drop_data()`；项目同时保留“点词后点槽位”的同等路径，使触摸板、触摸屏和无精确拖拽环境都能完成句子。[Godot Control documentation](https://docs.godotengine.org/en/stable/classes/class_control.html)
+
+### 开源技术线比较
+
+| 项目 | 能提供什么 | 优点 | 不直接接入的原因 |
+| --- | --- | --- | --- |
+| [ink](https://github.com/inkle/ink) | 可标记、分支、条件和外部函数的互动文本运行时 | 撰写和变体组织成熟，MIT，适合以后管理大量对话 | 本项目已有 GDScript 存档、三语目录和 UI 渲染；现在接入会制造第二个状态权威，且不解决拖放和词语世界状态 |
+| [Dialogue Manager](https://github.com/nathanhoad/godot_dialogue_manager) | Godot 4 中的条件对话、mutation 与本地化 | 对话层保持无状态，可与游戏状态分离 | 当前瓶颈是词的身份、句法槽和跨世界记录，不是对话文件播放 |
+| [Godot State Charts](https://github.com/derkork/godot-statecharts) | 层级/并行状态、守卫、延迟转移与调试 | 若以后同时有多条语言学习线，能避免 FSM 状态爆炸 | 当前教程和三槽句子是严格线性，一个纯函数导演足够；插件会增加编辑器依赖 |
+| [Questify](https://github.com/TheWalruzz/godot-questify) | 图形化任务、条件查询、信号和序列化 | 适合未来有大量并行可选目标 | 它的任务清单模型会把隐藏第四层变成可见 checklist，与正式版叙事目标冲突 |
+
+### 实施的语言桥契约
+
+1. 每个可拾取词使用稳定 `lexeme_id`，并带有一个固定句法角色：`subject`、`action`、`object`。
+2. 每个 lexeme 可有 `phone_surface`、`doctor_surface`、`doll_surface`；不做随机同义词替换，关键词变体全部由作者预写。
+3. 点击帖子拾词消耗行动，但不增加污染；词被确认组成完整句并发布后，才记录 `used_worlds.phone` 并增加污染。
+4. 医生世界只接受已经在手机世界发布过的词。同一组 ID 以 `doctor_surface` 显示，让玩家看见“是同一个词，但已被另一套语言系统重新命名”。
+5. 确认医生句子后记录原词、手机句、医生句、理解度和污染阶段，而不输出胜负。
+6. 旧“遗产规则”不再参与新局、升层或医生句槽。存档迁移只忽略旧字段，不把旧梗强行塞进玩家新句子。
+
+## 测试阶段与正式版的信息边界
+
+`OS.is_debug_build()` 或 `BABEL_PLAYTEST_ASSIST=1` 时，场景可显示小型荧光 `TEST` 标记、当层关键 NPC 状态、已显形前置物位置与 `3/3 + 80%` 测试条件。当该开关关闭时，正式玩家只能看到布偶和 NPC 的世界内提示，不显示隐藏第四层的数量或污染阈值。
+
+世界标记定为 `14px` 字号和 `3px` 轮廓；它们始终面向镜头，但不应覆盖角色或大面积道路。测试中还通过场景截图和 `font_size <= 16` 回归断言锁定这个上限。

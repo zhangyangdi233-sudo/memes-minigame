@@ -29,6 +29,7 @@ func _run_async() -> void:
 	_test_phone_apps(game_root)
 	_test_social_feed(game_root)
 	_test_physical_doll_entry(game_root)
+	_test_language_and_playtest_contract(game_root)
 
 	game_root.queue_free()
 	await process_frame
@@ -118,7 +119,11 @@ func _test_phone_apps(game_root: Node) -> void:
 	_assert_true(_find_node_by_name(game_root, "SocialAppWindow") is Control, "social app should own a separate window")
 	_assert_true(_find_node_by_name(game_root, "NotebookAppWindow") is Control, "notebook app should own a separate window")
 	_assert_true(_find_node_by_name(game_root, "ShopAppWindow") == null, "removed shop window should not be constructed")
-	_assert_true(_find_node_by_name(game_root, "NotebookDollFrameHint") is Label, "notebook should name the physical doll as the frame source")
+	_assert_true(_find_node_by_name(game_root, "NotebookSentenceHeader") is Control, "notebook should explain complete sentence composition")
+	_assert_true(_find_node_by_name(game_root, "NotebookSentenceSlotSubject") is Button, "notebook should expose a subject slot")
+	_assert_true(_find_node_by_name(game_root, "NotebookSentenceSlotAction") is Button, "notebook should expose an action slot")
+	_assert_true(_find_node_by_name(game_root, "NotebookSentenceSlotObject") is Button, "notebook should expose an object slot")
+	_assert_true(_find_node_by_name(game_root, "NotebookCraftButton") is Button, "notebook should expose one sentence confirmation command")
 
 
 func _test_social_feed(game_root: Node) -> void:
@@ -157,6 +162,34 @@ func _test_physical_doll_entry(game_root: Node) -> void:
 	_assert_eq(game_root.game.conversation_actor_type, "doll", "doll should use its own conversation type")
 	_assert_eq(game_root.game.get_typed_reality_choices().size(), 3, "doll encounter should offer three authored intentions")
 	game_root._exit_reality_interaction()
+
+
+func _test_language_and_playtest_contract(game_root: Node) -> void:
+	_assert_true(_find_node_by_name(game_root, "RealityLanguagePuzzleFrame") is Control, "doctor conversations should own a language puzzle frame")
+	_assert_true(_find_node_by_name(game_root, "RealityLanguageTokenFlow") is Control, "doctor puzzle should expose published-word tokens")
+	var doctor := _find_actor_by_type(game_root, "doctor")
+	_assert_true(doctor != null, "each ordinary level should expose one doctor using the existing NPC budget")
+	if doctor != null:
+		game_root._reality_player.position = doctor.position + Vector3(0.0, 0.0, 1.35)
+		game_root._refresh_nearby_reality_actor()
+		_assert_true(game_root._try_reality_interaction(), "approaching the doctor should open the language puzzle")
+	_assert_true(_find_node_by_name(game_root, "RealityLanguageSlotSubject") is Button, "doctor puzzle should expose a subject slot")
+	_assert_true(_find_node_by_name(game_root, "RealityLanguageSlotAction") is Button, "doctor puzzle should expose an action slot")
+	_assert_true(_find_node_by_name(game_root, "RealityLanguageSlotObject") is Button, "doctor puzzle should expose an object slot")
+	_assert_true(_find_node_by_name(game_root, "RealityLanguageConfirm") is Button, "doctor puzzle should expose one speak command")
+	var assist_panel := _find_node_by_name(game_root, "PlaytestAssistPanel") as Control
+	var assist_label := _find_node_by_name(game_root, "PlaytestAssistLabel") as Label
+	_assert_true(assist_panel != null and assist_label != null, "debug builds should expose the explicit playtest route panel")
+	if assist_label != null:
+		_assert_true(assist_label.text.contains("测试提示"), "playtest panel should state the current tutorial action plainly")
+	var guide := _find_actor_by_type(game_root, "doll")
+	var key_npc := _find_actor_by_type(game_root, "key_npc")
+	_assert_true(guide != null and guide.get_node_or_null("PlaytestMarker") is Label3D, "guide should have a debug-only world marker")
+	_assert_true(key_npc != null and key_npc.get_node_or_null("PlaytestMarker") is Label3D, "key NPC should have a debug-only world marker")
+	_assert_true(doctor != null and doctor.get_node_or_null("PlaytestMarker") is Label3D, "doctor should have a debug-only world marker")
+	if guide != null:
+		var marker := guide.get_node_or_null("PlaytestMarker") as Label3D
+		_assert_true(marker != null and marker.font_size <= 16, "playtest labels should remain compact enough to reveal the world and actor")
 
 
 func _find_actor_by_type(game_root: Node, actor_type: String) -> Area3D:
